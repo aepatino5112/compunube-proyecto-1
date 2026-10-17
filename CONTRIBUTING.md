@@ -4,6 +4,8 @@
 
 Usamos **Fast Deployment** para entrega frecuente y **Kanban** para flujo de trabajo.
 
+La política operativa completa —columnas, límites WIP, criterios de entrada/salida, bloqueantes, integración y despliegue— está en [docs/project-management/fast-deployment-kanban.md](docs/project-management/fast-deployment-kanban.md).
+
 ## Ramas
 
 - `feature/<descripcion>`
@@ -24,6 +26,14 @@ Debe:
 - actualizar docs si cambia contrato, arquitectura o despliegue.
 
 Antes de mergear, revisar los checks de GitHub Actions. La estrategia y responsabilidades de cada workflow están documentadas en [docs/ci-cd.md](docs/ci-cd.md).
+
+## Flujo Kanban
+
+```text
+Backlog -> To Do -> In Progress -> Review -> Testing -> Done
+```
+
+Límites WIP del equipo: To Do 6, In Progress 4, Review 3 y Testing 2. Antes de abrir trabajo nuevo se prioriza terminar, revisar o probar trabajo existente.
 
 ## Definition of Done técnica
 
