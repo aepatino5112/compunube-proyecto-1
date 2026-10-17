@@ -25,6 +25,8 @@ Debe:
 - actualizar pruebas cuando aplique;
 - actualizar docs si cambia contrato, arquitectura o despliegue.
 
+Antes de abrir o actualizar un PR, ejecutar `make quality` cuando las toolchains locales estén disponibles. Si una herramienta no está instalada, ejecutar al menos los targets del componente modificado y usar los checks de GitHub Actions como evidencia reproducible.
+
 Antes de mergear, revisar los checks de GitHub Actions. La estrategia y responsabilidades de cada workflow están documentadas en [docs/ci-cd.md](docs/ci-cd.md).
 
 ## Flujo Kanban
