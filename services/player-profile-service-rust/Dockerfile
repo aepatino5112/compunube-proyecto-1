@@ -2,8 +2,9 @@ FROM rust:1.99-bookworm AS build
 
 WORKDIR /src
 COPY services/player-profile-service-rust/Cargo.toml ./
+COPY services/player-profile-service-rust/Cargo.lock ./
 COPY services/player-profile-service-rust/src ./src
-RUN cargo build --release
+RUN cargo build --locked --release
 
 FROM debian:bookworm-slim
 

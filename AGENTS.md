@@ -6,10 +6,17 @@ Reglas para cualquier agente de IA que modifique este repositorio.
 
 1. Leer `README.md`.
 2. Leer `ARCHITECTURE.md`.
-3. Revisar ADRs en `docs/adr/`.
-4. Si se modifica CI/CD, Compose, deployment o workflows, leer `docs/ci-cd.md`.
-5. Mantener los límites de ownership.
-6. No agregar tecnologías o patrones sin un problema concreto que los justifique.
+3. Leer `docs/roadmap.md` para entender la secuencia técnica.
+4. Revisar ADRs en `docs/adr/`.
+5. Si se modifica CI/CD, Compose, deployment o workflows, leer `docs/ci-cd.md`.
+6. Mantener los límites de ownership.
+7. No agregar tecnologías o patrones sin un problema concreto que los justifique.
+
+## Planificación
+
+Trello es la fuente operativa de tareas, responsables, prioridades y estado Kanban.
+
+`docs/roadmap.md` es una vista de hitos técnicos, no un segundo backlog. No duplicar tarjetas de Trello como listas de tareas del repositorio.
 
 ## Ownership
 
@@ -36,6 +43,7 @@ Reglas para cualquier agente de IA que modifique este repositorio.
 - `apps/client-secondary/`
 - frontend/UX;
 - Game Design;
+- assets e identidad visual;
 - adaptación del prototipo al modo online.
 
 ## Reglas arquitectónicas
@@ -104,6 +112,8 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 ```
 
+`Cargo.lock` se versiona.
+
 ### Infra
 
 ```bash
@@ -121,6 +131,7 @@ No asumir que existe CD automático al laboratorio hasta que ese documento indiq
 - No trabajar directamente sobre `main`.
 - Ramas cortas: `feature/*`, `fix/*`, `docs/*`, `chore/*`.
 - PRs pequeños.
+- `main` está protegida mediante ruleset.
 - Actualizar docs cuando cambie arquitectura, contrato o despliegue.
 
 ## No hacer
