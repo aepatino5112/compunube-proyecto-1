@@ -1,4 +1,4 @@
-FROM rust:1.82-bookworm AS build
+FROM rust:1.99-bookworm AS build
 
 WORKDIR /src
 COPY services/player-profile-service-rust/Cargo.toml ./
@@ -7,7 +7,9 @@ RUN cargo build --release
 
 FROM debian:bookworm-slim
 
-RUN apt-get update     && apt-get install -y --no-install-recommends ca-certificates netcat-openbsd     && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin app
 USER app
