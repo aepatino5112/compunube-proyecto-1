@@ -70,10 +70,10 @@ Smoke test del stack:
 1. prepara `.env`;
 2. valida Compose;
 3. ejecuta `docker compose up -d --build --wait`;
-4. comprueba Go;
-5. comprueba Envoy;
-6. comprueba Prometheus;
-7. comprueba Grafana;
+4. comprueba que PostgreSQL creó los schemas `match` y `player`;
+5. comprueba que las dos réplicas Rust están saludables y usan la misma imagen;
+6. comprueba Go y los dos upstreams saludables de Envoy mediante gRPC Health;
+7. comprueba Prometheus y Grafana;
 8. muestra el estado del stack;
 9. destruye contenedores y volúmenes al terminar.
 
