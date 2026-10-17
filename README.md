@@ -27,6 +27,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Diseño de las tres R y decisión de Reducir (B14)](docs/product/three-r-design.md)
 - [Agua como objetivo compartido de carrera (B15)](docs/product/water-objective.md)
 - [Reglas autoritativas de carrera y clasificación (B16)](docs/product/authoritative-race-rules.md)
+- [Ciclo de sala y participación multijugador (B17)](docs/product/multiplayer-room-lifecycle.md)
 - [Fast Deployment + Kanban](docs/project-management/fast-deployment-kanban.md)
 - [CI/CD](docs/ci-cd.md)
 - [Contribución y flujo Git](CONTRIBUTING.md)
