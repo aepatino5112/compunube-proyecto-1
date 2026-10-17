@@ -8,7 +8,7 @@ Esta especificación es entrada para C25, D26–D29, E38–E43 e I70–I73. Desc
 
 Cada requisito indica **tipo/origen**, enunciado, criterio, prueba, responsable, evidencia y dependencias. «C22 confirmado» significa criterio de la tarjeta C22 reproducido en el handoff, no cifra impuesta por el profesor. «Arquitectura aceptada» remite a [AGENTS.md](../../AGENTS.md), [ARCHITECTURE.md](../../ARCHITECTURE.md) y [ADR 0001](../adr/0001-service-boundaries.md). **Todo umbral numérico nuevo se marca «Objetivo interno propuesto — pendiente de aprobación»**. Al cambiar un umbral se conserva el ID y se registra la decisión; un cambio de significado recibe otro ID.
 
-Las mediciones propuestas usan `docker compose` en hardware equivalente al laboratorio, registrando CPU, RAM, versión, cantidad de clientes y RTT. Percentiles: al menos 1 000 muestras; fallos: tres repeticiones, salvo cuando el requisito indique otra cantidad. Si el laboratorio no soporta un objetivo propuesto, el equipo lo revisa antes de aprobarlo.
+Las mediciones propuestas usan `docker compose` en hardware equivalente al laboratorio, registrando CPU, RAM, versión, cantidad de clientes y RTT. Las pruebas de capacidad pueden usar **clientes sintéticos/conexiones simuladas mediante un generador de carga**; esto no modifica la topología física del laboratorio ni el máximo de participantes humanos por sala que defina B17. Percentiles: al menos 1 000 muestras; fallos: tres repeticiones, salvo cuando el requisito indique otra cantidad. Si el laboratorio no soporta un objetivo propuesto, el equipo lo revisa antes de aprobarlo.
 
 ## Concurrencia y capacidad
 
@@ -31,16 +31,16 @@ Las mediciones propuestas usan `docker compose` en hardware equivalente al labor
 ### NFR-CAP-001 — Carga de referencia
 
 - **Tipo/origen:** Objetivo interno propuesto — pendiente de aprobación.
-- **Enunciado/criterio:** sostener **20 clientes en 5 partidas durante 10 min** sin caída, deadlock ni partida sin progreso; informar p50/p95 de latencia, errores, CPU y memoria.
-- **Prueba:** generador de clientes que envían intención y consumen snapshots; tres ejecuciones documentadas.
+- **Enunciado/criterio:** sostener **20 clientes sintéticos en 5 partidas simuladas durante 10 min** sin caída, deadlock ni partida sin progreso; informar p50/p95 de latencia, errores, CPU y memoria. Este objetivo es una prueba de capacidad del backend y **no implica 20 equipos físicos ni cambia el máximo de jugadores humanos por sala**.
+- **Prueba:** generador de carga que simula clientes/conexiones, envía intención y consume snapshots; tres ejecuciones documentadas.
 - **Responsable/evidencia:** Go e infraestructura; configuración, series de recursos y reporte de I72.
 - **Dependencias:** B17, F50–F53, H67–H69, I72; recalibrar tras A05.
 
 ### NFR-CAP-002 — Backpressure
 
 - **Tipo/origen:** Objetivo interno propuesto — pendiente de aprobación.
-- **Enunciado/criterio:** límites configurables de conexiones, partidas y colas; al aplicar **2 veces** NFR-CAP-001 durante **5 min**, memoria RSS de Go ≤ **512 MiB**, rechazos contabilizados y partidas admitidas en progreso.
-- **Prueba:** subir carga e incluir consumidores lentos; medir RSS, colas, rechazos y progreso.
+- **Enunciado/criterio:** límites configurables de conexiones, partidas y colas; al aplicar mediante **carga sintética** **2 veces** NFR-CAP-001 durante **5 min**, memoria RSS de Go ≤ **512 MiB**, rechazos contabilizados y partidas admitidas en progreso.
+- **Prueba:** aumentar la carga con clientes simulados e incluir consumidores lentos; medir RSS, colas, rechazos y progreso. La prueba no requiere 40 clientes físicos.
 - **Responsable/evidencia:** Go; configuración de límites y series de saturación.
 - **Dependencias:** E39, F51, H67–H69, I72; tamaño final de mensajes depende de E43.
 
