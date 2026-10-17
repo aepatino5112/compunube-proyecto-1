@@ -1,7 +1,7 @@
 use std::{env, net::SocketAddr};
 
 use tonic::transport::Server;
-use tonic_health::pb::health_check_response::ServingStatus;
+use tonic_health::ServingStatus;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
