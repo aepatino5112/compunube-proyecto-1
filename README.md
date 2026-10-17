@@ -19,6 +19,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Arquitectura](ARCHITECTURE.md)
 - [Roadmap técnico](docs/roadmap.md)
 - [Línea base funcional del frontend (B08)](docs/product/frontend-baseline.md)
+- [Decisiones de producto multijugador (B09)](docs/product/multiplayer-decisions.md)
 - [Fast Deployment + Kanban](docs/project-management/fast-deployment-kanban.md)
 - [CI/CD](docs/ci-cd.md)
 - [Contribución y flujo Git](CONTRIBUTING.md)
