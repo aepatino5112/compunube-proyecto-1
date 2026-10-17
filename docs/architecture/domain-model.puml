@@ -1,0 +1,149 @@
+@startuml
+title C25 — Dominios de carrera viva y perfil persistente
+skinparam backgroundColor #FFFFFF
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+left to right direction
+
+package "Go Match Service\n«runtime efímero, autoridad de carrera»" #E6F2FF {
+  class Room <<aggregate>> {
+    roomId
+    mapId
+    lifecycle / ready / countdown
+  }
+  class RoomMember <<entity>> {
+    playerId
+    ready
+    reduceChoice
+  }
+  class ActivePlayer <<entity>> {
+    playerId
+    connectionStatus
+  }
+  class Race <<aggregate>> {
+    raceId
+    rulesVersion / courseVersion
+    clock / globalDeadline
+  }
+  class RaceParticipant <<entity>> {
+    playerId
+    position / progress / lives
+    energy / protection / octopus
+    collected / terminalState / times
+  }
+  class RaceInput <<value>> {
+    sequence
+    steer / boost / jumpSeq
+  }
+  class InputState <<value>> {
+    latestValidIntent
+    consumedSequences
+  }
+  class CourseManifest <<value>> {
+    mapId / courseVersion
+    obstacles / pickups / finish
+  }
+  class PickupState <<entity>> {
+    pickupId
+    available / collectedBy
+  }
+  class ReconnectLease <<entity>> {
+    playerId / expiresAt
+  }
+  class ConnectionBinding <<entity>> {
+    playerId / sessionRef
+  }
+  class RaceResult <<immutable result>> {
+    raceId
+  }
+  class ParticipantResult <<immutable result>> {
+    playerId / outcome / rank
+    collected / credited
+  }
+  interface PlayerProfilePort {
+    loadProfile(playerId)
+    requestSettlement(result)
+  }
+  Room "1" o-- "0..4" RoomMember
+  RoomMember --> ActivePlayer
+  Room "1" o-- "0..1" Race
+  Race "1" o-- "2..4" RaceParticipant
+  RaceParticipant --> InputState
+  RaceInput ..> InputState : valid intent
+  Race --> CourseManifest
+  CourseManifest "1" o-- "*" PickupState
+  RaceParticipant --> ReconnectLease
+  ReconnectLease --> ConnectionBinding : rebinds
+  Race --> RaceResult : computes
+  RaceResult "1" o-- "2..4" ParticipantResult
+  RaceResult ..> PlayerProfilePort : server request
+}
+
+package "Rust Player/Profile Service\n«agregados persistentes»" #EAF7E7 {
+  class PlayerProfile <<aggregate>> {
+    playerId
+    appearance / profileRevision
+  }
+  class Inventory <<entity>> {
+    coins / plastic / metal
+  }
+  class Catalog <<aggregate>> {
+    catalogVersion
+  }
+  class CatalogItem <<entity>> {
+    itemId / price / recipe
+  }
+  class OwnedItem <<entity>> {
+    itemId / ownership
+  }
+  class EquipmentSelection <<entity>> {
+    selectedItemIds
+  }
+  abstract class EconomicOperation <<transaction>> {
+    requestId / status
+  }
+  class Purchase
+  class Exchange
+  class Craft
+  class Settlement <<idempotent transaction>> {
+    raceId / playerId
+    applied / credited
+  }
+  class ProfileRevision <<value>> {
+    revision
+  }
+  class IdempotencyRequest <<value>> {
+    requestId
+  }
+  PlayerProfile "1" *-- "1" Inventory
+  PlayerProfile "1" o-- "*" OwnedItem
+  PlayerProfile "1" o-- "1" EquipmentSelection
+  PlayerProfile --> ProfileRevision
+  Catalog "1" o-- "*" CatalogItem
+  OwnedItem ..> CatalogItem : identifies
+  EconomicOperation <|-- Purchase
+  EconomicOperation <|-- Exchange
+  EconomicOperation <|-- Craft
+  EconomicOperation --> IdempotencyRequest
+  EconomicOperation ..> Inventory : atomic update
+  Settlement ..> PlayerProfile : credits once
+}
+
+interface "gRPC / Protobuf adapter\n(via Envoy; draft until E43)" as GrpcAdapter
+class "PostgreSQL\nlogical match ownership: Go\nlogical player ownership: Rust" as Pg <<persistence>>
+PlayerProfilePort ..> GrpcAdapter : implementation
+GrpcAdapter ..> PlayerProfile : profile
+GrpcAdapter ..> Settlement : result from Go
+ParticipantResult ..> Settlement : conceptual key (raceId, playerId)
+RaceResult ..> Pg : match context, if persisted
+PlayerProfile ..> Pg : player context
+
+note bottom of ActivePlayer
+playerId is stable identity;
+cosmetics and displayName are not identity.
+end note
+note bottom of Settlement
+No ranking or pickup recalculation.
+SQL constraints belong to E41.
+end note
+@enduml
