@@ -1,0 +1,33 @@
+name: CI Rust
+
+on:
+  pull_request:
+    paths:
+      - "services/player-profile-service-rust/**"
+      - ".github/workflows/ci-rust.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/player-profile-service-rust/**"
+      - ".github/workflows/ci-rust.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/player-profile-service-rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Test
+        run: cargo test

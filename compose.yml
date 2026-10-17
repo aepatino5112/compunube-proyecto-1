@@ -1,0 +1,139 @@
+name: compunube-proyecto-1
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-compunube}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compunube_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-compunube}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-compunube} -d ${POSTGRES_DB:-compunube}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  player-profile-rust-1:
+    build:
+      context: .
+      dockerfile: services/player-profile-service-rust/Dockerfile
+    environment:
+      SERVICE_ADDR: 0.0.0.0:50051
+      INSTANCE_ID: rust-1
+      DATABASE_URL: postgres://${POSTGRES_USER:-compunube}:${POSTGRES_PASSWORD:-compunube_dev}@postgres:5432/${POSTGRES_DB:-compunube}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "50051"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+    restart: unless-stopped
+
+  player-profile-rust-2:
+    build:
+      context: .
+      dockerfile: services/player-profile-service-rust/Dockerfile
+    environment:
+      SERVICE_ADDR: 0.0.0.0:50051
+      INSTANCE_ID: rust-2
+      DATABASE_URL: postgres://${POSTGRES_USER:-compunube}:${POSTGRES_PASSWORD:-compunube_dev}@postgres:5432/${POSTGRES_DB:-compunube}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "50051"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+    restart: unless-stopped
+
+  envoy:
+    image: envoyproxy/envoy:v1.31-latest
+    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--service-cluster", "player-profile-ambassador"]
+    volumes:
+      - ./infra/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "${ENVOY_GRPC_PORT:-50051}:50051"
+      - "${ENVOY_ADMIN_PORT:-9901}:9901"
+    depends_on:
+      player-profile-rust-1:
+        condition: service_healthy
+      player-profile-rust-2:
+        condition: service_healthy
+    restart: unless-stopped
+
+  match-service-go:
+    build:
+      context: .
+      dockerfile: services/match-service-go/Dockerfile
+    environment:
+      HTTP_ADDR: 0.0.0.0:8080
+      PLAYER_PROFILE_GRPC_ADDR: envoy:50051
+      DATABASE_URL: postgres://${POSTGRES_USER:-compunube}:${POSTGRES_PASSWORD:-compunube_dev}@postgres:5432/${POSTGRES_DB:-compunube}
+    ports:
+      - "${GO_HTTP_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      envoy:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+    restart: unless-stopped
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-compunube}:${POSTGRES_PASSWORD:-compunube_dev}@postgres:5432/${POSTGRES_DB:-compunube}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      match-service-go:
+        condition: service_healthy
+      envoy:
+        condition: service_started
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  grafana-data:

@@ -1,0 +1,34 @@
+name: CI Infrastructure
+
+on:
+  pull_request:
+    paths:
+      - "compose.yml"
+      - ".env.example"
+      - "infra/**"
+      - "database/**"
+      - "services/**/Dockerfile"
+      - ".github/workflows/ci-infra.yml"
+  push:
+    branches: [main]
+    paths:
+      - "compose.yml"
+      - ".env.example"
+      - "infra/**"
+      - "database/**"
+      - "services/**/Dockerfile"
+      - ".github/workflows/ci-infra.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        run: docker compose config
+      - name: Validate Envoy configuration
+        run: |
+          docker run --rm             -v "$PWD/infra/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro"             envoyproxy/envoy:v1.31-latest             envoy --mode validate -c /etc/envoy/envoy.yaml

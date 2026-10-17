@@ -1,0 +1,64 @@
+static_resources:
+  listeners:
+    - name: player_profile_grpc_listener
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 50051
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: player_profile_grpc
+                codec_type: AUTO
+                route_config:
+                  name: player_profile_routes
+                  virtual_hosts:
+                    - name: player_profile
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: player_profile_cluster
+                            timeout: 3s
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: player_profile_cluster
+      connect_timeout: 1s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      http2_protocol_options: {}
+      load_assignment:
+        cluster_name: player_profile_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: player-profile-rust-1
+                      port_value: 50051
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: player-profile-rust-2
+                      port_value: 50051
+      health_checks:
+        - timeout: 1s
+          interval: 3s
+          unhealthy_threshold: 2
+          healthy_threshold: 1
+          grpc_health_check:
+            service_name: player_profile
+
+admin:
+  access_log_path: /tmp/admin_access.log
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
