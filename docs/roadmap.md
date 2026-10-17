@@ -17,8 +17,9 @@ No se usan Sprints. El flujo sigue **Fast Deployment + Kanban**: trabajo pequeñ
 ## Estado de partida
 
 - **A02, A04 y A06** están en Done.
-- **A07** está en In Progress, pero depende de **A05 + A06**. A06 ya está cerrada; **A05 sigue pendiente**, por lo que A07 no debe cerrarse hasta auditar el laboratorio.
+- **A07** queda cerrada con evidencia reproducible de CI/Compose y validación del entorno de desarrollo. **A05 es una auditoría independiente del laboratorio físico** y no bloquea el desarrollo normal.
 - **B09 y B10** están en To Do, pero ambas dependen de **B08**. La prioridad inmediata de Ralph y Santiago es cerrar B08 antes de tomar esas decisiones como definitivas.
+- **A05 no debe aparecer como dependencia de tareas de desarrollo o integración lógica**. Solo bloquea trabajo que necesita la infraestructura física real, como D31, H66 y el ensayo final.
 - El repositorio ya contiene una base de Docker/Compose/CI/monitoring. Por eso tareas como **H62-H65** pueden estar parcialmente adelantadas, pero deben auditarse contra sus criterios antes de moverlas a Done.
 
 ## Rutas críticas
@@ -62,10 +63,10 @@ D28 + D29 + E43 + F46 + F47
                 v
                J77
                 |
-A07 + D31 + E41 + E43 + J77
-                |
-                v
-               E44
+A07 + E41 + E43 + J77
+             |
+             v
+            E44
 ```
 
 **E44** es el primer hito integrado que debe demostrar cliente → Go → Envoy/gRPC → Rust → PostgreSQL → respuesta.
@@ -101,9 +102,9 @@ Objetivo: cerrar las condiciones mínimas para que frontend y backend trabajen s
 
 **Ángel**
 - A01 — consolidar requisitos y decisiones abiertas.
-- A05 — auditar máquinas y red del laboratorio.
-- A07 — terminar validación de entornos cuando A05 esté resuelta.
-- A03 — formalizar reglas Kanban/Fast Deployment si aún no están completamente documentadas.
+- A07 — validar el entorno reproducible de desarrollo/integración.
+- A03 — formalizar reglas Kanban/Fast Deployment.
+- A05 — auditar máquinas y red del laboratorio cuando exista acceso; **no bloquea el desarrollo**.
 
 **Ricardo**
 - apoyar A01/A05 donde afecte Rust/red;
@@ -113,7 +114,7 @@ Objetivo: cerrar las condiciones mínimas para que frontend y backend trabajen s
 - B08 — auditar el prototipo y baseline real.
 - D30 puede cerrarse apenas A01 + B08 estén listos.
 
-**Gate de salida:** A01, A05, A07 y B08 cerradas; lenguaje/estrategia de clientes encaminada.
+**Gate de salida:** A01, A07 y B08 cerradas; lenguaje/estrategia de clientes encaminada. A05 queda como pista paralela de laboratorio.
 
 ### Oleada 1 — Congelar producto, gameplay y requisitos
 
@@ -152,8 +153,8 @@ En paralelo, Ángel cierra C22. Después:
 
 **Ángel**
 - D28 cuando D27 + B17 + C22 estén cerradas.
-- D31 cuando A05 + D27 estén cerradas.
-- E38/E39/E40.
+- D31 cuando A05 + D27 estén cerradas; es trabajo específico del laboratorio y puede diferirse.
+- E38/E39/E40; E40 no depende de D31 porque los health checks se diseñan a nivel lógico/servicio.
 - E43 cuando D27 + B17 + C25 estén cerradas.
 - E45 después de D27 + E43.
 
@@ -161,7 +162,7 @@ En paralelo, Ángel cierra C22. Después:
 - D35 después de B16 + B17.
 - D30 si todavía no está cerrada.
 
-**Gate de salida:** D27, D28, D29, D31, E41, E43 cerradas. Con esto ya se pueden implementar servicios sin redefinir fronteras.
+**Gate de salida:** D27, D28, D29, E41 y E43 cerradas. D31 puede completarse después, antes del despliegue físico.
 
 ### Oleada 3 — Servicios base y primer vertical slice
 
@@ -247,7 +248,7 @@ En esta oleada **no se agregan features nuevas** salvo correcciones críticas.
 Ruta principal:
 
 ```text
-A01 -> A05 -> A07
+A01 -> A07
   |
   +-> C22 -> C24/C25
             |
@@ -324,7 +325,7 @@ Requisitos base, gestión, laboratorio, repositorio y entorno de desarrollo.
 | **A04** | Crear y mantener registro de riesgos | P0 | Ángel Patiño | ✅ Done | A01 |
 | **A05** | Auditar computadoras y red del laboratorio | P0 | Ángel Patiño | ⬜ Backlog | A01 |
 | **A06** | Crear repositorio y flujo Git | P1 | Ángel Patiño | ✅ Done | Ninguna |
-| **A07** | Validar entorno de desarrollo del equipo | P0 | Ángel Patiño | 🚧 In Progress | A05, A06 |
+| **A07** | Validar entorno de desarrollo del equipo | P0 | Ángel Patiño | ✅ Done | A06 |
 
 ### B — Game Design y definición del producto
 
@@ -385,11 +386,11 @@ Patrones cloud-native, PostgreSQL, contratos y primera integración vertical.
 | **E37** | Seleccionar y justificar mínimo cinco patrones cloud-native | P0 | Ángel Patiño y Ricardo Beltrán | ⬜ Backlog | E36, D27 |
 | **E38** | Diseñar resiliencia, failover y modo degradado | P0 | Ángel Patiño | ⬜ Backlog | E37, D28, D29 |
 | **E39** | Diseñar aislamiento de recursos y Bulkhead | P1 | Ángel Patiño | ⬜ Backlog | E37, D28 |
-| **E40** | Diseñar health checks por servicio e instancia | P0 | Ángel Patiño | ⬜ Backlog | E37, D31 |
+| **E40** | Diseñar health checks por servicio e instancia | P0 | Ángel Patiño | ⬜ Backlog | E37, D28, D29 |
 | **E41** | Diseñar esquema PostgreSQL y ownership de datos | P0 | Ángel Patiño | ⬜ Backlog | C25, D27 |
 | **E42** | Definir migraciones, seeds y recuperación de PostgreSQL | P1 | Ángel Patiño | ⬜ Backlog | E41 |
 | **E43** | Cerrar contratos de red: realtime público + gRPC interno | P0 | Ángel Patiño | ⬜ Backlog | D27, B17, C25 |
-| **E44** | Realizar PoC frontend → Go → Rust → PostgreSQL | P0 | Ángel Patiño y Ricardo Beltrán | ⬜ Backlog | A07, D31, E41, E43, J77 |
+| **E44** | Realizar PoC frontend → Go → Rust → PostgreSQL | P0 | Ángel Patiño y Ricardo Beltrán | ⬜ Backlog | A07, E41, E43, J77 |
 | **E45** | Definir API HTTP/Swagger y frontera con realtime/gRPC | P1 | Ángel Patiño | ⬜ Backlog | D27, E43 |
 
 ### F — Backend Go/Rust/PostgreSQL
