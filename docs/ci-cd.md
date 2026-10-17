@@ -28,7 +28,7 @@ feature/* | fix/* | docs/* | chore/*
               pendiente
 ```
 
-`Integration` se dispara cuando cambian servicios, infraestructura, base de datos, Compose o contratos.
+`Integration` se dispara cuando cambian servicios, infraestructura, base de datos, Compose o contratos, tanto en Pull Requests como después del merge a `main`. `CI Web` se ejecuta en todos los Pull Requests para mantener un estado estable y utilizable como evidencia de protección.
 
 ## Workflows actuales
 
@@ -40,7 +40,7 @@ Valida el frontend importado en `apps/web/` con Node.js 24:
 2. comprueba sintaxis mediante `npm run check`;
 3. ejecuta las pruebas del cliente y assets mediante `npm test`.
 
-Se ejecuta en PRs y pushes a `main` cuando cambian el frontend o su workflow, y permite ejecución manual. Usa permisos de lectura y un timeout de diez minutos. Este check no demuestra partidas con backend real ni reemplaza los checks de Go, Rust, infraestructura o contratos. Se incorpora como check adicional; el ruleset de `main` conserva sus checks obligatorios actuales.
+Se ejecuta en **todos los Pull Requests** y en pushes a `main` cuando cambia el frontend o su workflow, y permite ejecución manual. Ejecutarlo siempre en PR evita que el estado `web` desaparezca por filtros de rutas y permite usarlo de forma estable en la protección de `main`. Usa permisos de lectura y un timeout de diez minutos. Este check no demuestra partidas con backend real ni reemplaza los checks de Go, Rust, infraestructura o contratos.
 
 ### CI Go — `.github/workflows/ci-go.yml`
 
@@ -79,13 +79,14 @@ Smoke test del stack:
 
 1. prepara `.env`;
 2. valida Compose;
-3. ejecuta `docker compose up -d --build --wait`;
-4. comprueba que PostgreSQL creó los schemas `match` y `player`;
-5. comprueba que las dos réplicas Rust están saludables y usan la misma imagen;
-6. comprueba Go y los dos upstreams saludables de Envoy mediante gRPC Health;
-7. comprueba Prometheus y Grafana;
-8. muestra el estado del stack;
-9. destruye contenedores y volúmenes al terminar.
+3. ejecuta `docker compose build` para construir explícitamente las imágenes del stack;
+4. ejecuta `docker compose up -d --no-build --wait`;
+5. comprueba que PostgreSQL creó los schemas `match` y `player`;
+6. comprueba que las dos réplicas Rust están saludables y usan la misma imagen;
+7. comprueba Go y los dos upstreams saludables de Envoy mediante gRPC Health;
+8. comprueba Prometheus y Grafana;
+9. muestra el estado del stack;
+10. destruye contenedores y volúmenes al terminar.
 
 Los checks HTTP usan reintentos acotados porque un contenedor puede estar `running` antes de que el servidor HTTP acepte conexiones.
 
@@ -106,7 +107,25 @@ Actualmente exige:
 - bloqueo de eliminación de `main`;
 - bloqueo de force pushes.
 
-`CI Integration` no es required check global porque usa filtros por rutas y no se ejecuta en todos los PR.
+`CI Integration` no es required check global porque usa filtros por rutas y no se ejecuta en todos los PR. Su objetivo es validar el stack completo cuando un cambio puede afectarlo. Los checks Go, Rust, Infrastructure, Contracts y Web constituyen la validación rápida y visible de cada PR.
+
+## Cobertura de H64 — Fast Deployment
+
+La tarea **H64 · Crear pipeline de integración continua para Fast Deployment** se considera cubierta cuando esta configuración está integrada en `main`:
+
+| Criterio | Evidencia |
+| --- | --- |
+| Go | `CI Go`: formato, vet y pruebas con race detector. |
+| Rust | `CI Rust`: fmt, Clippy y tests con lockfile. |
+| Cliente web | `CI Web`: instalación bloqueada, sintaxis y regresiones en todos los PR. |
+| Contratos | `CI Contracts`: compilación de todos los `.proto`. |
+| Infraestructura | `CI Infrastructure`: validación de Compose y Envoy. |
+| Construcción de imágenes | `CI Integration`: `docker compose build` explícito. |
+| Integración | `CI Integration`: PostgreSQL, Go, dos Rust, Envoy, Prometheus y Grafana. |
+| Evidencia en PR | GitHub Checks visibles y con timeout acotado. |
+| Validación post-merge | `CI Integration` vuelve a ejecutarse en `main` para cambios relevantes. |
+
+H64 automatiza integración continua; **no implementa CD al laboratorio**. Ese trabajo permanece en H66 y depende de la auditoría física A05.
 
 ## Ejecución local equivalente
 
