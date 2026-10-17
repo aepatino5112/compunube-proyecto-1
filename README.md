@@ -17,6 +17,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 ## Documentación
 
 - [Arquitectura](ARCHITECTURE.md)
+- [Modelo de dominio runtime y perfil (C25)](docs/architecture/domain-model.md)
 - [Roadmap técnico](docs/roadmap.md)
 - [Línea base funcional del frontend (B08)](docs/product/frontend-baseline.md)
 - [Decisiones de producto multijugador (B09)](docs/product/multiplayer-decisions.md)
