@@ -35,6 +35,21 @@ jobs:
       - name: Build and start stack
         run: docker compose up -d --build --wait --wait-timeout 300
 
+      - name: Verify PostgreSQL initialization
+        run: |
+          schemas=$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT nspname FROM pg_namespace"')
+          grep -qx match <<< "$schemas"
+          grep -qx player <<< "$schemas"
+
+      - name: Verify Rust replicas
+        run: |
+          first=$(docker compose ps -q player-profile-rust-1)
+          second=$(docker compose ps -q player-profile-rust-2)
+          test -n "$first" && test -n "$second"
+          test "$(docker inspect -f '{{.State.Health.Status}}' "$first")" = healthy
+          test "$(docker inspect -f '{{.State.Health.Status}}' "$second")" = healthy
+          test "$(docker inspect -f '{{.Image}}' "$first")" = "$(docker inspect -f '{{.Image}}' "$second")"
+
       - name: Verify Match Service
         run: |
           curl --fail --silent --show-error             --retry 30 --retry-delay 2 --retry-all-errors             --connect-timeout 2 --max-time 5             http://127.0.0.1:8080/healthz
@@ -43,6 +58,11 @@ jobs:
       - name: Verify Envoy
         run: |
           curl --fail --silent --show-error             --retry 30 --retry-delay 2 --retry-all-errors             --connect-timeout 2 --max-time 5             http://127.0.0.1:9901/ready
+
+      - name: Verify gRPC health through Envoy
+        run: |
+          healthy=$(curl --fail --silent --show-error http://127.0.0.1:9901/clusters | grep -Ec 'player_profile_cluster::.*::health_flags::healthy' || true)
+          test "$healthy" -eq 2
 
       - name: Verify Prometheus
         run: |
