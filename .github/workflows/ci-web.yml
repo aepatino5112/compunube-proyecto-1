@@ -1,10 +1,9 @@
 name: CI Web
 
 on:
+  # H64: keep the client check present on every PR so it can be used as
+  # stable evidence/required status without hanging when paths do not match.
   pull_request:
-    paths:
-      - "apps/web/**"
-      - ".github/workflows/ci-web.yml"
   push:
     branches: [main]
     paths:
