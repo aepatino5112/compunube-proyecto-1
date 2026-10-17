@@ -4,7 +4,7 @@ Proyecto de Computación en la Nube orientado a un videojuego multijugador educa
 
 ## Arquitectura base
 
-- **Frontend / clientes:** envían intención y representan el estado confirmado por el servidor.
+- **Frontend / clientes:** web Surf Club con TypeScript como objetivo de migración gradual desde el JavaScript actual y segunda interfaz en Python ([ADR 0002](docs/adr/0002-client-language-strategy.md)); ambos envían intención a Go y representan estado confirmado.
 - **Go Match Service:** salas, jugadores activos, simulación autoritativa, red realtime, goroutines/channels y resiliencia.
 - **Rust Player/Profile Service:** perfil persistente, inventario, catálogo, economía, crafting, equipamiento y settlement de carreras.
 - **gRPC + Protobuf:** comunicación interna Go ↔ Rust.
@@ -95,6 +95,6 @@ chore/*   ─┘
 
 El proyecto usa **Fast Deployment + Kanban**: ramas cortas, integración frecuente y cambios pequeños.
 
-El ruleset `Protect main` exige Pull Request, una aprobación y los checks `go`, `rust`, `validate` y `contracts`.
+El ruleset `Protect main` exige Pull Request y los checks `go`, `rust`, `validate`, `contracts` y `web`. Actualmente no exige aprobaciones obligatorias.
 
 El CD hacia las máquinas del laboratorio está planificado pero pendiente; ver [docs/ci-cd.md](docs/ci-cd.md).

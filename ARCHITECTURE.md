@@ -69,7 +69,9 @@ Las réplicas Rust no deben conservar estado crítico exclusivo en memoria.
 
 ## Clientes
 
-Los clientes envían intención y renderizan/interpolan estado confirmado.
+El cliente principal es la web Surf Club en `apps/web/`: conserva hoy JavaScript y Three.js, con **TypeScript como lenguaje objetivo de migración gradual**. La segunda interfaz será un cliente **Python** en `apps/client-secondary/`; su implementación corresponde a G58. La elección y sus límites están en [ADR 0002](docs/adr/0002-client-language-strategy.md). La existencia actual de tipos propuestos no implica que la web ya cumpla materialmente el requisito TypeScript.
+
+Ambos clientes envían intención a la frontera pública de Go mediante HTTP y el canal realtime que se acuerde en E43. Presentan estado confirmado, usan el mismo contrato público cuando quede definido y no acceden directamente a Rust, al gRPC interno ni a PostgreSQL.
 
 Nunca son autoridad de:
 
