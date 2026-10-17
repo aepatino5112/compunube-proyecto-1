@@ -30,6 +30,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Ciclo de sala y participación multijugador (B17)](docs/product/multiplayer-room-lifecycle.md)
 - [Game Design Document v1.0 (B18)](docs/product/game-design-document-v1.md)
 - [Actores y casos de uso online (C19)](docs/requirements/online-use-cases.md)
+- [UML de casos de uso online (C20)](docs/uml/README.md)
 - [Requisitos funcionales del MVP online (C21)](docs/requirements/functional-requirements.md)
 - [Fast Deployment + Kanban](docs/project-management/fast-deployment-kanban.md)
 - [CI/CD](docs/ci-cd.md)
