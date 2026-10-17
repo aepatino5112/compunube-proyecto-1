@@ -32,6 +32,16 @@ feature/* | fix/* | docs/* | chore/*
 
 ## Workflows actuales
 
+### CI Web — `.github/workflows/ci-web.yml`
+
+Valida el frontend importado en `apps/web/` con Node.js 24:
+
+1. instala dependencias fijadas mediante `npm ci --ignore-scripts`;
+2. comprueba sintaxis mediante `npm run check`;
+3. ejecuta las pruebas del cliente y assets mediante `npm test`.
+
+Se ejecuta en PRs y pushes a `main` cuando cambian el frontend o su workflow, y permite ejecución manual. Usa permisos de lectura y un timeout de diez minutos. Este check no demuestra partidas con backend real ni reemplaza los checks de Go, Rust, infraestructura o contratos. Se incorpora como check adicional; el ruleset de `main` conserva sus checks obligatorios actuales.
+
 ### CI Go — `.github/workflows/ci-go.yml`
 
 Valida:

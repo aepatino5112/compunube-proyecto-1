@@ -1,0 +1,15 @@
+node_modules/
+*.log
+
+# dist contains the authored browser modules and shipped GLB assets, not a build.
+# Override the monorepo's generic dist ignore for this imported frontend only.
+!/dist/
+!/dist/**
+
+__pycache__/
+*.py[cod]
+*.blend1
+*.blend2
+.env
+.env.*
+!.env.example

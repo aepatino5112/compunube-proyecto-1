@@ -1,0 +1,9 @@
+# Follaje ilustrado · atlas 01
+
+Generado con la herramienta integrada `image_gen`, fondo transparente, el 2026-10-13. La segunda ilustración de Maracaibo se aportó como referencia de estilo, no como imagen a sustituir. El PNG original se conserva en la carpeta de imágenes generadas; esta copia pertenece al proyecto.
+
+## Prompt final
+
+Use case: stylized-concept. Asset type: foliage texture atlas for real 3D mangrove trees in an illustrated surfing game. The supplied image is ONLY a style and palette reference, not an edit target. Create a new square transparent RGBA texture atlas, four separate foliage sprays arranged in a precise 2 by 2 grid, one spray fully contained in each quadrant with ample transparent padding. Each spray is an irregular dense cluster of roughly 18 to 30 clearly shaped broad tropical mangrove leaves, slight overlaps, some small interior transparent gaps, and a subtle thin branching twig. Four different silhouettes: broad fan, trailing spray, rounded asymmetric cluster, upward branch. Rich emerald and olive green inner leaves, warm chartreuse sunlit leaf tips, restrained hand-painted shading for volume, no hard baked directional shadows, no photo realism. Cohesive polished painterly cartoon game style matching the trees in the reference, softly sculpted leaves with clear pointed oval contours and a few tasteful painted veins. Front-facing isolated cutouts suitable for curved 3D foliage cards. TRUE transparent background including gaps between leaves; no checkerboard painted into image, no background color, no panel dividers, no labels or text, no pots, no complete trees, no characters, no scene, no UI. All leaves entirely within their own quadrants, do not touch atlas borders or neighboring quadrants. This is a production texture, not another screenshot or concept scene.
+
+Se integra como follaje de superficies curvas entre volúmenes y ramas 3D, con recorte de alfa. No es un fondo prerenderizado del juego.

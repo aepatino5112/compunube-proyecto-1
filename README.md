@@ -27,7 +27,18 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 
 Trello es la fuente operativa del backlog y del estado Kanban. El roadmap del repositorio solo resume la secuencia técnica del proyecto.
 
-## Requisitos locales
+## Frontend jugable
+
+El prototipo 3D, sus fuentes Blender y las guías de conexión están en [apps/web/](apps/web/README.md). Para ejecutar sólo el frontend:
+
+```bash
+cd apps/web
+npm start
+```
+
+Abrir http://127.0.0.1:4173/. La demo incluye dos mapas y tres rivales de IA. Los adaptadores de salas y perfil siguen sin conectar al backend. Para instalar dependencias y validar el frontend: `npm ci`, `npm run check` y `npm test` desde `apps/web`.
+
+## Requisitos del stack backend
 
 - Docker Desktop con `docker compose`
 - Go 1.24+ para desarrollo directo del Match Service
