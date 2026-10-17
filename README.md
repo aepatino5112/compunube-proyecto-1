@@ -24,6 +24,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Core gameplay loop y autoridad online (B13)](docs/product/core-gameplay-loop.md)
 - [Audiencia y objetivos educativos (B12)](docs/product/educational-goals.md)
 - [Diseño de las tres R y decisión de Reducir (B14)](docs/product/three-r-design.md)
+- [Agua como objetivo compartido de carrera (B15)](docs/product/water-objective.md)
 - [Fast Deployment + Kanban](docs/project-management/fast-deployment-kanban.md)
 - [CI/CD](docs/ci-cd.md)
 - [Contribución y flujo Git](CONTRIBUTING.md)
