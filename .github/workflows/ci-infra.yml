@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Validate local quality targets
+        run: make -n quality >/dev/null
       - name: Validate Compose
         run: docker compose config
       - name: Validate Envoy configuration
