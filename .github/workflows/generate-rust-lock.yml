@@ -7,23 +7,30 @@ on:
       - ".github/workflows/generate-rust-lock.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   lockfile:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: services/player-profile-service-rust
+    if: github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.99"
+
       - name: Generate Cargo.lock
+        working-directory: services/player-profile-service-rust
         run: cargo generate-lockfile
-      - name: Upload Cargo.lock
-        uses: actions/upload-artifact@v4
-        with:
-          name: player-profile-cargo-lock
-          path: services/player-profile-service-rust/Cargo.lock
+
+      - name: Commit lockfile and remove generator
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add services/player-profile-service-rust/Cargo.lock
+          git rm .github/workflows/generate-rust-lock.yml
+          git commit -m "chore(rust): lock application dependencies"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
