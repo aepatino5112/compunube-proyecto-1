@@ -7,16 +7,19 @@ Reglas para cualquier agente de IA que modifique este repositorio.
 1. Leer `README.md`.
 2. Leer `ARCHITECTURE.md`.
 3. Leer `docs/roadmap.md` para entender la secuencia técnica.
-4. Revisar ADRs en `docs/adr/`.
-5. Si se modifica CI/CD, Compose, deployment o workflows, leer `docs/ci-cd.md`.
-6. Mantener los límites de ownership.
-7. No agregar tecnologías o patrones sin un problema concreto que los justifique.
+4. Si el cambio afecta planificación, flujo de trabajo o estado Kanban, leer `docs/project-management/fast-deployment-kanban.md`.
+5. Revisar ADRs en `docs/adr/`.
+6. Si se modifica CI/CD, Compose, deployment o workflows, leer `docs/ci-cd.md`.
+7. Mantener los límites de ownership.
+8. No agregar tecnologías o patrones sin un problema concreto que los justifique.
 
 ## Planificación
 
 Trello es la fuente operativa de tareas, responsables, prioridades y estado Kanban.
 
 `docs/roadmap.md` es una vista de hitos técnicos, no un segundo backlog. No duplicar tarjetas de Trello como listas de tareas del repositorio.
+
+El flujo y los límites WIP oficiales están en `docs/project-management/fast-deployment-kanban.md`; respetarlos antes de iniciar trabajo adicional.
 
 ## Ownership
 
