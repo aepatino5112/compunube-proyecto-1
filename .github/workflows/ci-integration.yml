@@ -11,6 +11,16 @@ on:
       - "database/**"
       - "proto/**"
       - ".github/workflows/ci-integration.yml"
+  push:
+    branches: [main]
+    paths:
+      - "compose.yml"
+      - ".env.example"
+      - "services/**"
+      - "infra/**"
+      - "database/**"
+      - "proto/**"
+      - ".github/workflows/ci-integration.yml"
 
 permissions:
   contents: read
@@ -32,8 +42,11 @@ jobs:
       - name: Validate Compose
         run: docker compose config
 
-      - name: Build and start stack
-        run: docker compose up -d --build --wait --wait-timeout 300
+      - name: Build service images
+        run: docker compose build
+
+      - name: Start integrated stack
+        run: docker compose up -d --no-build --wait --wait-timeout 300
 
       - name: Verify PostgreSQL initialization
         run: |
