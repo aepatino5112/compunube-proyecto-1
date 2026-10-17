@@ -1,4 +1,9 @@
-.PHONY: up down build logs ps compose-config test test-go test-rust lint lint-go lint-rust
+GO_DIR := services/match-service-go
+RUST_DIR := services/player-profile-service-rust
+WEB_DIR := apps/web
+
+.PHONY: up down build logs ps compose-config test test-go test-rust lint lint-go lint-rust \
+	quality quality-go quality-rust quality-web quality-contracts quality-infra
 
 up:
 	docker compose up -d --build
@@ -21,15 +26,44 @@ compose-config:
 test: test-go test-rust
 
 test-go:
-	cd services/match-service-go && go test -race ./...
+	cd $(GO_DIR) && go test ./... && go test -race ./...
 
 test-rust:
-	cd services/player-profile-service-rust && cargo test
+	cd $(RUST_DIR) && cargo test --locked
 
 lint: lint-go lint-rust
 
 lint-go:
-	cd services/match-service-go && test -z "$$(gofmt -l .)" && go vet ./...
+	cd $(GO_DIR) && test -z "$$(gofmt -l .)" && go vet ./...
 
 lint-rust:
-	cd services/player-profile-service-rust && cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings
+	cd $(RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets --all-features -- -D warnings
+
+quality: quality-go quality-rust quality-web quality-contracts quality-infra
+
+quality-go:
+	@echo "==> Go quality gate"
+	cd $(GO_DIR) && test -z "$$(gofmt -l .)" && go vet ./... && go test ./... && go test -race ./...
+
+quality-rust:
+	@echo "==> Rust quality gate"
+	cd $(RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets --all-features -- -D warnings && cargo test --locked
+
+quality-web:
+	@echo "==> Web quality gate"
+	cd $(WEB_DIR) && npm ci --ignore-scripts --no-audit --no-fund && npm run check && npm test
+
+quality-contracts:
+	@echo "==> Contracts quality gate"
+	@command -v protoc >/dev/null 2>&1 || { echo "ERROR: protoc is required for quality-contracts"; exit 1; }
+	@files="$$(find proto -type f -name '*.proto' -print)"; \
+		test -n "$$files" || { echo "ERROR: no .proto files found"; exit 1; }; \
+		protoc --proto_path=proto --descriptor_set_out=/tmp/compunube-contracts.pb --include_imports $$files
+
+quality-infra:
+	@echo "==> Infrastructure quality gate"
+	docker compose config
+	docker run --rm \
+		-v "$(CURDIR)/infra/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro" \
+		envoyproxy/envoy:v1.31-latest \
+		envoy --mode validate -c /etc/envoy/envoy.yaml
