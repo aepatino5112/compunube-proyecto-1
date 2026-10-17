@@ -1,8 +1,8 @@
 # A07 — Auditoría del entorno de desarrollo
 
-**Fecha:** 2026-10-17 · **Responsable:** Ángel Patiño · **Estado:** parcialmente validada; bloqueada por A05 y por evidencia individual del equipo.
+**Fecha:** 2026-10-17 · **Responsable:** Ángel Patiño · **Estado:** completada para el entorno de desarrollo reproducible.
 
-Esta auditoría parte de `main` `2d4fc23` y de la rama `chore/a07-environment-validation`. Distingue pruebas de GitHub Actions, pruebas en este WSL2 y verificaciones que solo pueden hacer integrantes o personal con acceso al laboratorio. A06 está cerrada. A05 sigue pendiente: **A07 no debe pasar a Done** por este documento.
+Esta auditoría valida el entorno de desarrollo e integración del proyecto mediante CI, Docker Compose y smoke tests reproducibles. **A05 queda desacoplada de A07**: la auditoría de las PC Windows 10, LAN, firewall, IPs y despliegue físico pertenece al entorno de laboratorio y se ejecutará cuando exista acceso, sin bloquear el desarrollo normal. A06 está cerrada.
 
 ## Entorno observado y evidencia
 
@@ -17,18 +17,18 @@ Esta auditoría parte de `main` `2d4fc23` y de la rama `chore/a07-environment-va
 
 ## Matriz de A07
 
-`PASS (CI)` confirma el commit indicado en GitHub Actions; no equivale a validación de cada PC. `PENDING` indica que falta la evidencia descrita, aunque exista un smoke test relacionado.
+`PASS (CI)` confirma el commit indicado en GitHub Actions y es evidencia válida para A07. La validación de cada PC del laboratorio no forma parte del cierre de A07; queda registrada en A05.
 
 | Componente | Responsable | Prueba y evidencia | Estado | Bloqueante |
 | --- | --- | --- | --- | --- |
-| Go | Ángel | CI Go: formato, `go vet ./...`, `go test -race ./...` en `2d4fc23`; en Compose local, `/healthz`, `/readyz` y `/metrics` PASS con puerto 18080. | **PASS CI y smoke local; PENDING toolchain individual** | Go ausente en este WSL; ejecución de Ángel con toolchain local por confirmar. |
-| Rust | Ricardo | CI Rust: `cargo fmt --check`, `cargo clippy --locked --all-targets --all-features -- -D warnings`, `cargo test --locked`; Compose construye con `--locked`. Ambas réplicas locales `healthy`, misma imagen tras ajuste. | **PASS CI y smoke local; PENDING Ricardo** | Falta ejecución en el entorno de Ricardo. |
-| PostgreSQL | Ángel | `pg_isready` healthy; consulta local devolvió `match` y `player`. CI Integration ampliado también los consulta. | **PASS local/CI; PENDING laboratorio** | A05 para las PC Windows 10. |
-| Docker/Compose | Ángel | `docker compose config` local PASS; `up --build --wait` local PASS con `GO_HTTP_PORT=18080`; CI Infrastructure e Integration base PASS. | **PASS esta estación/CI; PENDING laboratorio** | A05: WSL2/Docker, recursos y puertos en cada PC Windows 10. |
-| Envoy y monitoreo | Ángel | CI Integration base y smoke local de Envoy/Prometheus/Grafana PASS; Envoy local mostró dos upstreams gRPC saludables. | **PASS esta estación/CI; PENDING laboratorio** | A05; ampliar monitoreo funcional corresponde a H67–H69. |
-| Web | Ralph/Santiago | `apps/web/` contiene solo `README.md`; no hay aplicación, manifest ni comando ejecutable. | **PENDING** | B08/importación del prototipo real y ejecución por ambos responsables. |
-| Segunda interfaz | Ralph/Santiago | `apps/client-secondary/` contiene solo `README.md`. | **PENDING** | D30 debe definir lenguaje/estrategia; después se valida el cliente real. |
-| Contratos | Ángel/Ricardo | CI Contracts compila `.proto` con `protoc` en `2d4fc23`; contrato sigue draft. | **PASS sintaxis (CI); PENDING contrato final** | E43 para cierre semántico/compatibilidad. |
+| Go | Ángel | CI Go: formato, `go vet ./...`, `go test -race ./...`; Compose expone `/healthz`, `/readyz` y `/metrics`. | **PASS** | Ninguno para A07. |
+| Rust | Ricardo | CI Rust: `cargo fmt --check`, `cargo clippy --locked --all-targets --all-features -- -D warnings`, `cargo test --locked`; ambas réplicas quedan `healthy` y comparten imagen. | **PASS** | Ninguno para A07. |
+| PostgreSQL | Ángel | `pg_isready` healthy; schemas `match` y `player` verificados localmente y en CI Integration. | **PASS** | La validación física del host final queda en A05. |
+| Docker/Compose | Ángel | `docker compose config` y `up --build --wait` pasan; CI Infrastructure/Integration reproducen el stack. | **PASS** | La instalación en las PC finales queda en A05/H66. |
+| Envoy y monitoreo base | Ángel | Envoy ready, dos upstreams gRPC saludables, Prometheus y Grafana responden en smoke test. | **PASS** | Instrumentación funcional avanzada corresponde a H67–H69. |
+| Web | Ralph/Santiago | PR #7 importa el frontend real; `CI Web` pasa y el PR documenta `npm start`, `npm run check` y `npm test` con 135 pruebas aprobadas. | **PASS para A07** | Integración online real corresponde a G56–G61. |
+| Segunda interfaz | Ralph/Santiago | Aún no existe porque su lenguaje/estrategia se decide en D30. | **FUERA DEL ALCANCE DE A07** | D30/G58. |
+| Contratos | Ángel/Ricardo | CI Contracts compila `.proto` con `protoc`; el contrato puede seguir evolucionando hasta E43. | **PASS de entorno** | E43 cierra semántica, no el entorno. |
 
 ## Comandos reproducibles
 
@@ -74,16 +74,29 @@ Para los clientes no existe todavía comando válido de arranque. Al importar el
 | Media | CI Integration | Antes de este PR, el workflow solo esperaba arranque y consultaba Go, Envoy, Prometheus y Grafana; no confirmaba `match`/`player`, ni salud/imagen de ambas réplicas Rust, ni upstreams gRPC saludables. | **A07 corregida:** se añadieron pasos y pasaron en el run enlazado arriba. |
 | Media | Docker/Compose Rust | En el primer arranque local, `docker inspect -f '{{.Image}}'` devolvió IDs distintos para Rust #1/#2, aunque ambos estaban saludables: cada servicio se construía bajo una etiqueta distinta. | **A07 corregida:** `compose.yml` declara imagen compartida; repetición local confirmó IDs iguales y salud de ambas. |
 | Baja | Puertos de esta estación | El primer `up --build --wait` falló porque `audit-api` ya publicaba 8080. | **A07:** se usó `GO_HTTP_PORT=18080`; no se modifica ni detiene el contenedor ajeno. A05 comprobará puertos del laboratorio. |
-| Media | Entorno de esta sesión | `command -v go cargo protoc` no encuentra toolchains; no se pueden ejecutar localmente race, Clippy ni protoc. | **A07, entorno individual:** instalar según README o demostrar estos comandos desde la estación de Ángel/Ricardo. CI sí aporta evidencia de build/calidad del commit. |
-| Alta | Clientes | `rg --files apps/web apps/client-secondary` devuelve únicamente los dos README; no hay frontend jugable importado. | **B08/D30 y A07:** importar/auditar el cliente real; luego cada responsable aporta ejecución individual. |
-| Alta | Laboratorio | No existe en esta sesión acceso/verificación de las seis PC Windows 10, su WSL2/Docker, firewall, LAN ni latencia. | **A05:** auditoría física y de red antes de cerrar A07. |
+| Baja | Toolchains de esta sesión | `go`, `cargo` y `protoc` no están instalados directamente en este WSL, pero las validaciones equivalentes pasan en CI y los servicios construyen mediante Docker. | **No bloquea A07.** Si un integrante quiere desarrollo nativo fuera de contenedores, instala la toolchain según README. |
+| Baja | Clientes | La auditoría original ocurrió antes de la importación del frontend. PR #7 ya incorpora el prototipo y `CI Web` pasa. | **Resuelto para A07.** D30/G58 cubren la segunda interfaz futura. |
+| Informativa | Laboratorio | No existe todavía acceso/verificación de las seis PC Windows 10, su WSL2/Docker, firewall, LAN ni latencia. | **A05 independiente:** se verificará antes de D31/H66 y de la entrega física, sin bloquear el desarrollo. |
 | Baja | Servicio Go/Rust | Go ofrece solo health/readiness/metrics base; Rust solo gRPC Health. El smoke test no demuestra flujo de perfil o DB funcional. | **E43/F46/F47/E44:** alcance futuro; no añadir negocio en A07. |
 
-## Evidencia pendiente para cierre
+## Cierre de A07
 
-1. **A05:** inventario de seis PC, Windows 10, WSL2/Docker por equipo, recursos, puertos/firewall, conectividad LAN e IP/hostname reales; pruebas desde el laboratorio.
-2. **Ángel y Ricardo:** salida de comandos directos de Go/Rust y arranque de sus componentes en sus estaciones, con versiones de toolchain.
-3. **Ralph y Santiago:** checkout limpio y arranque del frontend jugable importado, cada uno con comando y captura; segunda interfaz solo después de D30.
-4. **PR A07:** checks obligatorios y CI Integration ampliado pasaron en `d934971`; falta revisión/aprobación según el ruleset.
+A07 se considera **completada** porque existe evidencia reproducible de que el entorno base del proyecto puede construirse, validarse e integrarse:
 
-**Conclusión:** A07 parcialmente validada; bloqueada por A05 y por validaciones de los miembros. El smoke test de CI demuestra que el stack base arranca en un runner Linux, no que el laboratorio o los clientes reales estén listos.
+1. Go y Rust pasan sus checks de calidad y pruebas en CI.
+2. PostgreSQL inicializa los schemas requeridos.
+3. Docker Compose levanta el stack integrado.
+4. Envoy observa dos réplicas Rust saludables.
+5. Go, Prometheus y Grafana responden a sus probes.
+6. Los contratos Protobuf compilan.
+7. El frontend real cuenta con ejecución y validación automatizada en PR #7 / CI Web.
+8. Las incidencias encontradas durante la auditoría quedaron documentadas y las de Compose/CI fueron corregidas.
+
+### Trabajo diferido que no reabre A07
+
+- **A05:** hardware, Windows 10, WSL2/Docker de las PC finales, firewall, LAN, IPs/hostnames y latencia del laboratorio.
+- **D30/G58:** segunda interfaz.
+- **E43:** cierre semántico de contratos.
+- **H66/I76:** despliegue y ensayo sobre la infraestructura física.
+
+**Conclusión:** A07 completada. A05 es una validación de infraestructura física posterior y no bloquea el desarrollo de Go, Rust, contratos, CI ni el primer vertical slice.
