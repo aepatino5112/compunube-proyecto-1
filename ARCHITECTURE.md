@@ -1,5 +1,7 @@
 # Architecture
 
+La arquitectura principal orientada a servicios mediante microservicios está aceptada en [ADR 0003](docs/adr/0003-primary-distributed-architecture.md); la [evaluación D26](docs/architecture/architecture-evaluation.md) documenta las alternativas docentes.
+
 ## Vista general
 
 ```text
