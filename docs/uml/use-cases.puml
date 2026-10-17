@@ -1,0 +1,74 @@
+@startuml
+title Compunube Online · Casos de uso del Jugador (C20)
+left to right direction
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName DejaVu Sans
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor #F3F8FA
+  BorderColor #286B75
+  ArrowColor #356D77
+}
+skinparam actor {
+  BorderColor #294C59
+  FontColor #294C59
+}
+
+actor "Jugador" as Jugador
+
+rectangle "Compunube Online" {
+  package "Acceso / Perfil" {
+    usecase "UC-01\nSesión y perfil" as UC01
+    usecase "UC-02\nApariencia y equipo" as UC02
+    usecase "UC-14\nCanjear materiales" as UC14
+    usecase "UC-15\nFabricar red" as UC15
+    usecase "UC-16\nComprar / equipar" as UC16
+  }
+  package "Sala / Preparación" {
+    usecase "UC-03\nCrear sala" as UC03
+    usecase "UC-04\nEntrar a sala" as UC04
+    usecase "UC-05\nElegir Reducir / ready" as UC05
+    usecase "UC-06\nCuenta atrás común" as UC06
+  }
+  package "Carrera / Continuidad" {
+    usecase "UC-07\nParticipar en carrera" as UC07
+    usecase "UC-08\nRecoger objeto" as UC08
+    usecase "UC-09\nReentrar" as UC09
+    usecase "UC-10\nAbandonar carrera" as UC10
+    usecase "UC-11\nTerminar / esperar" as UC11
+  }
+  package "Resultado / Progreso" {
+    usecase "UC-12\nVer resultado y agua" as UC12
+    usecase "UC-13\nConfirmar perfil" as UC13
+    usecase "UC-17\nRepetir / salir" as UC17
+  }
+}
+
+Jugador --> UC01
+Jugador --> UC02
+Jugador --> UC03
+Jugador --> UC04
+Jugador --> UC05
+Jugador --> UC06
+Jugador --> UC07
+Jugador --> UC11
+Jugador --> UC12
+Jugador --> UC13
+Jugador --> UC14
+Jugador --> UC15
+Jugador --> UC16
+Jugador --> UC17
+
+UC08 ..> UC07 : <<extend>>\ncontacto elegible
+UC09 ..> UC07 : <<extend>>\ncorte accidental
+UC10 ..> UC07 : <<extend>>\nsalida voluntaria
+UC17 ..> UC12 : <<extend>>\ntras resultado
+
+note bottom of UC07
+  Arquitectura interna: Jugador → Frontend → Go → Rust → PostgreSQL.
+  Envoy media Go → Rust cuando corresponde.
+  Responsabilidades y flujos: C19.
+end note
+
+@enduml
