@@ -15,6 +15,7 @@ concurrency:
 jobs:
   rust:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: services/player-profile-service-rust
