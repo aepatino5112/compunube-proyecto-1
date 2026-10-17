@@ -21,6 +21,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Línea base funcional del frontend (B08)](docs/product/frontend-baseline.md)
 - [Decisiones de producto multijugador (B09)](docs/product/multiplayer-decisions.md)
 - [Flujo completo del jugador online (B10)](docs/product/online-player-flow.md)
+- [Narrativa y contexto educativo (B11)](docs/product/narrative-context.md)
 - [Core gameplay loop y autoridad online (B13)](docs/product/core-gameplay-loop.md)
 - [Audiencia y objetivos educativos (B12)](docs/product/educational-goals.md)
 - [Diseño de las tres R y decisión de Reducir (B14)](docs/product/three-r-design.md)
