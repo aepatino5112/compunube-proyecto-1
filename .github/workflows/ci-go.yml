@@ -2,17 +2,15 @@ name: CI Go
 
 on:
   pull_request:
-    paths:
-      - "services/match-service-go/**"
-      - ".github/workflows/ci-go.yml"
   push:
     branches: [main]
-    paths:
-      - "services/match-service-go/**"
-      - ".github/workflows/ci-go.yml"
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-go-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   go:

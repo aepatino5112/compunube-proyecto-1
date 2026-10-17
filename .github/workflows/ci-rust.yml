@@ -2,17 +2,15 @@ name: CI Rust
 
 on:
   pull_request:
-    paths:
-      - "services/player-profile-service-rust/**"
-      - ".github/workflows/ci-rust.yml"
   push:
     branches: [main]
-    paths:
-      - "services/player-profile-service-rust/**"
-      - ".github/workflows/ci-rust.yml"
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-rust-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   rust:
