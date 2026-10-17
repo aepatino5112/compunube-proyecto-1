@@ -2,9 +2,9 @@
 
 ## Objetivo
 
-El pipeline del proyecto existe para mantener `main` cerca de un estado desplegable, coherente con **Fast Deployment**.
+El pipeline mantiene `main` cerca de un estado desplegable, coherente con **Fast Deployment**.
 
-El repositorio tiene actualmente **CI implementado** y una base preparada para **CD**, pero el despliegue automático al laboratorio todavía no está habilitado. No llamamos CD a algo que aún no despliega.
+Actualmente existe **CI automatizado**. El CD hacia las máquinas del laboratorio sigue pendiente hasta cerrar el mecanismo de acceso y despliegue.
 
 ## Flujo
 
@@ -28,25 +28,21 @@ feature/* | fix/* | docs/* | chore/*
               pendiente
 ```
 
-`Integration` solo se dispara automáticamente cuando cambian servicios, infraestructura, base de datos, Compose o contratos.
+`Integration` se dispara cuando cambian servicios, infraestructura, base de datos, Compose o contratos.
 
 ## Workflows actuales
 
 ### CI Go — `.github/workflows/ci-go.yml`
 
-Se ejecuta en todo Pull Request y en cambios a `main`.
-
 Valida:
 
-1. formato con `gofmt`;
-2. análisis con `go vet`;
-3. pruebas con `go test -race ./...`.
+1. `gofmt`;
+2. `go vet`;
+3. `go test -race ./...`.
 
-El race detector es obligatorio porque la concurrencia con goroutines/channels es una responsabilidad central del Match Service.
+El race detector es obligatorio porque goroutines/channels forman parte central del Match Service.
 
 ### CI Rust — `.github/workflows/ci-rust.yml`
-
-Se ejecuta en todo Pull Request y en cambios a `main`.
 
 Valida:
 
@@ -54,64 +50,55 @@ Valida:
 2. `cargo clippy --all-targets --all-features -- -D warnings`;
 3. `cargo test`.
 
-El Player/Profile Service debe permanecer apto para múltiples réplicas.
+El servicio debe mantenerse apto para múltiples réplicas.
 
 ### CI Infrastructure — `.github/workflows/ci-infra.yml`
 
 Valida:
 
 1. `docker compose config`;
-2. sintaxis/configuración de Envoy mediante `envoy --mode validate`.
-
-No reemplaza el smoke test de integración; su objetivo es feedback rápido sobre configuración.
+2. configuración de Envoy con `envoy --mode validate`.
 
 ### CI Contracts — `.github/workflows/ci-contracts.yml`
 
-Compila todos los `.proto` con `protoc` para detectar errores de sintaxis o referencias rotas.
-
-Cambios en `proto/**` también provocan CI de Go y Rust porque el contrato afecta ambos servicios.
+Compila los `.proto` con `protoc` para detectar errores de sintaxis y referencias.
 
 ### CI Integration — `.github/workflows/ci-integration.yml`
 
-Es el smoke test del stack.
+Smoke test del stack:
 
-Cuando el cambio afecta componentes integrados:
-
-1. copia `.env.example` a `.env`;
+1. prepara `.env`;
 2. valida Compose;
 3. ejecuta `docker compose up -d --build --wait`;
-4. espera servicios healthy/running;
-5. comprueba health/readiness de Go con reintentos acotados mientras termina de iniciar;
-6. comprueba readiness de Envoy con la misma política;
-7. comprueba Prometheus;
-8. comprueba Grafana esperando su readiness HTTP antes de fallar;
-9. muestra estado del stack;
-10. siempre destruye contenedores y volúmenes al terminar.
+4. comprueba Go;
+5. comprueba Envoy;
+6. comprueba Prometheus;
+7. comprueba Grafana;
+8. muestra el estado del stack;
+9. destruye contenedores y volúmenes al terminar.
 
-Los checks HTTP usan reintentos acotados porque un contenedor puede estar en estado `running` unos segundos antes de que su servidor HTTP acepte conexiones. Esto evita falsos negativos de arranque sin ocultar fallos persistentes.
+Los checks HTTP usan reintentos acotados porque un contenedor puede estar `running` antes de que el servidor HTTP acepte conexiones.
 
-Este workflow no sustituirá pruebas E2E del juego; verifica que la plataforma mínima puede construirse y arrancar de extremo a extremo.
+## Protección de main
 
-## Qué debe bloquear un merge
+El repositorio público tiene activo el ruleset **Protect main** sobre la default branch.
 
-Antes de fusionar un PR, los workflows que se hayan ejecutado deben estar verdes.
+Actualmente exige:
 
-Recomendación de protección para `main`:
+- cambios hacia `main` mediante Pull Request;
+- **1 aprobación** antes del merge;
+- branch actualizada antes del merge;
+- checks requeridos:
+  - `go`;
+  - `rust`;
+  - `validate`;
+  - `contracts`;
+- bloqueo de eliminación de `main`;
+- bloqueo de force pushes.
 
-- Require a pull request before merging.
-- Require branches to be up to date before merging.
-- Require status checks:
-  - `CI Go / go`
-  - `CI Rust / rust`
-  - `CI Infrastructure / validate`
-  - `CI Contracts / contracts`
-- No permitir push directo a `main`.
-
-`CI Integration` usa filtros por rutas y por eso **no debe configurarse todavía como required check global**: un PR que no lo dispare podría quedar bloqueado esperando un check inexistente. Cuando queramos volverlo obligatorio para todos los PR, consolidaremos el gate o retiraremos los filtros.
+`CI Integration` no es required check global porque usa filtros por rutas y no se ejecuta en todos los PR.
 
 ## Ejecución local equivalente
-
-Antes de abrir un PR relevante:
 
 ```bash
 make lint
@@ -127,31 +114,32 @@ docker compose down -v
 Si un check falla:
 
 1. no mergear;
-2. leer el step exacto que falló;
+2. identificar el step;
 3. reproducir localmente cuando sea posible;
 4. corregir en la misma rama;
-5. dejar que GitHub Actions vuelva a ejecutar el pipeline.
+5. esperar la nueva ejecución automática.
 
-No desactivar un check para hacer pasar un PR salvo que exista una razón documentada.
+No se desactiva un check solo para hacer pasar un PR.
 
 ## Dependencias y reproducibilidad
 
-- Go debe mantener `go.mod`/`go.sum` cuando aparezcan dependencias.
-- Rust debe versionar `Cargo.lock` al comenzar a incorporar dependencias reales de aplicación.
-- Imágenes Docker deben usar tags explícitos y no `latest` siempre que sea viable.
-- Los secretos nunca se guardan en el repositorio.
+- Go versiona `go.mod` y `go.sum` cuando corresponda.
+- Rust versiona `Cargo.toml` y `Cargo.lock`.
+- CI y Docker deben usar toolchains compatibles.
+- Imágenes Docker deben evitar `latest` cuando sea viable.
+- Secretos nunca se guardan en Git.
 
 ## CD al laboratorio — pendiente
 
-El CD se implementará cuando se cierre el mecanismo de acceso a las máquinas Windows 10.
+El CD se implementará cuando se cierre cómo GitHub Actions alcanzará las máquinas Windows 10.
 
-La opción debe documentarse antes de implementarse. Posibilidades razonables:
+Opciones a evaluar:
 
-- runner self-hosted controlado dentro del laboratorio;
-- despliegue remoto autenticado desde un runner;
-- procedimiento semiautomático si las restricciones del laboratorio impiden automatización completa.
+- runner self-hosted dentro del laboratorio;
+- despliegue remoto autenticado;
+- procedimiento semiautomático si existen restricciones de red.
 
-El flujo esperado será:
+Flujo esperado:
 
 ```text
 main
@@ -165,21 +153,22 @@ deploy lab
   v
 health checks
   |\
-  | +--> failure --> rollback / previous known-good version
+  | +--> failure --> rollback
   |
   +----> success
 ```
 
-No se implementará un `deploy-lab.yml` hasta saber cómo se autentican y alcanzan los equipos.
+No se implementará `deploy-lab.yml` hasta conocer el método real de acceso.
 
 ## Cuándo actualizar este documento
 
-Actualizar `docs/ci-cd.md` cuando cambie:
+Actualizarlo si cambia:
 
 - un workflow;
 - un required check;
-- la estrategia de branches;
-- el método de despliegue;
+- el ruleset;
+- la estrategia de ramas;
+- el despliegue;
 - rollback;
-- generación/publicación de imágenes;
+- publicación de imágenes;
 - infraestructura del laboratorio.

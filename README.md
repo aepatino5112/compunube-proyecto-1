@@ -17,17 +17,20 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 ## Documentación
 
 - [Arquitectura](ARCHITECTURE.md)
+- [Roadmap técnico](docs/roadmap.md)
 - [CI/CD](docs/ci-cd.md)
 - [Contribución y flujo Git](CONTRIBUTING.md)
 - [Ownership](docs/OWNERSHIP.md)
 - [ADRs](docs/adr/)
 - [Reglas para agentes de IA](AGENTS.md)
 
+Trello es la fuente operativa del backlog y del estado Kanban. El roadmap del repositorio solo resume la secuencia técnica del proyecto.
+
 ## Requisitos locales
 
 - Docker Desktop con `docker compose`
 - Go 1.24+ para desarrollo directo del Match Service
-- Rust stable para desarrollo directo del Player/Profile Service
+- Rust 1.99 para mantener consistencia con CI/Docker
 - Make (opcional)
 
 ## Inicio rápido
@@ -77,8 +80,8 @@ docs/*    ─┤
 chore/*   ─┘
 ```
 
-El proyecto usa **Fast Deployment + Kanban**: ramas cortas, integración frecuente y cambios pequeños que mantengan `main` cerca de un estado desplegable.
+El proyecto usa **Fast Deployment + Kanban**: ramas cortas, integración frecuente y cambios pequeños.
 
-El estado actual tiene CI automatizado. El CD hacia las máquinas del laboratorio está planificado pero no se implementará hasta cerrar el mecanismo de acceso/despliegue; ver [docs/ci-cd.md](docs/ci-cd.md).
+El ruleset `Protect main` exige Pull Request, una aprobación y los checks `go`, `rust`, `validate` y `contracts`.
 
-Este bootstrap instala estructura técnica y skeletons. No implementa todavía la lógica completa del juego.
+El CD hacia las máquinas del laboratorio está planificado pero pendiente; ver [docs/ci-cd.md](docs/ci-cd.md).

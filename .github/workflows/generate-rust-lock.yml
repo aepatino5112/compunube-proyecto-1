@@ -1,0 +1,29 @@
+name: Generate Rust Lockfile
+
+on:
+  pull_request:
+    paths:
+      - "services/player-profile-service-rust/Cargo.toml"
+      - ".github/workflows/generate-rust-lock.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/player-profile-service-rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.99"
+      - name: Generate Cargo.lock
+        run: cargo generate-lockfile
+      - name: Upload Cargo.lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-profile-cargo-lock
+          path: services/player-profile-service-rust/Cargo.lock
