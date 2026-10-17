@@ -104,6 +104,7 @@ Actualmente exige:
   - `rust`;
   - `validate`;
   - `contracts`;
+  - `web`;
 - bloqueo de eliminación de `main`;
 - bloqueo de force pushes.
 
@@ -127,11 +128,37 @@ La tarea **H64 · Crear pipeline de integración continua para Fast Deployment**
 
 H64 automatiza integración continua; **no implementa CD al laboratorio**. Ese trabajo permanece en H66 y depende de la auditoría física A05.
 
+## Cobertura de H65 — Quality gates
+
+La tarea **H65 · Automatizar calidad para habilitar Fast Deployment** formaliza las comprobaciones que deben fallar antes de integrar un cambio incorrecto.
+
+| Área | Gate automático | Equivalente local |
+| --- | --- | --- |
+| Go | `gofmt`, `go vet`, `go test ./...`, `go test -race ./...` | `make quality-go` |
+| Rust | `cargo fmt --check`, Clippy con warnings como error, `cargo test --locked` | `make quality-rust` |
+| Cliente web | instalación bloqueada, syntax check y regresiones | `make quality-web` |
+| Contratos | compilación de todos los Protobuf | `make quality-contracts` |
+| Infraestructura | validación de Compose y configuración Envoy | `make quality-infra` |
+| Base de datos actual | schemas `match` y `player` verificados en CI Integration | CI Integration |
+
+El comando `make quality` ejecuta el conjunto local de calidad de Go, Rust, Web, contratos e infraestructura. Requiere las toolchains documentadas (Go, Rust, Node.js 24, `protoc`, Docker y Make).
+
+Las migraciones versionadas todavía no existen: pertenecen a **E42**. Mientras tanto, H65 valida la inicialización SQL disponible mediante `CI Integration`. Cuando E42 introduzca migraciones reales, su validación deberá incorporarse como gate sin reabrir el alcance histórico de H65.
+
+Los checks separados de GitHub mantienen errores fáciles de localizar: un fallo de Go, Rust, Web, Contracts o Infrastructure aparece en su job correspondiente. No se reemplazan por un único job monolítico.
+
 ## Ejecución local equivalente
 
 ```bash
-make lint
-make test
+make quality
+
+# o por área:
+make quality-go
+make quality-rust
+make quality-web
+make quality-contracts
+make quality-infra
+
 docker compose config
 docker compose up -d --build --wait
 docker compose ps
