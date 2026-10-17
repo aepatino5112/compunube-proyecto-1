@@ -7,8 +7,9 @@ Reglas para cualquier agente de IA que modifique este repositorio.
 1. Leer `README.md`.
 2. Leer `ARCHITECTURE.md`.
 3. Revisar ADRs en `docs/adr/`.
-4. Mantener los límites de ownership.
-5. No agregar tecnologías o patrones sin un problema concreto que los justifique.
+4. Si se modifica CI/CD, Compose, deployment o workflows, leer `docs/ci-cd.md`.
+5. Mantener los límites de ownership.
+6. No agregar tecnologías o patrones sin un problema concreto que los justifique.
 
 ## Ownership
 
@@ -62,6 +63,7 @@ Nunca aceptar del cliente como verdad posición, vidas, pickups, ranking, recomp
 - Cambios incompatibles requieren versionado/migración.
 - Toda llamada gRPC debe considerar deadline.
 - Retry solo si la operación es segura o idempotente.
+- Cambios en contratos deben pasar `CI Contracts` y CI de ambos servicios.
 
 ## Persistencia
 
@@ -107,6 +109,12 @@ cargo test
 ```bash
 docker compose config
 ```
+
+## CI/CD
+
+La documentación humana y operativa vive en `docs/ci-cd.md`.
+
+No asumir que existe CD automático al laboratorio hasta que ese documento indique que está implementado.
 
 ## Git
 

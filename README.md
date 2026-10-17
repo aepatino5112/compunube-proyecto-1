@@ -14,6 +14,15 @@ Proyecto de Computación en la Nube orientado a un videojuego multijugador educa
 
 Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de cambiar límites de servicios.
 
+## Documentación
+
+- [Arquitectura](ARCHITECTURE.md)
+- [CI/CD](docs/ci-cd.md)
+- [Contribución y flujo Git](CONTRIBUTING.md)
+- [Ownership](docs/OWNERSHIP.md)
+- [ADRs](docs/adr/)
+- [Reglas para agentes de IA](AGENTS.md)
+
 ## Requisitos locales
 
 - Docker Desktop con `docker compose`
@@ -69,5 +78,7 @@ chore/*   ─┘
 ```
 
 El proyecto usa **Fast Deployment + Kanban**: ramas cortas, integración frecuente y cambios pequeños que mantengan `main` cerca de un estado desplegable.
+
+El estado actual tiene CI automatizado. El CD hacia las máquinas del laboratorio está planificado pero no se implementará hasta cerrar el mecanismo de acceso/despliegue; ver [docs/ci-cd.md](docs/ci-cd.md).
 
 Este bootstrap instala estructura técnica y skeletons. No implementa todavía la lógica completa del juego.

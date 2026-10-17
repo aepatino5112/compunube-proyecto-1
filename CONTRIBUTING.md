@@ -23,6 +23,8 @@ Debe:
 - actualizar pruebas cuando aplique;
 - actualizar docs si cambia contrato, arquitectura o despliegue.
 
+Antes de mergear, revisar los checks de GitHub Actions. La estrategia y responsabilidades de cada workflow están documentadas en [docs/ci-cd.md](docs/ci-cd.md).
+
 ## Definition of Done técnica
 
 Según corresponda:
