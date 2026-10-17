@@ -81,12 +81,14 @@ Cuando el cambio afecta componentes integrados:
 2. valida Compose;
 3. ejecuta `docker compose up -d --build --wait`;
 4. espera servicios healthy/running;
-5. comprueba health/readiness de Go;
-6. comprueba readiness de Envoy;
+5. comprueba health/readiness de Go con reintentos acotados mientras termina de iniciar;
+6. comprueba readiness de Envoy con la misma política;
 7. comprueba Prometheus;
-8. comprueba Grafana;
+8. comprueba Grafana esperando su readiness HTTP antes de fallar;
 9. muestra estado del stack;
 10. siempre destruye contenedores y volúmenes al terminar.
+
+Los checks HTTP usan reintentos acotados porque un contenedor puede estar en estado `running` unos segundos antes de que su servidor HTTP acepte conexiones. Esto evita falsos negativos de arranque sin ocultar fallos persistentes.
 
 Este workflow no sustituirá pruebas E2E del juego; verifica que la plataforma mínima puede construirse y arrancar de extremo a extremo.
 
