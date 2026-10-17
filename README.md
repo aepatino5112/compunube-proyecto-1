@@ -95,6 +95,6 @@ chore/*   ─┘
 
 El proyecto usa **Fast Deployment + Kanban**: ramas cortas, integración frecuente y cambios pequeños.
 
-El ruleset `Protect main` exige Pull Request, una aprobación y los checks `go`, `rust`, `validate` y `contracts`.
+El ruleset `Protect main` exige Pull Request y los checks `go`, `rust`, `validate`, `contracts` y `web`. Actualmente no exige aprobaciones obligatorias.
 
 El CD hacia las máquinas del laboratorio está planificado pero pendiente; ver [docs/ci-cd.md](docs/ci-cd.md).
