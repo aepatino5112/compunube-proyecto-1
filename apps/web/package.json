@@ -1,0 +1,14 @@
+{
+  "name": "compunube-surf-prototype",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check dist/review-camera.js && node --check dist/character-review.js && node --check dist/visual-lighting.js && node --check dist/illustrated-postprocessing.js && node --check dist/painted-clouds.js && node --check dist/scenery-instancing.js && node --check dist/shore-layout.js && node --check dist/illustrated-shore.js && node --check dist/coastal-ribbon.js && node --check dist/illustrated-water.js && node --check dist/illustrated-materials.js && node --check dist/art-study.js && node --check dist/appearance.js && node --check dist/art-direction.js && node --check dist/rock-kit.js && node --check dist/scene-review.js && node --check dist/app.js && node --check dist/economy.js && node --check dist/online-profile.js && node --check dist/profile-panel.js && node --check dist/backend-config.js && node --check dist/multiplayer-client.js && node --check dist/multiplayer-lobby.js && node --check dist/network-race.js && node --check dist/network-presentation.js && node --check dist/game.js && node --check dist/maps.js && node --check dist/water-geometry.js && node --check dist/water-surface.js && node --check dist/surf-effects.js && node --check dist/surf-motion.js && node --check dist/contact-foam.js && node --check dist/animation-review.js && node --check dist/buoys.js && node --check dist/render-diagnostics.js && node --check dist/frame-clock.js && node --check dist/audio.js && node --check dist/equipment.js && node --check dist/environment.js && node --check dist/surfer-animation.js && node --check dist/waste-models.js && node --check dist/chase-view.js && node --check dist/survival.js && node --check dist/collection.js && node --check dist/mechanics.js && node --check server.mjs",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  }
+}

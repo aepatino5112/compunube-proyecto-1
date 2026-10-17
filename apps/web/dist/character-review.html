@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="darkreader-lock"><meta name="color-scheme" content="only light">
+  <title>Compunube · El club</title>
+  <link rel="stylesheet" href="./character-review.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+</head>
+<body>
+<main>
+  <header><div><p class="eyebrow">COMPUNUBE / EL CLUB / PASE 08</p><h1>Cuatro formas de llevar la ola.</h1><p>Ropa propia, siluetas distintas y el mismo espíritu del club.</p></div><a href="./art-study.html">Verlos en Maracaibo ↗</a></header>
+  <section class="gallery" aria-label="Revisión de los personajes">
+    <div id="viewer" role="img" aria-label="Cuatro surfistas sobre sus tablas"><span id="stamp">El club · vista posterior</span></div>
+    <div class="names" id="names"></div>
+  </section>
+  <nav aria-label="Vista de los personajes">
+    <button type="button" data-view="rear" aria-pressed="true">De espalda</button><button type="button" data-view="front" aria-pressed="false">De frente</button>
+    <label>Mirar de cerca <select id="character"><option value="all">Todo el club</option><option value="nico">Nico</option><option value="luna">Luna</option><option value="amara">Amara</option><option value="samuel">Samuel</option></select></label>
+  </nav>
+  <div class="gesture"><label for="phase">Cambio de red</label><input type="range" id="phase" min="0" max="100" value="0"><output id="moment" for="phase">Derecha</output></div>
+  <p id="status" role="status">Preparando el club…</p>
+  <p class="note">Las mismas figuras que puedes elegir en la tienda. Aquí comparten el color coral para comparar la construcción de su ropa. Todos conservan las opciones de piel, cabello y equipo.</p>
+  <a class="back" href="./">Volver al juego ↗</a>
+</main>
+<script type="module" src="./character-review.js"></script>
+</body>
+</html>

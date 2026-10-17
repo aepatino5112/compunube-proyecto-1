@@ -1,0 +1,9 @@
+main{max-width:1100px;padding:18px}
+.study-pair{max-width:960px;margin:auto;display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+.study-pair .viewer{width:100%;height:auto;aspect-ratio:16/9;min-height:0;margin:18px 0}
+.study-pair.comparing{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#accepted-reference{margin:18px 0 0}
+#accepted-reference[hidden]{display:none}
+#accepted-reference img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:18px}
+#accepted-reference figcaption{font-size:12px;color:#5b7671;margin-top:9px}
+@media(max-width:700px){.study-pair.comparing{grid-template-columns:minmax(0,1fr)}.study-pair .viewer{height:470px;aspect-ratio:auto}}

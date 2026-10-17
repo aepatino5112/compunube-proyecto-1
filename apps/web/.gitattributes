@@ -1,0 +1,9 @@
+# Preserve upstream vendor formatting; review authored code with normal checks.
+dist/vendor/** -whitespace
+tests/vendor/** -whitespace
+
+*.glb binary
+*.blend binary
+*.png binary
+*.jpg binary
+*.zip binary

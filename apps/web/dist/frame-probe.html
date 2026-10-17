@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Compunube · prueba de fotogramas</title>
+<style>body{font:18px system-ui;color:#214e46;background:#f6f5ef;max-width:760px;margin:60px auto;padding:24px}h1{font-size:28px}output{display:block;padding:24px;background:#e4eee1;border-radius:12px;line-height:1.8}a{color:inherit}</style>
+<h1>Prueba del navegador sin escena 3D</h1><p>Esta página mide la frecuencia de fotogramas sin cargar Three.js, modelos, efectos ni audio. No modifica tu partida o inventario.</p>
+<output id="metrics">Midiendo…</output><p><a href="/">Volver al juego</a></p>
+<script>
+const output=document.getElementById('metrics'),gaps=[];let previous=null,start=null,count=0;
+function frame(now){
+  if(start===null)start=now;
+  if(previous!==null){gaps.push(now-previous);if(gaps.length>60)gaps.shift();}
+  previous=now;count++;
+  const sorted=[...gaps].sort((a,b)=>a-b),median=sorted[Math.floor(sorted.length/2)]||0;
+  output.textContent=`Fotogramas: ${count} · Tiempo: ${((now-start)/1000).toFixed(1)} s · Intervalo mediano: ${median.toFixed(1)} ms · Frecuencia aproximada: ${median?(1000/median).toFixed(1):'—'} fps · Documento: ${document.visibilityState}`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script></html>

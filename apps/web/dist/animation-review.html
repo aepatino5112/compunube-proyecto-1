@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="darkreader-lock"><meta name="color-scheme" content="only light"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Compunube · Estudio de movimiento</title>
+  <style>
+    .pose-description{font-size:13px;line-height:1.5;margin:0 0 16px;color:#507569}.pose-description strong{color:#234d43}
+    :root{color-scheme:only light}*{box-sizing:border-box}body{margin:0;background:#eef2e5;color:#234d43;font:16px system-ui,sans-serif}main{max-width:1120px;margin:auto;padding:24px}a{color:inherit}header{display:flex;justify-content:space-between;align-items:center;gap:20px}h1{font-size:24px;margin:0 0 8px}header p{margin:0;font-size:14px;max-width:700px}.viewer{margin:22px 0 16px;position:relative;background:#c6e4db;border-radius:24px;overflow:hidden;height:clamp(300px,56vh,520px)}canvas{display:block}.tag{position:absolute;left:20px;top:20px;background:#ffffeddd;border-radius:16px;padding:12px 16px;pointer-events:none}.tag strong{display:block}.tag span{font-size:13px}nav{display:flex;flex-wrap:wrap;gap:8px}button,select{font:inherit;border:1px solid #a1b9aa;background:#fffdf2;color:inherit;border-radius:12px;padding:10px 16px;cursor:pointer}button:disabled{opacity:.5;cursor:wait}button[aria-pressed=true]{background:#234d43;color:#fffdf2}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #da7559;outline-offset:3px}.timeline{display:flex;align-items:center;gap:16px;margin-top:18px}.timeline label{font-weight:600}.timeline input{flex:1;min-width:60px;accent-color:#234d43}output{font-variant-numeric:tabular-nums}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.note{font-size:13px;color:#507569;margin-top:20px;line-height:1.6}#ready{display:block;font-size:13px;margin-top:12px} @media(max-width:650px){main{padding:16px}header{align-items:start}header a{font-size:13px;white-space:nowrap}h1{font-size:20px}.tag{left:12px;top:12px;padding:9px 12px}.viewer{height:360px}nav button{padding:9px 12px;font-size:14px}.timeline{gap:8px}}
+  </style>
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+</head>
+<body><main>
+  <header><div><h1>Estudio de movimiento</h1><p>Los mismos modelos y gestos de la carrera, vistos de cerca. Avanza o retrocede para revisar el agarre y el contacto con el agua.</p></div><a href="/">Volver al juego ↗</a></header>
+  <div class="viewer" id="viewer" role="img" aria-label="Surfista 3D con tabla y red"></div>
+  <p class="pose-description"><strong id="pose-name">Recogida seguida</strong> · <span id="pose-detail">La red mantiene su movimiento al recoger otro residuo.</span></p>
+  <nav aria-label="Gestos"><button data-gesture="scoop" aria-pressed="true" disabled>Recogida seguida</button><button data-gesture="transfer" aria-pressed="false" disabled>Cambio Z / X</button><button data-gesture="jump" aria-pressed="false" disabled>Salto y aterrizaje</button><button data-gesture="turn" aria-pressed="false" disabled>Giro e impulso</button></nav>
+  <div class="timeline"><label for="phase">Momento</label><input id="phase" aria-label="Momento del gesto" type="range" min="0" max="100" value="40" disabled><output id="moment">40 %</output></div>
+  <div class="actions"><button id="previous" disabled>← Anterior</button><button id="next" disabled>Siguiente →</button><label>Vista <select id="view" disabled><option value="rear">Espalda</option><option value="front">Frente</option><option value="side">Lateral</option></select></label></div>
+  <div class="actions"><label>Personaje <select id="character-design" disabled></select></label><label>Piel <select id="skin-design" disabled></select></label><label>Cabello <select id="color-design" disabled></select></label></div>
+  <div class="actions"><label>Peinado <select id="hair-design" disabled></select></label><label>Tabla <select id="board-design" disabled></select></label><label>Recogedor <select id="net-design" disabled></select></label></div><output id="ready" aria-live="polite">Preparando modelos…</output>
+  <p class="note">Vista de revisión manual. Cada posición se reconstruye con pasos de 1/120 s; no modifica carreras, materiales ni monedas. Sirve para revisar poses y transiciones, no para medir la fluidez de una partida completa.</p>
+</main><script type="module" src="./animation-review.js"></script></body></html>
