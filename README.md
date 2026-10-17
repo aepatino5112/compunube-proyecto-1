@@ -28,6 +28,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Agua como objetivo compartido de carrera (B15)](docs/product/water-objective.md)
 - [Reglas autoritativas de carrera y clasificación (B16)](docs/product/authoritative-race-rules.md)
 - [Ciclo de sala y participación multijugador (B17)](docs/product/multiplayer-room-lifecycle.md)
+- [Game Design Document v1.0 (B18)](docs/product/game-design-document-v1.md)
 - [Fast Deployment + Kanban](docs/project-management/fast-deployment-kanban.md)
 - [CI/CD](docs/ci-cd.md)
 - [Contribución y flujo Git](CONTRIBUTING.md)
