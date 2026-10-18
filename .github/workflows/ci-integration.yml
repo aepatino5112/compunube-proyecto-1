@@ -54,6 +54,9 @@ jobs:
           grep -qx match <<< "$schemas"
           grep -qx player <<< "$schemas"
 
+      - name: Verify E42 migrations and recovery
+        run: docker compose exec -T postgres sh /opt/compunube-database/scripts/smoke.sh
+
       - name: Verify Rust replicas
         run: |
           first=$(docker compose ps -q player-profile-rust-1)

@@ -143,7 +143,7 @@ La tarea **H65 · Automatizar calidad para habilitar Fast Deployment** formaliza
 
 El comando `make quality` ejecuta el conjunto local de calidad de Go, Rust, Web, contratos e infraestructura. Requiere las toolchains documentadas (Go, Rust, Node.js 24, `protoc`, Docker y Make).
 
-Las migraciones versionadas todavía no existen: pertenecen a **E42**. Mientras tanto, H65 valida la inicialización SQL disponible mediante `CI Integration`. Cuando E42 introduzca migraciones reales, su validación deberá incorporarse como gate sin reabrir el alcance histórico de H65.
+E42 añade migraciones versionadas y un smoke de permisos/backup/restauración a `CI Integration`. El bootstrap de schemas de Compose permanece para volúmenes nuevos; la aplicación versionada se ejecuta por el runner E42. Las credenciales runtime separadas siguen pendientes de H62.
 
 Los checks separados de GitHub mantienen errores fáciles de localizar: un fallo de Go, Rust, Web, Contracts o Infrastructure aparece en su job correspondiente. No se reemplazan por un único job monolítico.
 
