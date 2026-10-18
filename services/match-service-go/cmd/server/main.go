@@ -8,7 +8,9 @@ import (
 	"syscall"
 
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/config"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/identity"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/server"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/sessionhttp"
 )
 
 var version = "dev"
@@ -22,7 +24,8 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel})).With("service", "match-service-go", "version", version)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	if err := server.New(cfg, logger, nil).Run(ctx); err != nil {
+	sessions := sessionhttp.New(identity.NewRegistry())
+	if err := server.New(cfg, logger, sessions.Register).Run(ctx); err != nil {
 		logger.Error("match service stopped with error", "error", err)
 		os.Exit(1)
 	}
