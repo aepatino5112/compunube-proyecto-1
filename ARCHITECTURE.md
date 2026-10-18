@@ -5,6 +5,7 @@ El [diseño D28 del runtime Go](docs/architecture/go-match-runtime.md) fija tick
 El [diseño D29 del Player/Profile Service](docs/architecture/rust-player-profile-service.md) fija responsabilidades, capas, idempotencia, transacciones y replicabilidad de Rust.
 El [diseño E41 de PostgreSQL](docs/architecture/postgresql-schema.md) fija tablas, constraints, índices y enforcement objetivo del ownership `match`/`player`.
 Los [contratos E43](contracts/realtime/events.md) congelan WebSocket realtime v1; `proto/player_profile.proto` congela gRPC interno `compunube.player.v1`.
+El [catálogo E36 de patrones cloud-native](docs/architecture/cloud-native-pattern-catalog.md) fija el vocabulario permitido y qué patrones son demostrables en la infraestructura prevista.
 
 ## Vista general
 
@@ -96,6 +97,8 @@ Nunca son autoridad de:
 - **Go/Rust ↔ PostgreSQL:** solo sobre datos de su ownership.
 
 ## Patrones previstos
+
+La selección final se realiza en E37 a partir del [catálogo E36](docs/architecture/cloud-native-pattern-catalog.md). Load balancing y health monitoring se documentan como mecanismos/capacidades; no se cuentan automáticamente como patrones autónomos.
 
 | Patrón | Aplicación |
 | --- | --- |
