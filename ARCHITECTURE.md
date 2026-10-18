@@ -6,6 +6,7 @@ El [diseño D29 del Player/Profile Service](docs/architecture/rust-player-profil
 El [diseño E41 de PostgreSQL](docs/architecture/postgresql-schema.md) fija tablas, constraints, índices y enforcement objetivo del ownership `match`/`player`.
 Los [contratos E43](contracts/realtime/events.md) congelan WebSocket realtime v1; `proto/player_profile.proto` congela gRPC interno `compunube.player.v1`.
 El [catálogo E36 de patrones cloud-native](docs/architecture/cloud-native-pattern-catalog.md) fija el vocabulario permitido y qué patrones son demostrables en la infraestructura prevista.
+La [selección E37](docs/architecture/cloud-native-pattern-selection.md) compromete ocho patrones con evidencia y pruebas concretas.
 
 ## Vista general
 
@@ -98,7 +99,7 @@ Nunca son autoridad de:
 
 ## Patrones previstos
 
-La selección final se realiza en E37 a partir del [catálogo E36](docs/architecture/cloud-native-pattern-catalog.md). Load balancing y health monitoring se documentan como mecanismos/capacidades; no se cuentan automáticamente como patrones autónomos.
+La selección final E37 está en [cloud-native-pattern-selection.md](docs/architecture/cloud-native-pattern-selection.md): Microservicios, API Gateway, Database per Service, Ambassador, Circuit Breaker, Bulkhead, Retry y Timeout/Fallback. Load balancing y health monitoring se documentan como mecanismos/capacidades; no se cuentan automáticamente como patrones autónomos.
 
 | Patrón | Aplicación |
 | --- | --- |
