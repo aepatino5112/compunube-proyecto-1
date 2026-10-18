@@ -1,6 +1,6 @@
 # D28 — Runtime autoritativo de Go, realtime y concurrencia
 
-Este diseño desarrolla el [modelo C25](domain-model.md) y [ADR 0003](../adr/0003-primary-distributed-architecture.md) bajo las reglas de [B16](../product/authoritative-race-rules.md), [B17](../product/multiplayer-room-lifecycle.md) y [C22](../requirements/non-functional-requirements.md). Define comportamiento del Match Service; no implementa código ni cierra el contrato E43. La carrera viva existe en memoria de Go, con Go como única autoridad de tiempo, movimiento, objetos, estados y resultado.
+Este diseño desarrolla el [modelo C25](domain-model.md) y [ADR 0003](../adr/0003-primary-distributed-architecture.md) bajo las reglas de [B16](../product/authoritative-race-rules.md), [B17](../product/multiplayer-room-lifecycle.md) y [C22](../requirements/non-functional-requirements.md). [F50](../../services/match-service-go/README.md) implementa la base concurrente por sala; F49/F53 implementarán reglas y simulación. La carrera viva existe en memoria de Go, con Go como única autoridad de tiempo, movimiento, objetos, estados y resultado.
 
 ## Fronteras y ritmos
 

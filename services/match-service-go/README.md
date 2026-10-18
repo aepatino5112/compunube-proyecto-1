@@ -9,6 +9,7 @@
 | `DATABASE_URL` | vacío | PostgreSQL `match` validado si se configura; F55 añadirá repositorios |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARN` o `ERROR` |
 | `SHUTDOWN_TIMEOUT` | `10s` | Límite de drenaje HTTP |
+| `ROOM_COMMAND_QUEUE_CAPACITY` | `32` | Capacidad acotada de comandos por loop; baseline interno E39 configurable |
 
 Compose suministra las direcciones y `DATABASE_URL` por entorno. Estos defaults son baselines locales configurables, no requisitos del laboratorio. No se registra la URL de base de datos ni una credencial de sesión. El servicio aún no abre conexiones a Envoy ni PostgreSQL.
 
@@ -19,6 +20,14 @@ Compose suministra las direcciones y `DATABASE_URL` por entorno. Estos defaults 
 Las sesiones y `ActivePlayer` viven solo en memoria de este proceso: **reiniciar Go invalida las credenciales**, y no existe expiración temporal ni recuperación entre procesos. No hay cuenta, contraseña, JWT, tabla nueva de DB ni llamada a Rust. El registro conserva hashes de tokens, identifica una conexión por ID generado por Go y permite rebind sin que un cierre tardío desconecte la nueva conexión. `RoomID` es solo una asociación opcional; F49 decidirá membresía y reglas.
 
 `sessionhttp.Require` pone el `playerId` confirmado en el contexto para futuros handlers. En operaciones mutantes autenticadas solo por cookie exige `Origin` idéntico al origen directo; `AuthenticateUpgrade` aplica esa comprobación también al futuro handshake WebSocket. No se confía en cabeceras forwarded del cliente. Si se añade terminación TLS externa, el proxy deberá preservar esta propiedad de origen. El flag `Secure` se mantiene incluso en desarrollo: el navegador necesita HTTPS o una excepción local para enviar la cookie; clientes de desarrollo pueden usar Bearer.
+
+## Runtime por sala (F50)
+
+`internal/roomruntime` registra handles con un mutex breve y ejecuta **una goroutine por sala**. El handler de cada sala recibe comandos y ticks en serie; es el único escritor de su estado. `Submit` devuelve resultado por un canal de respuesta acotado, rechaza una cola llena con `ErrQueueFull` y no acepta trabajo tras cierre. `ConnectionChange` es un comando interno de conexión/desconexión; no decide membresía ni la ventana de reentrada de B17.
+
+El tick de producción es **50 ms / 20 Hz**, fijado por D28. El reloj es inyectable para pruebas. Si Go retrasa un ticker, el loop procesa un paso lógico de 50 ms por señal entregada: no lanza una ráfaga ilimitada de pasos de recuperación. Los handlers deben terminar pronto y no realizar red, SQL ni RPC en el loop. F49 añadirá estados/reglas de sala; F53, simulación; F51, límites y políticas de backpressure completas.
+
+El `context.Context` raíz cancela los loops. Un handler que determine el cierre puede solicitar `Handle.Cancel()` sin esperarse a sí mismo; el caller externo usa `Handle.Stop()` para esperar. `main` espera `Manager.Close()` antes de salir tanto en apagado normal como en error de HTTP; no queda un loop activo tras el cierre. Los tamaños de cola (`32` por defecto) son baselines internos E39 sujetos a medición, no requisitos del profesor.
 
 `/readyz` inicia en 503, pasa a 200 tras abrir el listener y vuelve a 503 antes de drenar en SIGINT/SIGTERM. `/healthz` sólo refleja el proceso local; una caída de Rust no cambia la readiness de Go. Las comprobaciones de capacidad de perfil y persistencia corresponden a tareas posteriores según E40.
 
