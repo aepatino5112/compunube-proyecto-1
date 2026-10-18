@@ -1,6 +1,6 @@
 # E40 — Health, liveness y readiness por instancia
 
-Diseño para la capacidad de Health Monitoring de [E36/E37](cloud-native-pattern-selection.md) que alimenta el Ambassador Envoy. Debe concordar con el modo degradado [E38](resilience-failover-degraded-mode.md), el Bulkhead [E39](go-bulkhead-backpressure.md), el ownership de [E41](postgresql-schema.md) y NFR-OBS-001 de [C22](../requirements/non-functional-requirements.md). Define semántica objetivo; los handlers, `main.rs`, Compose, Envoy y monitoreo actual siguen como scaffolding hasta sus tareas de implementación.
+Diseño para la capacidad de Health Monitoring de [E36/E37](cloud-native-pattern-selection.md) que alimenta el Ambassador Envoy. Debe concordar con el modo degradado [E38](resilience-failover-degraded-mode.md), el Bulkhead [E39](go-bulkhead-backpressure.md), el ownership de [E41](postgresql-schema.md) y NFR-OBS-001 de [C22](../requirements/non-functional-requirements.md). F46 implementa el ciclo de vida y los handlers de Go; la capacidad de dependencias y los demás componentes siguen sujetos a sus tareas de implementación.
 
 ## Tres preguntas distintas
 
@@ -14,7 +14,7 @@ Un probe debe ser de **solo lectura**, con timeout corto y recursos acotados, si
 
 ## Go Match Service
 
-- **`GET /healthz` en HTTP 8080**: 200 si el proceso/event loop HTTP está vivo y no terminó; independiente de Rust, Envoy y PostgreSQL. El handler actual responde siempre 200 mientras sirve; la semántica de ciclo de vida se implementará después.
+- **`GET /healthz` en HTTP 8080**: 200 si el proceso/event loop HTTP está vivo y no terminó; independiente de Rust, Envoy y PostgreSQL. F46 responde 503 durante el drenaje mientras todavía puede atender el probe.
 - **`GET /readyz` en HTTP 8080**: 503 durante inicialización, cierre o si Go no puede aceptar/servir tráfico público de forma controlada por fallo propio. 200 cuando puede mantener salas/conexiones existentes y responder de forma válida, incluso si Player/Profile está degradado. **Rust caído no vuelve Go no-ready.** La respuesta/telemetría de dependencia indica perfil indisponible y E38 evita `ready` de jugadores sin perfil confirmado.
 - **PostgreSQL caído**: Go bloquea *nuevas admisiones u operaciones que requieren escritura `match`*, sin destruir salas, WebSockets o carreras ya activos. Si aún puede servir y dar rechazos controlados, `/readyz` puede permanecer 200 con estado de dependencia degradada; marcar Go 503 por un fallo parcial cortaría incluso reentradas sanas. Si Go pierde su propia capacidad de servir tráfico de manera controlada, `/readyz` pasa a 503. Los resultados no persistidos no se presentan como durables (E38/E41).
 - **`GET /metrics` en 8080** continúa para observabilidad. Readiness no se usa como sustituto de métricas de saturación, circuito o resultados pendientes.
@@ -45,7 +45,7 @@ El [envoy.yaml actual](../../infra/envoy/envoy.yaml) usa `ROUND_ROBIN`, `connect
 
 | Componente | Estado comprobado hoy | Cambio de implementación posterior |
 | --- | --- | --- |
-| Go `8080 /healthz`, `/readyz`, `/metrics` | [`main.go`](../../services/match-service-go/cmd/server/main.go) devuelve 200 estático para health/ready y métrica básica. | Ciclo de vida y capacidad real por endpoint; dependencia degradada observable sin derribar carrera. |
+| Go `8080 /healthz`, `/readyz`, `/metrics` | [F46](../../services/match-service-go/README.md) aplica liveness/readiness del proceso y ciclo de vida; conserva la métrica básica. | Capacidad por operación y telemetría de dependencia se implementarán con adaptadores y observabilidad posteriores. |
 | Rust interno `50051` | [`main.rs`](../../services/player-profile-service-rust/src/main.rs) registra `tonic_health` y marca `player_profile` `SERVING` al arrancar, sin consultar DB. | `SERVING` condicionado a inicialización, consulta DB y esquema; `NOT_SERVING` al perderlos. |
 | Compose Rust | [`compose.yml`](../../compose.yml) usa `nc -z 127.0.0.1 50051`: solo puerto TCP. | Health de Compose representará capacidad real; `depends_on` no sustituye comprobación continua. |
 | Compose PostgreSQL | `pg_isready`; Go depende de Postgres healthy y Rust también al arranque. | Añadir/verificar `SELECT 1` con credenciales y esquema donde aplique; dependencia de startup no garantiza salud posterior. |
@@ -64,4 +64,4 @@ Prometheus en **9090** observa targets y Grafana en **3000** visualiza; ninguno 
 | Envoy caído | 200 / 200 si Go sano y carreras avanzan. | Ruta Player/Profile degradada aunque Rust esté sano; circuito/fallback E38. | Envoy `/ready`, cluster sano y sonda de Go permiten volver a operaciones. |
 | Apagado de Go | Liveness termina o conexión falla; readiness 503 durante cierre ordenado. | No se promete supervivencia de carrera al caer Go. | Nuevo proceso inicia no-ready, inicializa y pasa a ready cuando puede servir. |
 
-J78/I73 deberán contrastar **probe + operación sintética real** y registrar tiempos de exclusión, reincorporación, llamadas fallidas, estado de circuito y continuidad de tick. Los umbrales actuales de Envoy y los objetivos C22 siguen sujetos a medición y aprobación. Esta PR solo define diseño; no cambia handlers, health gRPC, Compose, Envoy ni Prometheus.
+J78/I73 deberán contrastar **probe + operación sintética real** y registrar tiempos de exclusión, reincorporación, llamadas fallidas, estado de circuito y continuidad de tick. Los umbrales actuales de Envoy y los objetivos C22 siguen sujetos a medición y aprobación. F46 cubre sólo la semántica propia de Go; no cambia health gRPC, Compose, Envoy ni Prometheus.
