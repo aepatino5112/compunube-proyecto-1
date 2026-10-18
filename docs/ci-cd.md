@@ -71,7 +71,7 @@ Valida:
 
 ### CI Contracts — `.github/workflows/ci-contracts.yml`
 
-Compila los `.proto` con `protoc` para detectar errores de sintaxis y referencias.
+Valida el OpenAPI público E45 con `@apidevtools/swagger-cli@4.0.4` y compila los `.proto` con `protoc` para detectar errores de sintaxis y referencias.
 
 ### CI Integration — `.github/workflows/ci-integration.yml`
 

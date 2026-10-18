@@ -2,6 +2,8 @@
 
 **15 de octubre de 2026.** El front ya contiene lobby, cliente de sesión y presentación de una carrera autoritativa. El proveedor continúa en `null`: esta entrega no incluye servidor, transporte de red, autenticación ni partidas online disponibles. El protocolo 1 de [contracts-proposed.ts](contracts-proposed.ts) sigue siendo una propuesta para acordar con el equipo backend.
 
+**Contrato vigente:** [OpenAPI HTTP E45](../../../../contracts/http/README.md) define sesión y crear/entrar sala; [WebSocket E43](../../../../contracts/realtime/events.md) define preparación, salida y carrera. Los tipos y la interfaz del adaptador siguientes describen el estado actual del front y requieren traducción a esos contratos; no sustituyen sus rutas ni mensajes normativos.
+
 El adaptador permite traducir el servicio que construya backend a esta frontera. No obliga a elegir una biblioteca, protocolo de transporte o arquitectura de servidor.
 
 ## Archivos y responsabilidad

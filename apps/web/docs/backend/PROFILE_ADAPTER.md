@@ -2,6 +2,8 @@
 
 **15 de octubre de 2026.** El front prepara una cartera online separada del progreso de este navegador. El proveedor continúa desconectado: esta entrega no crea cuentas, endpoints ni una base de datos. Los tipos de [contracts-proposed.ts](contracts-proposed.ts) son una propuesta para acordar con backend.
 
+**Contrato vigente:** [OpenAPI HTTP E45](../../../../contracts/http/README.md) fija sesión, perfil, catálogo y mutaciones, con `requestId` y `catalogVersion`. Este documento refleja la interfaz del adaptador frontal actual; sus envolturas propuestas deben traducirse al contrato público antes de conectar un proveedor.
+
 `dist/online-profile.js` contiene la frontera de datos confirmados. No llama a `localStorage`, no aplica `transact` de la economía local y no calcula premios de carreras. Las pruebas usan proveedores controlados; esos proveedores no forman parte del producto.
 
 En `dist/backend-config.js`, implementar `profileAdapter` junto con `backendAdapter`, usando la misma cuenta autenticada. **Mi progreso** permite consultar el perfil y elegir su ámbito; tienda, taller, canje y apariencia se conectan a ese almacén en `app.js`. Sin proveedor, Online queda deshabilitado. Una carrera local cambia al ámbito local; abrir una sala conectada exige cargar el perfil online y validar su identidad al iniciar. No hay interfaz de inicio/cierre de sesión todavía: un cambio de cuenta deberá cerrar la sala y reiniciar el almacén antes de cargar la nueva identidad.
