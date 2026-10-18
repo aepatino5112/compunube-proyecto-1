@@ -23,6 +23,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Esquema PostgreSQL y ownership (E41)](docs/architecture/postgresql-schema.md)
 - [Contrato realtime WebSocket v1 (E43)](contracts/realtime/events.md)
 - [Contrato gRPC Player/Profile v1 (E43)](proto/README.md)
+- [Catálogo de patrones cloud-native (E36)](docs/architecture/cloud-native-pattern-catalog.md)
 - [Roadmap técnico](docs/roadmap.md)
 - [Línea base funcional del frontend (B08)](docs/product/frontend-baseline.md)
 - [Decisiones de producto multijugador (B09)](docs/product/multiplayer-decisions.md)
