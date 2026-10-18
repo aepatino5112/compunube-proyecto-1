@@ -19,6 +19,9 @@ func TestParseDefaultsAndOverrides(t *testing.T) {
 	if cfg.HTTPAddr != "0.0.0.0:8080" || cfg.PlayerProfileGRPCAddr != "envoy:50051" || cfg.DatabaseURL != "" || cfg.LogLevel != slog.LevelInfo || cfg.ShutdownTimeout != 10*time.Second || cfg.RoomCommandQueueCapacity != 32 {
 		t.Fatalf("unexpected defaults: %+v", cfg)
 	}
+	if cfg.MaxActiveRooms != 5 || cfg.MaxConnections != 20 || cfg.RoomMaxCommandsPerTick != 16 || cfg.RoomInputSlots != 4 || cfg.RoomJumpEdgesPerPlayer != 4 || cfg.ConnectionInputRate != 20 || cfg.ConnectionInputBurst != 4 || cfg.ConnectionSnapshotSlots != 1 || cfg.ConnectionCriticalQueue != 16 || cfg.ConnectionEventQueue != 16 || cfg.ProfileConcurrency != 8 || cfg.ProfileQueueCapacity != 32 || cfg.SettlementConcurrency != 4 || cfg.SettlementQueueCapacity != 64 || cfg.ProfileJobTimeout != 750*time.Millisecond || cfg.SettlementJobTimeout != 2*time.Second {
+		t.Fatalf("E39 defaults: %+v", cfg)
+	}
 	cfg, err = Parse(from(map[string]string{
 		"HTTP_ADDR": "127.0.0.1:9090", "PLAYER_PROFILE_GRPC_ADDR": "proxy:50051",
 		"DATABASE_URL": "postgres://user:secret@db:5432/match", "LOG_LEVEL": "debug", "SHUTDOWN_TIMEOUT": "250ms", "ROOM_COMMAND_QUEUE_CAPACITY": "8",
@@ -28,6 +31,13 @@ func TestParseDefaultsAndOverrides(t *testing.T) {
 	}
 	if cfg.HTTPAddr != "127.0.0.1:9090" || cfg.PlayerProfileGRPCAddr != "proxy:50051" || cfg.LogLevel != slog.LevelDebug || cfg.ShutdownTimeout != 250*time.Millisecond || cfg.RoomCommandQueueCapacity != 8 {
 		t.Fatalf("unexpected overrides: %+v", cfg)
+	}
+	cfg, err = Parse(from(map[string]string{"MAX_ACTIVE_ROOMS": "7", "MAX_CONNECTIONS": "30", "PROFILE_CONCURRENCY": "2", "SETTLEMENT_QUEUE_CAPACITY": "3", "PROFILE_JOB_TIMEOUT": "400ms"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxActiveRooms != 7 || cfg.MaxConnections != 30 || cfg.ProfileConcurrency != 2 || cfg.SettlementQueueCapacity != 3 || cfg.ProfileJobTimeout != 400*time.Millisecond {
+		t.Fatalf("E39 overrides: %+v", cfg)
 	}
 }
 
@@ -43,6 +53,9 @@ func TestParseRejectsInvalidWithoutLeakingSecrets(t *testing.T) {
 		{"log", map[string]string{"LOG_LEVEL": "TRACE"}},
 		{"timeout", map[string]string{"SHUTDOWN_TIMEOUT": "-2s"}},
 		{"room queue", map[string]string{"ROOM_COMMAND_QUEUE_CAPACITY": "0"}},
+		{"room limit", map[string]string{"MAX_ACTIVE_ROOMS": "0"}},
+		{"snapshot slots", map[string]string{"CONNECTION_SNAPSHOT_SLOTS": "2"}},
+		{"profile deadline", map[string]string{"PROFILE_JOB_TIMEOUT": "invalid"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Parse(from(tc.values))

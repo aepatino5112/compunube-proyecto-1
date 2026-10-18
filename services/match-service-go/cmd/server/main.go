@@ -16,6 +16,7 @@ import (
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomshttp"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/server"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/sessionhttp"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/workpool"
 )
 
 var version = "dev"
@@ -38,13 +39,24 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	defer stop()
 	runtime, err := roomruntime.NewManager(ctx, roomruntime.Options{
 		TickInterval: 50 * time.Millisecond, QueueCapacity: cfg.RoomCommandQueueCapacity,
+		MaxRooms: cfg.MaxActiveRooms, MaxCommandsPerTick: cfg.RoomMaxCommandsPerTick,
 	})
 	if err != nil {
 		return err
 	}
 	defer runtime.Close()
+	profilePool, err := workpool.New(ctx, cfg.ProfileConcurrency, cfg.ProfileQueueCapacity, cfg.ProfileJobTimeout)
+	if err != nil {
+		return err
+	}
+	defer profilePool.Close()
+	settlementPool, err := workpool.New(ctx, cfg.SettlementConcurrency, cfg.SettlementQueueCapacity, cfg.SettlementJobTimeout)
+	if err != nil {
+		return err
+	}
+	defer settlementPool.Close()
 	identities := identity.NewRegistry()
 	sessions := sessionhttp.New(identities)
-	roomAPI := roomshttp.New(rooms.NewManager(runtime, rooms.UnavailableVerifier{}), identities, sessions)
+	roomAPI := roomshttp.New(rooms.NewManager(runtime, rooms.UnavailableVerifier{}), identities, sessions, cfg)
 	return server.New(cfg, logger, func(mux *http.ServeMux) { sessions.Register(mux); roomAPI.Register(mux) }).Run(ctx)
 }
