@@ -12,11 +12,12 @@ import (
 )
 
 type Config struct {
-	HTTPAddr              string
-	PlayerProfileGRPCAddr string
-	DatabaseURL           string
-	LogLevel              slog.Level
-	ShutdownTimeout       time.Duration
+	HTTPAddr                 string
+	PlayerProfileGRPCAddr    string
+	DatabaseURL              string
+	LogLevel                 slog.Level
+	ShutdownTimeout          time.Duration
+	RoomCommandQueueCapacity int
 }
 
 func Load() (Config, error) { return Parse(os.Getenv) }
@@ -24,11 +25,12 @@ func Load() (Config, error) { return Parse(os.Getenv) }
 // Parse accepts an environment lookup so defaults and invalid values can be tested.
 func Parse(getenv func(string) string) (Config, error) {
 	c := Config{
-		HTTPAddr:              valueOr(getenv("HTTP_ADDR"), "0.0.0.0:8080"),
-		PlayerProfileGRPCAddr: valueOr(getenv("PLAYER_PROFILE_GRPC_ADDR"), "envoy:50051"),
-		DatabaseURL:           getenv("DATABASE_URL"),
-		LogLevel:              slog.LevelInfo,
-		ShutdownTimeout:       10 * time.Second,
+		HTTPAddr:                 valueOr(getenv("HTTP_ADDR"), "0.0.0.0:8080"),
+		PlayerProfileGRPCAddr:    valueOr(getenv("PLAYER_PROFILE_GRPC_ADDR"), "envoy:50051"),
+		DatabaseURL:              getenv("DATABASE_URL"),
+		LogLevel:                 slog.LevelInfo,
+		ShutdownTimeout:          10 * time.Second,
+		RoomCommandQueueCapacity: 32,
 	}
 	if err := validateAddress("HTTP_ADDR", c.HTTPAddr); err != nil {
 		return Config{}, err
@@ -67,6 +69,13 @@ func Parse(getenv func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("SHUTDOWN_TIMEOUT must be a positive duration")
 		}
 		c.ShutdownTimeout = d
+	}
+	if v := getenv("ROOM_COMMAND_QUEUE_CAPACITY"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			return Config{}, fmt.Errorf("ROOM_COMMAND_QUEUE_CAPACITY must be a positive integer")
+		}
+		c.RoomCommandQueueCapacity = n
 	}
 	return c, nil
 }

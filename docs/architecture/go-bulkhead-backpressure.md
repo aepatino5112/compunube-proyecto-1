@@ -1,6 +1,6 @@
 # E39 — Bulkhead y backpressure del runtime Go
 
-Diseño de límites para implementar en F50/F51, coherente con [D28](go-match-runtime.md), [E37](cloud-native-pattern-selection.md), la política [E38](resilience-failover-degraded-mode.md), el contrato [E43](../../contracts/realtime/events.md) y [C22](../requirements/non-functional-requirements.md). El aislamiento es por sala, conexión y clase de trabajo remoto. Esta PR no implementa pools, semáforos, rate limits ni métricas.
+Diseño de límites para F50/F51, coherente con [D28](go-match-runtime.md), [E37](cloud-native-pattern-selection.md), la política [E38](resilience-failover-degraded-mode.md), el contrato [E43](../../contracts/realtime/events.md) y [C22](../requirements/non-functional-requirements.md). F50 aplica solo el canal de comandos acotado y configurable; F51 implementará el resto de políticas. El aislamiento es por sala, conexión y clase de trabajo remoto.
 
 ## Fronteras de aislamiento
 
