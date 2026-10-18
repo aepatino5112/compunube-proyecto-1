@@ -4,6 +4,7 @@ La arquitectura principal orientada a servicios mediante microservicios está ac
 El [diseño D28 del runtime Go](docs/architecture/go-match-runtime.md) fija tick, publicación, concurrencia por sala, reentrada y degradación de Rust.
 El [diseño D29 del Player/Profile Service](docs/architecture/rust-player-profile-service.md) fija responsabilidades, capas, idempotencia, transacciones y replicabilidad de Rust.
 El [diseño E41 de PostgreSQL](docs/architecture/postgresql-schema.md) fija tablas, constraints, índices y enforcement objetivo del ownership `match`/`player`.
+Los [contratos E43](contracts/realtime/events.md) congelan WebSocket realtime v1; `proto/player_profile.proto` congela gRPC interno `compunube.player.v1`.
 
 ## Vista general
 
@@ -89,8 +90,9 @@ Nunca son autoridad de:
 
 ## Comunicación
 
-- **Cliente ↔ Go:** HTTP y canal realtime.
-- **Go ↔ Rust:** gRPC + Protocol Buffers.
+- **Cliente ↔ Go realtime:** WebSocket JSON en `/v1/realtime`, subprotocolo `compunube.realtime.v1`.
+- **Cliente ↔ Go request/response:** HTTP; rutas/OpenAPI se definen en E45.
+- **Go ↔ Rust:** gRPC + Protocol Buffers, package `compunube.player.v1`.
 - **Go/Rust ↔ PostgreSQL:** solo sobre datos de su ownership.
 
 ## Patrones previstos
