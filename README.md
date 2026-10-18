@@ -23,6 +23,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Esquema PostgreSQL y ownership (E41)](docs/architecture/postgresql-schema.md)
 - [Migraciones y recuperación PostgreSQL (E42)](database/README.md)
 - [Contrato realtime WebSocket v1 (E43)](contracts/realtime/events.md)
+- [API HTTP pública y OpenAPI v1 (E45)](contracts/http/README.md)
 - [Contrato gRPC Player/Profile v1 (E43)](proto/README.md)
 - [Catálogo de patrones cloud-native (E36)](docs/architecture/cloud-native-pattern-catalog.md)
 - [Selección de patrones cloud-native (E37)](docs/architecture/cloud-native-pattern-selection.md)

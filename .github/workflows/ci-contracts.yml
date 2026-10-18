@@ -19,6 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Validate public OpenAPI
+        run: npx --yes --package @apidevtools/swagger-cli@4.0.4 swagger-cli validate contracts/http/openapi.yaml
+
       - name: Install protoc
         run: |
           sudo apt-get update
