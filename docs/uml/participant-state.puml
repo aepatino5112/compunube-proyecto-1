@@ -1,0 +1,50 @@
+@startuml
+title D35 · Estado canónico de participante (B17 / E43)
+skinparam shadowing false
+skinparam defaultFontName DejaVu Sans
+skinparam state {
+  BackgroundColor #F3F8FA
+  BorderColor #286B75
+  ArrowColor #356D77
+}
+
+[*] --> not_ready : Go confirma entrada en LOBBY
+not_ready --> ready
+ready --> not_ready
+ready --> racing : Go inicia tras COUNTDOWN
+racing --> reconnecting : corte durante carrera; entrada neutral
+reconnecting --> racing : misma identidad; ≤15 s
+reconnecting --> left : vence ventana de 15 s
+racing --> left : salida voluntaria confirmada
+racing --> finished : Go confirma meta
+reconnecting --> finished : Go confirma meta durante ausencia
+racing --> disqualified : Go confirma 0 vidas
+reconnecting --> disqualified : Go confirma 0 vidas durante ausencia
+racing --> dnf : vence plazo global de 45 s
+reconnecting --> dnf : vence plazo global de 45 s
+finished --> not_ready
+disqualified --> not_ready
+left --> not_ready
+dnf --> not_ready
+
+note right of ready
+  not_ready → ready: Go confirma perfil,
+  equipo y elección de Reducir.
+  ready → not_ready: retira ready o cambia
+  preparación antes del inicio.
+end note
+
+note bottom of reconnecting
+  El corte no crea left de inmediato.
+  No pausa la simulación ni reinicia
+  secuencias de input al reatar.
+end note
+
+note bottom of finished
+  Solo finished recibe rank y puede
+  acreditar materiales confirmados.
+  Los demás terminales reciben 0.
+  Tras RESULTS, cada terminal vuelve
+  a not_ready solo si sigue miembro.
+end note
+@enduml

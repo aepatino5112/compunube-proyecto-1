@@ -1,0 +1,34 @@
+@startuml
+title D35 · Estado canónico de sala (B17 / E43)
+skinparam shadowing false
+skinparam defaultFontName DejaVu Sans
+skinparam state {
+  BackgroundColor #F3F8FA
+  BorderColor #286B75
+  ArrowColor #356D77
+}
+
+[*] --> LOBBY : Go crea sala y confirma miembro
+LOBBY --> COUNTDOWN : 2–4 presentes; todos ready confirmados
+COUNTDOWN --> LOBBY : cambia roster, preparación o ready
+COUNTDOWN --> RACING : pasan 3 s; Go fija roster y versiones
+RACING --> RESULTS : todos terminales o vence plazo global de 45 s
+RESULTS --> LOBBY : repetir con miembros restantes not_ready
+LOBBY --> CLOSED : queda vacía o cierre permitido
+COUNTDOWN --> CLOSED : queda vacía
+RESULTS --> CLOSED : queda vacía o cierre permitido
+CLOSED --> [*]
+
+note right of COUNTDOWN
+  No se admiten joins nuevos.
+  Un cambio antes del inicio cancela
+  la cuenta atrás.
+end note
+
+note right of RACING
+  Primer finished inicia 45 s.
+  Una reentrada válida no es un join.
+  Sin primer finished, todos terminales
+  también cierran la carrera.
+end note
+@enduml
