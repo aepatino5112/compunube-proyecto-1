@@ -21,6 +21,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Evaluación de estilos arquitectónicos CEN-03 (D26)](docs/architecture/architecture-evaluation.md)
 - [Rust Player/Profile Service replicable (D29)](docs/architecture/rust-player-profile-service.md)
 - [Esquema PostgreSQL y ownership (E41)](docs/architecture/postgresql-schema.md)
+- [Migraciones y recuperación PostgreSQL (E42)](database/README.md)
 - [Contrato realtime WebSocket v1 (E43)](contracts/realtime/events.md)
 - [Contrato gRPC Player/Profile v1 (E43)](proto/README.md)
 - [Catálogo de patrones cloud-native (E36)](docs/architecture/cloud-native-pattern-catalog.md)
