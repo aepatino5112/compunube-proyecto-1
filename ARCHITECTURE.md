@@ -3,6 +3,7 @@
 La arquitectura principal orientada a servicios mediante microservicios está aceptada en [ADR 0003](docs/adr/0003-primary-distributed-architecture.md); la [evaluación D26](docs/architecture/architecture-evaluation.md) documenta las alternativas docentes.
 El [diseño D28 del runtime Go](docs/architecture/go-match-runtime.md) fija tick, publicación, concurrencia por sala, reentrada y degradación de Rust.
 La [política E38](docs/architecture/resilience-failover-degraded-mode.md) concreta deadlines, retry seguro, Circuit Breaker y recuperación de settlement.
+El [diseño E39](docs/architecture/go-bulkhead-backpressure.md) fija aislamiento por sala, conexión y clase de trabajo remoto con límites configurables.
 El [diseño D29 del Player/Profile Service](docs/architecture/rust-player-profile-service.md) fija responsabilidades, capas, idempotencia, transacciones y replicabilidad de Rust.
 El [diseño E41 de PostgreSQL](docs/architecture/postgresql-schema.md) fija tablas, constraints, índices y enforcement objetivo del ownership `match`/`player`.
 Los [contratos E43](contracts/realtime/events.md) congelan WebSocket realtime v1; `proto/player_profile.proto` congela gRPC interno `compunube.player.v1`.
