@@ -1,0 +1,241 @@
+# D29 — Rust Player/Profile Service replicable
+
+Este diseño desarrolla la frontera persistente definida por [C25](domain-model.md) y [ADR 0003](../adr/0003-primary-distributed-architecture.md). Rust es responsable del perfil y la economía durable del jugador; **no participa en el tick de carrera, no recalcula resultados y no conserva estado crítico exclusivo en una réplica**. El contrato gRPC definitivo pertenece a E43 y el diseño físico de PostgreSQL pertenece a E41.
+
+## Responsabilidad del servicio
+
+El Player/Profile Service concentra operaciones cuyo resultado debe sobrevivir reinicios y ser consistente entre clientes y réplicas:
+
+| Área | Responsabilidad de Rust |
+| --- | --- |
+| Perfil | Consultar identidad persistente, recursos y revisión del perfil. |
+| Inventario | Consultar materiales, monedas y propiedad durable. |
+| Catálogo | Exponer elementos/versiones habilitados para operaciones de perfil. |
+| Equipamiento y apariencia | Validar propiedad y guardar selección persistente. |
+| Compra | Validar catálogo, saldo y propiedad; aplicar el cambio de forma atómica. |
+| Crafting | Validar receta/materiales; descontar y acreditar el resultado en una sola transacción. |
+| Canje | Convertir materiales según reglas de catálogo vigentes sin aceptar saldos declarados por cliente. |
+| Settlement | Acreditar una sola vez el resultado autoritativo recibido desde Go. |
+
+Go conserva salas, participantes, carrera viva, pickups, ranking y `RaceResult`. El frontend nunca invoca Rust directamente ni declara premios, materiales acreditables o saldo final.
+
+## Casos de uso de aplicación
+
+D29 fija los casos de uso conceptuales que deberá exponer la capa de aplicación. E43 decidirá nombres RPC, mensajes y versionado.
+
+### Consultas
+
+- obtener perfil por `playerId`;
+- obtener inventario/propiedad;
+- obtener catálogo y versión activa;
+- obtener equipamiento/apariencia confirmados.
+
+Las consultas pueden usar caché como optimización futura, pero una caché local de instancia **nunca es la única fuente de verdad** ni puede volver no reemplazable a una réplica.
+
+### Comandos de perfil y economía
+
+- comprar un elemento;
+- fabricar mediante una receta;
+- canjear materiales;
+- equipar o cambiar apariencia;
+- aplicar settlement de carrera.
+
+Cada comando valida el estado durable dentro del servicio. El cliente no puede enviar un saldo nuevo como hecho consumado y Go no escribe directamente el esquema privado de Rust.
+
+## Capas e interfaces internas
+
+La implementación deberá mantener separadas cuatro responsabilidades:
+
+```text
+gRPC transport / adapters
+          |
+          v
+Application use cases
+          |
+          v
+Domain rules
+          |
+          v
+Repository ports
+          |
+          v
+PostgreSQL adapter
+```
+
+### Transporte/adaptadores
+
+- reciben solicitudes gRPC desde Go a través de Envoy;
+- validan formato, versión y contexto definidos finalmente por E43;
+- convierten errores internos a códigos contractuales sin filtrar detalles de PostgreSQL;
+- propagan IDs de correlación y deadlines;
+- no contienen reglas económicas duplicadas.
+
+### Aplicación
+
+Orquesta transacciones y casos de uso. Ejemplos conceptuales:
+
+- `GetProfile`;
+- `GetCatalog`;
+- `BuyItem`;
+- `CraftItem`;
+- `ExchangeMaterials`;
+- `EquipItem`;
+- `SetAppearance`;
+- `SettleRace`.
+
+Los nombres son descriptivos y **no congelan** las RPC de E43.
+
+### Dominio
+
+Contiene invariantes independientes del transporte:
+
+- ningún recurso queda negativo;
+- no se equipa un elemento no poseído;
+- una compra/craft/canje usa reglas de catálogo válidas;
+- una operación económica no se aplica dos veces;
+- un settlement no modifica ranking ni reinterpreta pickups;
+- `disqualified`, `left` y `dnf` no generan materiales acreditables;
+- la selección cosmética no altera autoridad ni resultado de carrera.
+
+### Puertos de repositorio
+
+D29 define responsabilidades, no tablas ni SQL. Como mínimo la implementación necesitará puertos equivalentes a:
+
+- **PlayerProfileRepository:** cargar/actualizar perfil y revisión;
+- **InventoryRepository:** consultar y modificar recursos/propiedad dentro de una transacción;
+- **CatalogRepository:** consultar catálogo/versiones/reglas activas;
+- **EconomicOperationRepository:** registrar/deduplicar comandos económicos por identificador estable;
+- **SettlementRepository:** detectar y registrar la acreditación única de una carrera para un jugador.
+
+E41 decidirá tablas, columnas, claves, índices y restricciones físicas. La capa de aplicación no debe depender de SQL disperso fuera de estos adaptadores.
+
+## Transacciones e idempotencia
+
+Las operaciones que cambian saldo, materiales, propiedad o equipamiento se ejecutan como **unidad atómica**: se confirma todo o no se confirma nada.
+
+### Comandos económicos
+
+Los comandos reintentables deberán incluir un identificador estable de solicitud acordado en E43. Conceptualmente:
+
+1. Rust recibe `requestId` y `playerId`.
+2. Comprueba si la operación ya fue aplicada.
+3. Si existe, devuelve un resultado coherente con la operación original sin repetir efectos.
+4. Si no existe, valida reglas y estado actual.
+5. Aplica los cambios y registra la deduplicación en la misma frontera transaccional.
+6. Solo después del commit responde éxito.
+
+E41 decide cómo representar físicamente la deduplicación.
+
+### Settlement
+
+La identidad conceptual de un settlement es **`(raceId, playerId)`**. Repetir la misma solicitud, incluso tras un timeout posterior al commit, debe producir una única modificación durable.
+
+Rust confía en el resultado emitido por Go dentro del flujo servidor autorizado; no acepta un settlement directo del cliente. La política de retry corresponde a E38/J77 y solo puede habilitarse de forma compatible con esta idempotencia.
+
+## Acceso y ownership de PostgreSQL
+
+Rust escribe únicamente el contexto lógico `player`. No escribe estado vivo de `match` y no necesita leer cada tick de carrera.
+
+Reglas de acceso:
+
+- PostgreSQL es la fuente durable para perfil/economía/settlement;
+- credenciales, host, puerto y límites se suministran por configuración externa;
+- ninguna réplica depende de disco local para recuperar estado de negocio;
+- las transacciones de escritura se ejecutan contra PostgreSQL antes de responder confirmación;
+- los errores de base de datos se convierten en errores de servicio controlados;
+- pool de conexiones y límites son configurables por instancia;
+- E41 definirá permisos, constraints e índices concretos.
+
+Compartir físicamente una instancia PostgreSQL no elimina el ownership lógico: Go no modifica datos privados de `player` y Rust no toma autoridad sobre `match`.
+
+## Replicabilidad
+
+Una instancia Rust es **reemplazable** si otra instancia con la misma versión/configuración puede atender la siguiente solicitud usando PostgreSQL como fuente durable.
+
+Por tanto, una réplica no puede depender para corrección de:
+
+- sesiones guardadas solo en memoria;
+- saldos o inventarios solo en memoria;
+- una cola local como único registro de settlement;
+- archivos locales con catálogo o propiedad que no puedan reconstruirse;
+- sticky sessions como requisito funcional.
+
+Puede existir estado efímero por rendimiento —pool de conexiones, caché no autoritativa, métricas o buffers— siempre que perderlo no cambie el resultado durable ni impida que otra réplica continúe.
+
+Envoy podrá distribuir solicitudes entre réplicas saludables. La semántica exacta de health/readiness pertenece a E40 y el failover/retry a E38/J78.
+
+## Reinicio y fallo de instancia
+
+### Reinicio limpio
+
+1. La instancia deja de aceptar trabajo nuevo.
+2. Las solicitudes en curso terminan o son canceladas según el deadline disponible.
+3. Se cierran recursos locales.
+4. Al arrancar de nuevo, la instancia reconstruye su capacidad desde configuración y PostgreSQL.
+5. No necesita recuperar estado crítico desde memoria previa.
+
+### Caída durante una operación
+
+- **Antes del commit:** no debe quedar un efecto parcial durable.
+- **Después del commit y antes de responder:** el llamador puede no saber si se aplicó; un retry con la misma clave idempotente debe recuperar una respuesta coherente sin duplicar efectos.
+- **Caída de una sola réplica:** Envoy puede excluirla y dirigir solicitudes posteriores a otra instancia.
+- **Caída de todas las réplicas:** perfil/economía/settlement quedan temporalmente indisponibles, pero Go mantiene las carreras activas y sus resultados; no se muestra saldo ficticio.
+
+Un settlement puede quedar pendiente de confirmación sin alterar el resultado autoritativo de la carrera.
+
+## Concurrencia
+
+Varias réplicas pueden recibir operaciones sobre el mismo jugador. La corrección no puede depender de que todas las solicitudes lleguen a una única instancia.
+
+La implementación deberá apoyarse en transacciones y restricciones durables para evitar:
+
+- doble gasto;
+- doble acreditación;
+- propiedad duplicada cuando deba ser única;
+- pérdida de actualización;
+- settlement duplicado.
+
+E41 definirá la estrategia física y las restricciones SQL; D29 fija que la consistencia se resuelve en la frontera transaccional de PostgreSQL, no con locks de memoria entre réplicas.
+
+## Errores y observabilidad
+
+Cada solicitud debe poder correlacionarse entre Go, Envoy, Rust y PostgreSQL sin registrar secretos. Como mínimo se deberá poder observar:
+
+- operación/caso de uso;
+- `playerId` y, cuando aplique, `raceId`/`requestId` de forma segura;
+- resultado lógico;
+- duración;
+- error gRPC categorizado;
+- error/latencia de PostgreSQL;
+- hits de deduplicación;
+- settlements aplicados/repetidos;
+- estado de health/readiness por instancia.
+
+Los nombres de métricas, códigos gRPC y umbrales quedan para E40/E43 y las tareas de implementación.
+
+## Validación de replicabilidad
+
+D29 se considera implementable si el siguiente comportamiento puede demostrarse después:
+
+1. arrancar dos instancias Rust equivalentes detrás de Envoy;
+2. ejecutar una operación durable en una de ellas;
+3. detener esa instancia;
+4. repetir/consultar desde la otra;
+5. obtener estado consistente desde PostgreSQL;
+6. repetir un comando idempotente sin duplicar efecto;
+7. detener todas las réplicas y comprobar que Go mantiene una carrera activa en modo degradado.
+
+La topología física y los puertos finales pertenecen a D31; esta validación puede realizarse primero en el entorno local/Compose.
+
+## Límites de D29
+
+D29 **no** congela:
+
+- tablas, columnas, índices, permisos ni migraciones de E41/E42;
+- mensajes, RPC, códigos o compatibilidad de E43;
+- valores concretos de timeout/retry/circuit breaker de E38;
+- health checks definitivos de E40;
+- código Rust de F47/F52;
+- política física de réplicas/puertos de D31.
+
+Sí congela la responsabilidad funcional, las capas, la necesidad de idempotencia/transacciones, el comportamiento ante reinicio y la condición de que cualquier réplica sea reemplazable sin perder estado crítico.
