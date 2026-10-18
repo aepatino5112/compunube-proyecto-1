@@ -9,8 +9,11 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/inputmailbox"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/race"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomruntime"
 )
 
@@ -24,11 +27,14 @@ const (
 )
 
 var (
-	ErrNotFound = errors.New("room not found")
-	ErrFull     = errors.New("room full")
-	ErrState    = errors.New("invalid room state")
-	ErrMember   = errors.New("not a member")
-	ErrReady    = errors.New("invalid ready")
+	ErrNotFound      = errors.New("room not found")
+	ErrFull          = errors.New("room full")
+	ErrState         = errors.New("invalid room state")
+	ErrMember        = errors.New("not a member")
+	ErrReady         = errors.New("invalid ready")
+	ErrRaceNotActive = errors.New("race not active")
+	ErrInvalidInput  = errors.New("invalid race input")
+	ErrRateLimited   = errors.New("input mailbox full")
 )
 
 type Equipment struct {
@@ -72,6 +78,7 @@ type Member struct {
 	Appearance       Appearance `json:"appearance"`
 	connectionID     string
 	disconnectedAt   time.Time
+	departed         bool
 }
 type State struct {
 	RoomID            string   `json:"roomId"`
@@ -99,18 +106,33 @@ type Message struct {
 type Sink interface{ Send(any) bool }
 
 type Manager struct {
-	mu       sync.RWMutex
-	rooms    map[string]*entry
-	runtime  *roomruntime.Manager
-	verifier Verifier
+	mu                    sync.RWMutex
+	rooms                 map[string]*entry
+	runtime               *roomruntime.Manager
+	verifier              Verifier
+	inputSlots, jumpEdges int
+}
+type inputGateway struct {
+	raceID  string
+	roster  map[string]struct{}
+	mailbox *inputmailbox.Mailbox
 }
 type entry struct {
 	room   *room
 	handle *roomruntime.Handle
 }
 
-func NewManager(runtime *roomruntime.Manager, verifier Verifier) *Manager {
-	return &Manager{rooms: map[string]*entry{}, runtime: runtime, verifier: verifier}
+type Options struct{ InputSlots, JumpEdges int }
+
+func NewManager(runtime *roomruntime.Manager, verifier Verifier, options ...Options) *Manager {
+	opts := Options{InputSlots: 4, JumpEdges: 4}
+	if len(options) > 0 {
+		opts = options[0]
+	}
+	if opts.InputSlots <= 0 || opts.JumpEdges <= 0 {
+		panic("invalid room input options")
+	}
+	return &Manager{rooms: map[string]*entry{}, runtime: runtime, verifier: verifier, inputSlots: opts.InputSlots, jumpEdges: opts.JumpEdges}
 }
 func validMap(id string) bool           { return id == "maracaibo" || id == "orinoco" }
 func courseVersion(mapID string) string { return mapID + "-surf-mvp-1" }
@@ -130,7 +152,7 @@ func (m *Manager) Create(ctx context.Context, mapID, playerID string) (Membershi
 	if err != nil {
 		return Membership{}, err
 	}
-	r := &room{id: id, mapID: mapID, state: Lobby, members: map[string]*Member{}, sinks: map[string]Sink{}}
+	r := &room{id: id, mapID: mapID, state: Lobby, members: map[string]*Member{}, sinks: map[string]Sink{}, inputSlots: m.inputSlots, jumpEdges: m.jumpEdges}
 	m.mu.Lock()
 	h, err := m.runtime.Start(id, r)
 	if err == nil {
@@ -166,6 +188,9 @@ func (m *Manager) Join(ctx context.Context, id, playerID string) (Membership, er
 	}
 	v, err := e.handle.Submit(ctx, join{playerID})
 	if err != nil {
+		if errors.Is(err, roomruntime.ErrClosed) {
+			return Membership{}, ErrNotFound
+		}
 		return Membership{}, err
 	}
 	s := v.(State)
@@ -178,7 +203,7 @@ func (m *Manager) Ready(ctx context.Context, id, playerID string, ready bool, re
 	}
 	var prep Preparation
 	if ready {
-		if revision == 0 || (choice != "reusable" && choice != "disposable") {
+		if revision == 0 || revision > 9007199254740991 || (choice != "reusable" && choice != "disposable") {
 			return ErrReady
 		}
 		prep, err = m.verifier.Verify(ctx, playerID, revision)
@@ -226,15 +251,37 @@ func (m *Manager) Snapshot(ctx context.Context, id string) (State, error) {
 	return v.(State), nil
 }
 
-// Finish is an internal seam for F53. It never fabricates a competitive result.
-func (m *Manager) Finish(ctx context.Context, id string) error {
+// Input validates immutable race admission data before the bounded mailbox.
+// It does not occupy a room command slot or write race state from the reader.
+func (m *Manager) Input(id, playerID, raceID string, in inputmailbox.Input) error {
 	e, err := m.get(id)
 	if err != nil {
 		return err
 	}
-	_, err = e.handle.Submit(ctx, finish{})
-	return err
+	select {
+	case <-e.handle.Done():
+		return ErrRaceNotActive
+	default:
+	}
+	g := e.room.gateway.Load()
+	if g == nil || g.raceID != raceID {
+		return ErrRaceNotActive
+	}
+	if _, ok := g.roster[playerID]; !ok {
+		return ErrMember
+	}
+	if !race.ValidInput(in) {
+		return ErrInvalidInput
+	}
+	if err := g.mailbox.Offer(playerID, in); err != nil {
+		if errors.Is(err, inputmailbox.ErrJumpFull) || errors.Is(err, inputmailbox.ErrFull) {
+			return ErrRateLimited
+		}
+		return ErrInvalidInput
+	}
+	return nil
 }
+
 func (m *Manager) Repeat(ctx context.Context, id string) error {
 	e, err := m.get(id)
 	if err != nil {
@@ -245,12 +292,15 @@ func (m *Manager) Repeat(ctx context.Context, id string) error {
 }
 
 type room struct {
-	id, mapID, state string
-	members          map[string]*Member
-	sinks            map[string]Sink
-	countdownEnd     time.Time
-	raceID           string
-	close            func()
+	id, mapID, state      string
+	members               map[string]*Member
+	sinks                 map[string]Sink
+	countdownEnd          time.Time
+	raceID                string
+	close                 func()
+	race                  *race.Race
+	gateway               atomic.Pointer[inputGateway]
+	inputSlots, jumpEdges int
 }
 type join struct{ playerID string }
 type leave struct{ playerID string }
@@ -260,7 +310,6 @@ type bind struct {
 }
 type disconnect struct{ playerID, connectionID string }
 type snapshot struct{}
-type finish struct{}
 type repeat struct{}
 type setReady struct {
 	playerID string
@@ -324,8 +373,15 @@ func (r *room) HandleCommand(_ context.Context, c any) (any, error) {
 			return nil, ErrMember
 		}
 		if r.state == Racing {
-			p.ParticipantState = "left"
+			if r.race != nil {
+				r.race.Leave(x.playerID)
+				p.ParticipantState = r.race.State(x.playerID)
+			}
 			p.Ready = false
+			p.departed = true
+			p.Connected = false
+			p.connectionID = ""
+			r.neutral(x.playerID)
 		} else {
 			delete(r.members, x.playerID)
 			if r.state == Countdown {
@@ -347,14 +403,25 @@ func (r *room) HandleCommand(_ context.Context, c any) (any, error) {
 		if p == nil {
 			return nil, ErrMember
 		}
+		if previous := r.sinks[x.playerID]; previous != nil {
+			if closer, ok := previous.(interface{ Close() }); ok {
+				closer.Close()
+			}
+		}
 		p.connectionID = x.connectionID
 		p.Connected = true
 		p.disconnectedAt = time.Time{}
-		if p.ParticipantState == "reconnecting" {
-			p.ParticipantState = "racing"
+		if r.state == Racing && r.race != nil {
+			p.ParticipantState = r.race.Rebind(x.playerID, time.Now())
 		}
 		r.sinks[x.playerID] = x.sink
 		r.publish()
+		if r.state == Racing && r.race != nil {
+			x.sink.Send(race.SnapshotMessage{Type: "race.snapshot", ProtocolVersion: 1, Snapshot: r.race.Snapshot(time.Now())})
+		}
+		if r.state == Results && r.race != nil && r.race.Result != nil {
+			x.sink.Send(race.EndedMessage{Type: "race.ended", ProtocolVersion: 1, Result: r.race.Result.Copy()})
+		}
 		return nil, nil
 	case disconnect:
 		p := r.members[x.playerID]
@@ -367,6 +434,10 @@ func (r *room) HandleCommand(_ context.Context, c any) (any, error) {
 		if r.state == Racing && p.ParticipantState == "racing" {
 			p.ParticipantState = "reconnecting"
 			p.disconnectedAt = time.Now()
+			if r.race != nil {
+				r.race.Disconnect(x.playerID, p.disconnectedAt)
+			}
+			r.neutral(x.playerID)
 		} else if r.state == Lobby || r.state == Countdown {
 			delete(r.members, x.playerID)
 			if r.state == Countdown {
@@ -384,23 +455,27 @@ func (r *room) HandleCommand(_ context.Context, c any) (any, error) {
 		return nil, nil
 	case snapshot:
 		return r.view(), nil
-	case finish:
-		if r.state != Racing {
-			return nil, ErrState
-		}
-		r.state = Results
-		r.publish()
-		return nil, nil
 	case repeat:
 		if r.state != Results {
 			return nil, ErrState
 		}
 		r.state = Lobby
 		r.raceID = ""
-		for _, p := range r.members {
+		r.race = nil
+		r.gateway.Store(nil)
+		for id, p := range r.members {
+			if p.departed {
+				delete(r.members, id)
+				delete(r.sinks, id)
+				continue
+			}
 			p.Ready = false
 			p.ParticipantState = "not_ready"
 			p.ReduceChoice = nil
+		}
+		if len(r.members) == 0 {
+			r.state = Closed
+			r.close()
 		}
 		r.publish()
 		return nil, nil
@@ -416,25 +491,89 @@ func (r *room) HandleTick(_ context.Context, t roomruntime.Tick) {
 	}
 	if r.state == Countdown && !t.At.Before(r.countdownEnd) {
 		id, err := newID("race_")
-		if err == nil {
-			r.raceID = id
-			r.state = Racing
-			for _, p := range r.members {
-				p.ParticipantState = "racing"
-			}
-			r.publish()
+		if err != nil {
+			return
 		}
-	}
-	if r.state == Racing {
-		changed := false
+		members := r.view().Members
+		roster := make([]race.RosterMember, 0, len(members))
+		admitted := make(map[string]struct{}, len(members))
+		for _, p := range members {
+			if p.ReduceChoice == nil {
+				return
+			}
+			roster = append(roster, race.RosterMember{PlayerID: p.PlayerID, Equipment: race.Equipment{BoardID: p.Equipment.BoardID, OutfitID: p.Equipment.OutfitID, NetID: p.Equipment.NetID, HairID: p.Equipment.HairID, CharacterID: p.Equipment.CharacterID}, Appearance: race.Appearance{SkinID: p.Appearance.SkinID, HairColorID: p.Appearance.HairColorID}, ReduceChoice: *p.ReduceChoice})
+			admitted[p.PlayerID] = struct{}{}
+		}
+		engine, err := race.New(r.id, id, r.mapID, t.At, roster)
+		if err != nil {
+			return
+		}
+		r.race = engine
+		r.raceID = id
+		r.state = Racing
 		for _, p := range r.members {
-			if p.ParticipantState == "reconnecting" && !t.At.Before(p.disconnectedAt.Add(15*time.Second)) {
-				p.ParticipantState = "left"
+			p.ParticipantState = "racing"
+		}
+		r.gateway.Store(&inputGateway{raceID: id, roster: admitted, mailbox: inputmailbox.New(r.inputSlots, r.jumpEdges)})
+		r.publish()
+		start := engine.StartMessage()
+		for _, sink := range r.sinks {
+			sink.Send(start)
+		}
+		return
+	}
+	if r.state == Racing && r.race != nil {
+		g := r.gateway.Load()
+		if g == nil {
+			return
+		}
+		events, snapshot, result := r.race.Advance(t.At, g.mailbox.Drain())
+		changed := false
+		for id, p := range r.members {
+			state := r.race.State(id)
+			if state != "" && state != p.ParticipantState {
+				p.ParticipantState = state
 				changed = true
+				if state == "left" {
+					p.departed = true
+				}
 			}
 		}
 		if changed {
 			r.publish()
+		}
+		for _, e := range events {
+			message := race.WireEvent(e)
+			for _, sink := range r.sinks {
+				sink.Send(message)
+			}
+		}
+		if snapshot != nil {
+			message := race.SnapshotMessage{Type: "race.snapshot", ProtocolVersion: 1, Snapshot: *snapshot}
+			for _, sink := range r.sinks {
+				sink.Send(message)
+			}
+		}
+		if result != nil {
+			r.gateway.Store(nil)
+			r.state = Results
+			r.publish()
+			message := race.EndedMessage{Type: "race.ended", ProtocolVersion: 1, Result: *result}
+			for _, sink := range r.sinks {
+				sink.Send(message)
+			}
+			remaining := false
+			for _, p := range r.members {
+				if !p.departed {
+					remaining = true
+					break
+				}
+			}
+			if !remaining {
+				r.state = Closed
+				r.publish()
+				r.close()
+			}
 		}
 	}
 }
@@ -475,4 +614,15 @@ func (r *room) publish() {
 			delete(r.sinks, id)
 		}
 	}
+}
+func (r *room) neutral(id string) {
+	g := r.gateway.Load()
+	if g == nil || r.race == nil {
+		return
+	}
+	p := r.race.Participants[id]
+	if p == nil {
+		return
+	}
+	g.mailbox.Neutral(id, p.LastProcessedInputSeq, p.LastProcessedJumpSeq)
 }

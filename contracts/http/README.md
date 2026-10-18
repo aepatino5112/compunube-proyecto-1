@@ -1,6 +1,6 @@
 # E45 · Frontera HTTP pública v1
 
-[`openapi.yaml`](openapi.yaml) es la especificación normativa de las operaciones request/response cliente ↔ Go. Describe un contrato para implementar en F48/F49/J77; la existencia de una ruta aquí no afirma que el servidor actual ya la atienda.
+[`openapi.yaml`](openapi.yaml) es la especificación normativa de las operaciones request/response cliente ↔ Go. F48 implementa sesiones y F49 crear/entrar sala; las rutas de perfil/economía y su traducción de errores quedan para J77/F52. La existencia de una ruta aquí no afirma que el servidor actual ya la atienda.
 
 | Transporte | Uso | Fuente |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ La envoltura `{code, message, requestId?}` contiene un código estable y un mens
 | 503 | `PROFILE_UNAVAILABLE`, `SERVICE_UNAVAILABLE` | Dependencia de perfil o servicio no disponible; no se inventa respuesta |
 | 504 | `MUTATION_OUTCOME_UNKNOWN` | Venció el plazo tras enviar una mutación; resultado pendiente de confirmar |
 
-Los códigos de negocio corresponden a las categorías de `proto/player_profile.proto`; las respuestas gRPC no se exponen literalmente. `INCOMPATIBLE_VERSION` puede rechazar una entrada cuando Go no puede confirmar compatibilidad de la sala, sin convertir `rulesVersion`, `courseVersion` o `catalogVersion` en versión de red. F48/F49/J77 implementarán estas rutas y la traducción de errores.
+Los códigos de negocio corresponden a las categorías de `proto/player_profile.proto`; las respuestas gRPC no se exponen literalmente. `INCOMPATIBLE_VERSION` puede rechazar una entrada cuando Go no puede confirmar compatibilidad de la sala, sin convertir `rulesVersion`, `courseVersion` o `catalogVersion` en versión de red. La traducción de errores de perfil/economía sigue pendiente de J77/F52.
 
 Validación local, con versión exacta del validador usada por CI Contracts:
 

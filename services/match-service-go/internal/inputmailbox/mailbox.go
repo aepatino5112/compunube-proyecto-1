@@ -100,12 +100,18 @@ func (m *Mailbox) Drain() []Delivery {
 	return out
 }
 
-// Neutral clears pending continuous input while retaining sequence history.
-func (m *Mailbox) Neutral(playerID string) {
+// Neutral discards pending input and resets admission to the last processed
+// counters that the reconnecting client can see in its authoritative snapshot.
+func (m *Mailbox) Neutral(playerID string, processedSeq, processedJumpSeq uint64) {
 	m.mu.Lock()
 	if s := m.slots[playerID]; s != nil {
 		s.latest = nil
 		s.jumps = nil
+		// Pending accepted packets were never applied. The reconnecting client
+		// resumes from the snapshot's processed counters, not discarded packets.
+		s.lastSeq = processedSeq
+		s.lastJump = processedJumpSeq
+		s.seen = true
 	}
 	m.mu.Unlock()
 }

@@ -1,4 +1,4 @@
-# Go Match Service base (F46)
+# Go Match Service
 
 `cmd/server/main.go` carga configuración, prepara logging y señales y ejecuta `internal/server`. El servidor registra `/healthz`, `/readyz`, `/metrics`, las rutas de sesión, crear/entrar sala de E45 y `/v1/realtime` de E43.
 
@@ -12,7 +12,7 @@
 | `ROOM_COMMAND_QUEUE_CAPACITY` | `32` | Capacidad acotada de comandos por loop; baseline interno E39 configurable |
 | `MAX_ACTIVE_ROOMS` / `MAX_CONNECTIONS` | `5` / `20` | Rechazo de admisión global, sin desalojar admitidos |
 | `ROOM_MAX_COMMANDS_PER_TICK` | `16` | Presupuesto de control entre ticks |
-| `ROOM_INPUT_SLOTS` / `ROOM_JUMP_EDGES_PER_PLAYER` | `4` / `4` | Mailbox acotada; F53 conectará race.input |
+| `ROOM_INPUT_SLOTS` / `ROOM_JUMP_EDGES_PER_PLAYER` | `4` / `4` | Mailbox acotada de carrera |
 | `CONNECTION_INPUT_RATE` / `CONNECTION_INPUT_BURST` | `20` / `4` | Token bucket por WebSocket, antes del loop |
 | `CONNECTION_SNAPSHOT_SLOTS` | `1` | Invariante latest-only; valores distintos se rechazan |
 | `CONNECTION_CRITICAL_QUEUE` / `CONNECTION_EVENT_QUEUE` | `16` / `16` | Salida acotada; crítico lleno cierra solo ese socket |
@@ -34,19 +34,25 @@ Las sesiones y `ActivePlayer` viven solo en memoria de este proceso: **reiniciar
 
 `internal/roomruntime` registra handles con un mutex breve y ejecuta **una goroutine por sala**. El handler de cada sala recibe comandos y ticks en serie; es el único escritor de su estado. `Submit` devuelve resultado por un canal de respuesta acotado, rechaza una cola llena con `ErrQueueFull` y no acepta trabajo tras cierre. `ConnectionChange` es un comando interno de conexión/desconexión; no decide membresía ni la ventana de reentrada de B17.
 
-El tick de producción es **50 ms / 20 Hz**, fijado por D28. El reloj es inyectable para pruebas. Si Go retrasa un ticker, el loop procesa un paso lógico de 50 ms por señal entregada: no lanza una ráfaga ilimitada de pasos de recuperación. Los handlers deben terminar pronto y no realizar red, SQL ni RPC en el loop. F49 añade estados/reglas de sala; F53 añadirá simulación y publicación de carrera.
+El tick de producción es **50 ms / 20 Hz**, fijado por D28. El reloj es inyectable para pruebas. Si Go retrasa un ticker, el loop procesa un paso lógico de 50 ms por señal entregada: no lanza una ráfaga ilimitada de pasos de recuperación. Los handlers deben terminar pronto y no realizar red, SQL ni RPC en el loop. F49 añade estados/reglas de sala y F53 simulación y publicación de carrera.
 
 ## Salas y realtime inicial (F49)
 
-`POST /v1/rooms` acepta solo `mapId` (`maracaibo` u `orinoco`) y `POST /v1/rooms/{roomId}/memberships` entra en un LOBBY con plaza; ambos derivan `playerId` de F48. Una sala admite cuatro humanos, arranca cuenta atrás de tres segundos con 2–4 miembros preparados y ready, congela el roster al entrar en RACING y mantiene el mapa para carreras repetidas. El loop serial es el único escritor. Desconexión durante RACING deja una ventana de reentrada de 15 segundos para la misma identidad. `Finish` y `Repeat` son comandos internos para que F53 cierre una carrera y vuelva a LOBBY con miembros not_ready; no crean un resultado ficticio.
+`POST /v1/rooms` acepta solo `mapId` (`maracaibo` u `orinoco`) y `POST /v1/rooms/{roomId}/memberships` entra en un LOBBY con plaza; ambos derivan `playerId` de F48. Una sala admite cuatro humanos, arranca cuenta atrás de tres segundos con 2–4 miembros preparados y ready, congela el roster al entrar en RACING y mantiene el mapa para carreras repetidas. El loop serial es el único escritor. Desconexión durante RACING deja una ventana de reentrada de 15 segundos para la misma identidad. El cierre competitivo ocurre por las reglas F53; `Repeat` interno devuelve los miembros restantes a LOBBY como not_ready.
 
-`/v1/realtime` autentica el upgrade y exige `compunube.realtime.v1`. En F49 procesa `room.ready` y `room.leave` y publica `room.state`; `race.input`, manifiestos, snapshots y resultados son alcance F53. El perfil no está conectado a Rust: `UnavailableVerifier` rechaza `ready: true` en producción. Las pruebas inyectan un verificador local para demostrar el lifecycle, sin afirmar que Go haya consultado Rust. J77/F52 deberán proporcionar preparación verificada para habilitar partidas de producción.
+`/v1/realtime` autentica el upgrade y exige `compunube.realtime.v1`. Procesa `room.ready`, `room.leave` y `race.input`; publica `room.state`, `race.start`, `race.snapshot`, `race.event` y `race.ended`. El perfil no está conectado a Rust: `UnavailableVerifier` rechaza `ready: true` en producción. Las pruebas inyectan un verificador local para demostrar el lifecycle y la carrera, sin afirmar que Go haya consultado Rust. J77/F52 deberán proporcionar preparación verificada para habilitar partidas de producción.
 
 ## Control de carga (F51)
 
-`roomruntime` limita salas activas y procesa como máximo el presupuesto configurado de comandos antes de reservar turno al tick. `roomshttp` limita conexiones autenticadas y libera el cupo al cerrarlas. La salida WebSocket usa `outbox`: críticos FIFO, un snapshot pendiente reemplazable y eventos transitorios acotados. Si se llena la cola crítica se cierra solo esa conexión. `race.input` pasa por un token bucket antes de entrar al loop; F53 conectará validación y consumo de esos inputs.
+`roomruntime` limita salas activas y procesa como máximo el presupuesto configurado de comandos antes de reservar turno al tick. `roomshttp` limita conexiones autenticadas y libera el cupo al cerrarlas. La salida WebSocket usa `outbox`: críticos FIFO, un snapshot pendiente reemplazable y eventos transitorios acotados. Si se llena la cola crítica se cierra solo esa conexión. `race.input` pasa por un token bucket antes de entrar al loop y por validación de carrera/secuencia antes de la mailbox.
 
-`inputmailbox` conserva la intención continua más reciente y hasta cuatro pulsaciones de salto por jugador, con contadores de coalescing/rechazo; F53 la conectará a cada carrera. Los pools `workpool` de profile y settlement son independientes, tienen workers/colas/deadlines acotados y no ejecutan RPC todavía. La saturación local devuelve `ErrSaturated`, distinto de un fallo remoto. Contadores internos de admisión, colas y descartes son hooks testeables; H67 añadirá exposición operacional.
+`inputmailbox` conserva la intención continua más reciente y hasta cuatro pulsaciones de salto por jugador, con contadores de coalescing/rechazo; F53 la conecta a cada carrera. Los pools `workpool` de profile y settlement son independientes, tienen workers/colas/deadlines acotados y no ejecutan RPC todavía. La saturación local devuelve `ErrSaturated`, distinto de un fallo remoto. Contadores internos de admisión, colas y descartes son hooks testeables; H67 añadirá exposición operacional.
+
+## Simulación autoritativa (F53)
+
+`internal/race` carga manifiestos fijos y versionados de Maracaibo y Orinoco derivados de `apps/web/dist/maps.js`: 54 obstáculos, 103 residuos y 10 salvavidas por mapa, con IDs estables. El RoomLoop asigna slots X por `playerId`, procesa inputs en secuencia, ejecuta a 20 Hz movimiento, salto, boost, daño, recogidas adjudicadas por distancia/ID, pulpo, meta y timers B16/B17. Emite snapshots completos a 10 Hz, eventos transitorios y un `RaceResult` competitivo inmutable con `settlementState=pending`. Reentrada en RACING envía `room.state` y snapshot completo; RESULTS reenvía `race.ended`.
+
+El resultado Go no cambia saldo ni confirma perfil. F54/J77/F55 implementarán settlement y persistencia; G59/G60/G61 conectarán la experiencia de clientes. `Repeat` es un comando interno; E43 no define una intención pública de repetir desde RESULTS, por lo que la sala conserva ese estado hasta que una capa de coordinación invoque la transición. No se añadió un mensaje público fuera de E43.
 
 El `context.Context` raíz cancela los loops. Un handler que determine el cierre puede solicitar `Handle.Cancel()` sin esperarse a sí mismo; el caller externo usa `Handle.Stop()` para esperar. `main` espera `Manager.Close()` antes de salir tanto en apagado normal como en error de HTTP; no queda un loop activo tras el cierre. Los tamaños de cola (`32` por defecto) son baselines internos E39 sujetos a medición, no requisitos del profesor.
 
