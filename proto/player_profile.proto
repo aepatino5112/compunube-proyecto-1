@@ -4,10 +4,85 @@ package compunube.player.v1;
 
 option go_package = "github.com/aepatino5112/compunube-proyecto-1/gen/go/player/v1;playerv1";
 
-// Draft v0.1. E43 must close compatibility rules before production use.
+// E43: contrato interno Go <-> Rust v1.
+// El package v1 es la frontera mayor de compatibilidad. No reutilizar field numbers.
 service PlayerProfileService {
   rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
+  rpc GetCatalog(GetCatalogRequest) returns (GetCatalogResponse);
+
+  rpc BuyItem(BuyItemRequest) returns (ProfileMutationResponse);
+  rpc CraftItem(CraftItemRequest) returns (ProfileMutationResponse);
+  rpc ExchangeMaterials(ExchangeMaterialsRequest) returns (ProfileMutationResponse);
+  rpc EquipItem(EquipItemRequest) returns (ProfileMutationResponse);
+  rpc SetAppearance(SetAppearanceRequest) returns (ProfileMutationResponse);
+
   rpc SettleRace(SettleRaceRequest) returns (SettleRaceResponse);
+}
+
+enum ItemType {
+  ITEM_TYPE_UNSPECIFIED = 0;
+  ITEM_TYPE_CHARACTER = 1;
+  ITEM_TYPE_BOARD = 2;
+  ITEM_TYPE_OUTFIT = 3;
+  ITEM_TYPE_NET = 4;
+  ITEM_TYPE_HAIR = 5;
+}
+
+enum Material {
+  MATERIAL_UNSPECIFIED = 0;
+  MATERIAL_PLASTIC = 1;
+  MATERIAL_METAL = 2;
+}
+
+enum RaceOutcome {
+  RACE_OUTCOME_UNSPECIFIED = 0;
+  RACE_OUTCOME_FINISHED = 1;
+  RACE_OUTCOME_DISQUALIFIED = 2;
+  RACE_OUTCOME_LEFT = 3;
+  RACE_OUTCOME_DNF = 4;
+}
+
+enum MutationRejectionCode {
+  MUTATION_REJECTION_CODE_UNSPECIFIED = 0;
+  MUTATION_REJECTION_INVALID_ACTION = 1;
+  MUTATION_REJECTION_INVALID_ITEM = 2;
+  MUTATION_REJECTION_INSUFFICIENT_COINS = 3;
+  MUTATION_REJECTION_INSUFFICIENT_MATERIALS = 4;
+  MUTATION_REJECTION_NOT_OWNED = 5;
+  MUTATION_REJECTION_ALREADY_OWNED = 6;
+  MUTATION_REJECTION_INVALID_APPEARANCE = 7;
+  MUTATION_REJECTION_IDEMPOTENCY_CONFLICT = 8;
+  MUTATION_REJECTION_INVALID_CATALOG_VERSION = 9;
+}
+
+enum SettlementRejectionCode {
+  SETTLEMENT_REJECTION_CODE_UNSPECIFIED = 0;
+  SETTLEMENT_REJECTION_INVALID_SETTLEMENT = 1;
+  SETTLEMENT_REJECTION_CONFLICT = 2;
+}
+
+message Equipment {
+  string board_id = 1;
+  string outfit_id = 2;
+  string net_id = 3;
+  string hair_id = 4;
+  string character_id = 5;
+}
+
+message Appearance {
+  string skin_id = 1;
+  string hair_color_id = 2;
+}
+
+message PlayerProfile {
+  string player_id = 1;
+  uint64 profile_revision = 2;
+  uint64 coins = 3;
+  uint64 plastic = 4;
+  uint64 metal = 5;
+  repeated string owned_item_ids = 6;
+  Equipment equipment = 7;
+  Appearance appearance = 8;
 }
 
 message GetProfileRequest {
@@ -15,20 +90,131 @@ message GetProfileRequest {
 }
 
 message GetProfileResponse {
+  PlayerProfile profile = 1;
+}
+
+message CatalogMetadataEntry {
+  string key = 1;
+  string value = 2;
+}
+
+message CatalogItem {
+  string item_id = 1;
+  ItemType item_type = 2;
+  string name = 3;
+  string description = 4;
+  bool enabled = 5;
+  bool purchasable = 6;
+  uint64 price_coins = 7;
+  bool craftable = 8;
+  uint64 recipe_plastic = 9;
+  uint64 recipe_metal = 10;
+  repeated CatalogMetadataEntry metadata = 11;
+}
+
+message AppearanceOption {
+  string option_id = 1;
+  string name = 2;
+  string color = 3;
+}
+
+message GetCatalogRequest {
+  // Vacío significa "versión activa".
+  string catalog_version = 1;
+}
+
+message GetCatalogResponse {
+  string catalog_version = 1;
+  repeated CatalogItem items = 2;
+  repeated AppearanceOption skin_tones = 3;
+  repeated AppearanceOption hair_colors = 4;
+}
+
+message BuyItemRequest {
   string player_id = 1;
-  int64 coins = 2;
-  int64 plastic = 3;
-  int64 metal = 4;
+  string request_id = 2;
+  string catalog_version = 3;
+  string item_id = 4;
+}
+
+message CraftItemRequest {
+  string player_id = 1;
+  string request_id = 2;
+  string catalog_version = 3;
+  string item_id = 4;
+}
+
+message ExchangeMaterialsRequest {
+  string player_id = 1;
+  string request_id = 2;
+  string catalog_version = 3;
+  Material material = 4;
+  uint64 amount = 5;
+}
+
+message EquipItemRequest {
+  string player_id = 1;
+  string request_id = 2;
+  string catalog_version = 3;
+  string item_id = 4;
+}
+
+message SetAppearanceRequest {
+  string player_id = 1;
+  string request_id = 2;
+  string catalog_version = 3;
+  string skin_id = 4;
+  string hair_color_id = 5;
+}
+
+message ProfileMutationSuccess {
+  // true cuando esta respuesta corresponde a una request_id ya resuelta;
+  // los efectos no se aplicaron otra vez.
+  bool replayed = 1;
+  PlayerProfile profile = 2;
+}
+
+message ProfileMutationRejection {
+  MutationRejectionCode code = 1;
+  string message = 2;
+  bool replayed = 3;
+}
+
+message ProfileMutationResponse {
+  string request_id = 1;
+
+  oneof outcome {
+    ProfileMutationSuccess success = 2;
+    ProfileMutationRejection rejection = 3;
+  }
 }
 
 message SettleRaceRequest {
+  // Idempotencia primaria: (race_id, player_id).
   string race_id = 1;
   string player_id = 2;
-  int64 plastic_collected = 3;
-  int64 metal_collected = 4;
-  string request_id = 5;
+  RaceOutcome outcome = 3;
+  uint64 credited_plastic = 4;
+  uint64 credited_metal = 5;
+}
+
+message SettlementSuccess {
+  bool replayed = 1;
+  PlayerProfile profile = 2;
+}
+
+message SettlementRejection {
+  SettlementRejectionCode code = 1;
+  string message = 2;
+  bool replayed = 3;
 }
 
 message SettleRaceResponse {
-  bool applied = 1;
+  string race_id = 1;
+  string player_id = 2;
+
+  oneof outcome {
+    SettlementSuccess success = 3;
+    SettlementRejection rejection = 4;
+  }
 }
