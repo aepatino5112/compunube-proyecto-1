@@ -1,8 +1,16 @@
 /**
- * PROPUESTA DE CONTRATO; el cliente preparado se describe en FRONT_ADAPTER.md.
- * Sin servicio conectado ni implementación de servidor en esta entrega.
- * Campos de perfil/IDs derivados del código actual; red y sala son nuevos.
- * Los tipos no reemplazan la validación en tiempo de ejecución del servidor.
+ * REFERENCIA HISTÓRICA DEL FRONTEND PREPARADO.
+ *
+ * E43 cerró el contrato realtime v1 en:
+ *   ../../../../contracts/realtime/events.md
+ *   ../../../../contracts/realtime/v1.ts
+ *
+ * Los tipos realtime de este archivo ya NO son normativos: conservan la forma
+ * con la que se preparó el frontend antes de E43 (waiting/running/ended, bots,
+ * lengthMeters, sin DNF completo y con profile.updated).
+ *
+ * Los tipos de perfil/acciones siguen siendo propuesta de frontera pública
+ * hasta E45, que decidirá HTTP/OpenAPI. Go↔Rust usa proto/player_profile.proto.
  */
 export type MapId = 'maracaibo' | 'orinoco';
 export type MaterialId = 'plastic' | 'metal';
