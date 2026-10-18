@@ -19,6 +19,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Arquitectura](ARCHITECTURE.md)
 - [Modelo de dominio runtime y perfil (C25)](docs/architecture/domain-model.md)
 - [Evaluación de estilos arquitectónicos CEN-03 (D26)](docs/architecture/architecture-evaluation.md)
+- [Rust Player/Profile Service replicable (D29)](docs/architecture/rust-player-profile-service.md)
 - [Roadmap técnico](docs/roadmap.md)
 - [Línea base funcional del frontend (B08)](docs/product/frontend-baseline.md)
 - [Decisiones de producto multijugador (B09)](docs/product/multiplayer-decisions.md)

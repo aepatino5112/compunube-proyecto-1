@@ -2,6 +2,7 @@
 
 La arquitectura principal orientada a servicios mediante microservicios está aceptada en [ADR 0003](docs/adr/0003-primary-distributed-architecture.md); la [evaluación D26](docs/architecture/architecture-evaluation.md) documenta las alternativas docentes.
 El [diseño D28 del runtime Go](docs/architecture/go-match-runtime.md) fija tick, publicación, concurrencia por sala, reentrada y degradación de Rust.
+El [diseño D29 del Player/Profile Service](docs/architecture/rust-player-profile-service.md) fija responsabilidades, capas, idempotencia, transacciones y replicabilidad de Rust.
 
 ## Vista general
 
@@ -68,7 +69,7 @@ Rust es dueño del estado persistente del jugador:
 - canjes;
 - acreditación idempotente de resultados.
 
-Las réplicas Rust no deben conservar estado crítico exclusivo en memoria.
+Las réplicas Rust no deben conservar estado crítico exclusivo en memoria. El detalle de capas, repositorios, reinicio e idempotencia está en [D29](docs/architecture/rust-player-profile-service.md).
 
 ## Clientes
 
