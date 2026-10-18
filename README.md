@@ -27,6 +27,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Selección de patrones cloud-native (E37)](docs/architecture/cloud-native-pattern-selection.md)
 - [Resiliencia y modo degradado (E38)](docs/architecture/resilience-failover-degraded-mode.md)
 - [Bulkhead y backpressure de Go (E39)](docs/architecture/go-bulkhead-backpressure.md)
+- [Health y readiness por instancia (E40)](docs/architecture/health-readiness-design.md)
 - [Roadmap técnico](docs/roadmap.md)
 - [Línea base funcional del frontend (B08)](docs/product/frontend-baseline.md)
 - [Decisiones de producto multijugador (B09)](docs/product/multiplayer-decisions.md)
