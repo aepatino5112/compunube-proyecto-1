@@ -18,6 +18,22 @@ type Config struct {
 	LogLevel                 slog.Level
 	ShutdownTimeout          time.Duration
 	RoomCommandQueueCapacity int
+	MaxActiveRooms           int
+	MaxConnections           int
+	RoomMaxCommandsPerTick   int
+	RoomInputSlots           int
+	RoomJumpEdgesPerPlayer   int
+	ConnectionInputRate      int
+	ConnectionInputBurst     int
+	ConnectionSnapshotSlots  int
+	ConnectionCriticalQueue  int
+	ConnectionEventQueue     int
+	ProfileConcurrency       int
+	ProfileQueueCapacity     int
+	SettlementConcurrency    int
+	SettlementQueueCapacity  int
+	ProfileJobTimeout        time.Duration
+	SettlementJobTimeout     time.Duration
 }
 
 func Load() (Config, error) { return Parse(os.Getenv) }
@@ -31,6 +47,11 @@ func Parse(getenv func(string) string) (Config, error) {
 		LogLevel:                 slog.LevelInfo,
 		ShutdownTimeout:          10 * time.Second,
 		RoomCommandQueueCapacity: 32,
+		MaxActiveRooms:           5, MaxConnections: 20, RoomMaxCommandsPerTick: 16, RoomInputSlots: 4, RoomJumpEdgesPerPlayer: 4,
+		ConnectionInputRate: 20, ConnectionInputBurst: 4, ConnectionSnapshotSlots: 1,
+		ConnectionCriticalQueue: 16, ConnectionEventQueue: 16,
+		ProfileConcurrency: 8, ProfileQueueCapacity: 32, SettlementConcurrency: 4, SettlementQueueCapacity: 64,
+		ProfileJobTimeout: 750 * time.Millisecond, SettlementJobTimeout: 2 * time.Second,
 	}
 	if err := validateAddress("HTTP_ADDR", c.HTTPAddr); err != nil {
 		return Config{}, err
@@ -76,6 +97,41 @@ func Parse(getenv func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("ROOM_COMMAND_QUEUE_CAPACITY must be a positive integer")
 		}
 		c.RoomCommandQueueCapacity = n
+	}
+	integers := []struct {
+		name   string
+		target *int
+	}{
+		{"MAX_ACTIVE_ROOMS", &c.MaxActiveRooms}, {"MAX_CONNECTIONS", &c.MaxConnections}, {"ROOM_MAX_COMMANDS_PER_TICK", &c.RoomMaxCommandsPerTick},
+		{"ROOM_INPUT_SLOTS", &c.RoomInputSlots}, {"ROOM_JUMP_EDGES_PER_PLAYER", &c.RoomJumpEdgesPerPlayer},
+		{"CONNECTION_INPUT_RATE", &c.ConnectionInputRate}, {"CONNECTION_INPUT_BURST", &c.ConnectionInputBurst}, {"CONNECTION_SNAPSHOT_SLOTS", &c.ConnectionSnapshotSlots},
+		{"CONNECTION_CRITICAL_QUEUE", &c.ConnectionCriticalQueue}, {"CONNECTION_EVENT_QUEUE", &c.ConnectionEventQueue},
+		{"PROFILE_CONCURRENCY", &c.ProfileConcurrency}, {"PROFILE_QUEUE_CAPACITY", &c.ProfileQueueCapacity},
+		{"SETTLEMENT_CONCURRENCY", &c.SettlementConcurrency}, {"SETTLEMENT_QUEUE_CAPACITY", &c.SettlementQueueCapacity},
+	}
+	for _, item := range integers {
+		if v := getenv(item.name); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				return Config{}, fmt.Errorf("%s must be a positive integer", item.name)
+			}
+			*item.target = n
+		}
+	}
+	for _, item := range []struct {
+		name   string
+		target *time.Duration
+	}{{"PROFILE_JOB_TIMEOUT", &c.ProfileJobTimeout}, {"SETTLEMENT_JOB_TIMEOUT", &c.SettlementJobTimeout}} {
+		if v := getenv(item.name); v != "" {
+			d, err := time.ParseDuration(v)
+			if err != nil || d <= 0 {
+				return Config{}, fmt.Errorf("%s must be a positive duration", item.name)
+			}
+			*item.target = d
+		}
+	}
+	if c.ConnectionSnapshotSlots != 1 {
+		return Config{}, fmt.Errorf("CONNECTION_SNAPSHOT_SLOTS must be 1 for latest-only delivery")
 	}
 	return c, nil
 }

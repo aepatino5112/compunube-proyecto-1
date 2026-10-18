@@ -10,19 +10,45 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/config"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/identity"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/outbox"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/ratelimit"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/rooms"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/sessionhttp"
 	"github.com/gorilla/websocket"
 )
 
 type API struct {
-	rooms      *rooms.Manager
-	identities *identity.Registry
-	sessions   *sessionhttp.API
+	rooms              *rooms.Manager
+	identities         *identity.Registry
+	sessions           *sessionhttp.API
+	cfg                config.Config
+	mu                 sync.Mutex
+	connections        int
+	admitted, rejected uint64
 }
 
-func New(r *rooms.Manager, i *identity.Registry, s *sessionhttp.API) *API { return &API{r, i, s} }
+func New(r *rooms.Manager, i *identity.Registry, s *sessionhttp.API, cfg config.Config) *API {
+	return &API{rooms: r, identities: i, sessions: s, cfg: cfg}
+}
+func (a *API) admit() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.connections >= a.cfg.MaxConnections {
+		a.rejected++
+		return false
+	}
+	a.connections++
+	a.admitted++
+	return true
+}
+func (a *API) release() { a.mu.Lock(); a.connections--; a.mu.Unlock() }
+func (a *API) ConnectionStats() (active int, admitted, rejected uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.connections, a.admitted, a.rejected
+}
 func (a *API) Register(mux *http.ServeMux) {
 	mux.Handle("POST /v1/rooms", a.sessions.Require(http.HandlerFunc(a.create)))
 	mux.Handle("POST /v1/rooms/{roomId}/memberships", a.sessions.Require(http.HandlerFunc(a.join)))
@@ -106,31 +132,36 @@ func (a *API) join(w http.ResponseWriter, r *http.Request) {
 }
 
 type outbound struct {
-	ch     chan any
-	closed chan struct{}
-	stop   func()
-	once   sync.Once
+	queue *outbox.Queue
+	stop  func()
+	once  sync.Once
 }
 
 func (o *outbound) Send(v any) bool {
-	select {
-	case <-o.closed:
-		return false
-	case o.ch <- v:
-		return true
-	default:
+	kind := outbox.Critical
+	if classified, ok := v.(interface{ RealtimeClass() outbox.Kind }); ok {
+		kind = classified.RealtimeClass()
+	}
+	if !o.queue.Push(kind, v) {
 		o.once.Do(o.stop)
 		return false
 	}
+	return true
 }
 
 type wire struct {
-	Type            string  `json:"type"`
-	ProtocolVersion int     `json:"protocolVersion"`
-	RoomID          string  `json:"roomId"`
-	Ready           *bool   `json:"ready"`
-	ProfileRevision *uint64 `json:"profileRevision"`
-	ReduceChoice    string  `json:"reduceChoice"`
+	Type            string   `json:"type"`
+	ProtocolVersion int      `json:"protocolVersion"`
+	RoomID          string   `json:"roomId"`
+	Ready           *bool    `json:"ready"`
+	ProfileRevision *uint64  `json:"profileRevision"`
+	ReduceChoice    string   `json:"reduceChoice"`
+	RaceID          string   `json:"raceId"`
+	Seq             *uint64  `json:"seq"`
+	Steer           *float64 `json:"steer"`
+	NetSide         *int     `json:"netSide"`
+	Boost           *bool    `json:"boost"`
+	JumpSeq         *uint64  `json:"jumpSeq"`
 }
 
 func errorMessage(code, related string) any {
@@ -157,6 +188,11 @@ func (a *API) realtime(w http.ResponseWriter, r *http.Request) {
 		fail(w, 401, "SESSION_REQUIRED")
 		return
 	}
+	if !a.admit() {
+		fail(w, 503, "SERVICE_UNAVAILABLE")
+		return
+	}
+	defer a.release()
 	u := websocket.Upgrader{Subprotocols: []string{"compunube.realtime.v1"}, CheckOrigin: func(*http.Request) bool { return true }}
 	c, err := u.Upgrade(w, r, nil)
 	if err != nil {
@@ -171,7 +207,7 @@ func (a *API) realtime(w http.ResponseWriter, r *http.Request) {
 	roomID := p.RoomID
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	out := &outbound{ch: make(chan any, 32), closed: make(chan struct{}), stop: func() { cancel(); _ = c.Close() }}
+	out := &outbound{queue: outbox.New(a.cfg.ConnectionCriticalQueue, a.cfg.ConnectionEventQueue), stop: func() { cancel(); _ = c.Close() }}
 	if roomID != "" {
 		if err = a.rooms.Bind(ctx, roomID, id, bound.ConnectionID, out); err != nil {
 			roomID = ""
@@ -181,20 +217,19 @@ func (a *API) realtime(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer close(writerDone)
 		for {
-			select {
-			case v := <-out.ch:
-				_ = c.SetWriteDeadline(time.Now().Add(5 * time.Second))
-				if err := c.WriteJSON(v); err != nil {
-					return
-				}
-			case <-ctx.Done():
+			v, ok := out.queue.Next(ctx)
+			if !ok {
+				return
+			}
+			_ = c.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			if err := c.WriteJSON(v); err != nil {
 				return
 			}
 		}
 	}()
 	defer func() {
 		cancel()
-		close(out.closed)
+		out.queue.Close()
 		_ = c.Close()
 		<-writerDone
 		changed, _ := a.identities.Disconnect(context.Background(), id, bound.ConnectionID)
@@ -217,6 +252,8 @@ func (a *API) realtime(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
+	rate := ratelimit.New(a.cfg.ConnectionInputRate, a.cfg.ConnectionInputBurst)
+	var lastRateError time.Time
 	for {
 		var msg wire
 		_, payload, err := c.ReadMessage()
@@ -241,6 +278,18 @@ func (a *API) realtime(w http.ResponseWriter, r *http.Request) {
 		if msg.ProtocolVersion != 1 {
 			out.Send(errorMessage("INCOMPATIBLE_VERSION", msg.Type))
 			return
+		}
+		if msg.Type == "race.input" {
+			now := time.Now()
+			if !rate.Allow(now) {
+				if now.Sub(lastRateError) >= 100*time.Millisecond {
+					out.Send(errorMessage("RATE_LIMITED", msg.Type))
+					lastRateError = now
+				}
+				continue
+			}
+			out.Send(errorMessage("RACE_NOT_ACTIVE", msg.Type))
+			continue
 		}
 		if msg.RoomID == "" || msg.RoomID != roomID {
 			out.Send(errorMessage("NOT_A_MEMBER", msg.Type))

@@ -256,3 +256,90 @@ func TestHandlerCanRequestCloseWithoutWaitingOnItself(t *testing.T) {
 		t.Fatal("self-closed room remained registered")
 	}
 }
+
+type budgetHandler struct {
+	commands chan struct{}
+	ticks    chan struct{}
+}
+
+func (h *budgetHandler) HandleCommand(context.Context, any) (any, error) {
+	h.commands <- struct{}{}
+	return nil, nil
+}
+func (h *budgetHandler) HandleTick(context.Context, Tick) { h.ticks <- struct{}{} }
+func TestRoomLimitAndCommandBudget(t *testing.T) {
+	clock := &fakeClock{created: make(chan *fakeTicker, 5)}
+	m, err := NewManager(context.Background(), Options{TickInterval: 50 * time.Millisecond, QueueCapacity: 4, MaxRooms: 5, MaxCommandsPerTick: 2, Clock: clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	handles := make([]*Handle, 0, 5)
+	for i := 0; i < 5; i++ {
+		h := &probeHandler{ticks: make(chan Tick, 1)}
+		handle, err := m.Start(string(rune('a'+i)), h)
+		if err != nil {
+			t.Fatal(err)
+		}
+		handles = append(handles, handle)
+	}
+	if _, err := m.Start("sixth", &probeHandler{}); !errors.Is(err, ErrRoomLimit) {
+		t.Fatalf("sixth room: %v", err)
+	}
+	for i := 0; i < 5; i++ {
+		<-clock.created
+	}
+	handles[0].Stop()
+	if _, err := m.Start("replacement", &probeHandler{ticks: make(chan Tick, 1)}); err != nil {
+		t.Fatalf("room slot not released: %v", err)
+	}
+	admitted, rejected := m.AdmissionStats()
+	if admitted != 6 || rejected != 1 {
+		t.Fatalf("room admissions: %d %d", admitted, rejected)
+	}
+	m.Close()
+	clock = &fakeClock{created: make(chan *fakeTicker, 1)}
+	m, err = NewManager(context.Background(), Options{TickInterval: 50 * time.Millisecond, QueueCapacity: 4, MaxCommandsPerTick: 2, Clock: clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	handler := &budgetHandler{commands: make(chan struct{}, 4), ticks: make(chan struct{}, 1)}
+	room, err := m.Start("flood", handler)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticker := <-clock.created
+	results := make(chan error, 3)
+	for i := 0; i < 3; i++ {
+		go func() { _, err := room.Submit(context.Background(), "cmd"); results <- err }()
+	}
+	for i := 0; i < 2; i++ {
+		select {
+		case <-handler.commands:
+		case <-time.After(time.Second):
+			t.Fatal("commands did not progress")
+		}
+	}
+	select {
+	case <-handler.commands:
+		t.Fatal("command exceeded per-tick budget")
+	default:
+	}
+	ticker.ch <- time.Now()
+	select {
+	case <-handler.ticks:
+	case <-time.After(time.Second):
+		t.Fatal("tick starved by commands")
+	}
+	select {
+	case <-handler.commands:
+	case <-time.After(time.Second):
+		t.Fatal("command did not resume after tick")
+	}
+	for i := 0; i < 3; i++ {
+		if err := <-results; err != nil {
+			t.Fatal(err)
+		}
+	}
+}

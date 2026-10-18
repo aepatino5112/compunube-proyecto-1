@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,6 +16,7 @@ var (
 	ErrRoomExists   = errors.New("room already active")
 	ErrRoomNotFound = errors.New("room not found")
 	ErrQueueFull    = errors.New("room command queue full")
+	ErrRoomLimit    = errors.New("room limit reached")
 )
 
 type Tick struct {
@@ -47,23 +49,26 @@ type Ticker interface {
 type Clock interface{ NewTicker(time.Duration) Ticker }
 
 type Options struct {
-	TickInterval  time.Duration
-	QueueCapacity int
-	Clock         Clock // nil uses the monotonic Go ticker
+	TickInterval       time.Duration
+	QueueCapacity      int
+	MaxRooms           int   // zero leaves the existing F50 manager unbounded
+	MaxCommandsPerTick int   // zero preserves the F50 behavior for existing callers
+	Clock              Clock // nil uses the monotonic Go ticker
 }
 
 type Manager struct {
-	mu     sync.RWMutex
-	rooms  map[string]*Handle
-	ctx    context.Context
-	cancel context.CancelFunc
-	opts   Options
-	closed bool
-	wg     sync.WaitGroup
+	mu                 sync.RWMutex
+	rooms              map[string]*Handle
+	ctx                context.Context
+	cancel             context.CancelFunc
+	opts               Options
+	closed             bool
+	wg                 sync.WaitGroup
+	admitted, rejected uint64
 }
 
 func NewManager(parent context.Context, opts Options) (*Manager, error) {
-	if parent == nil || opts.TickInterval <= 0 || opts.QueueCapacity <= 0 {
+	if parent == nil || opts.TickInterval <= 0 || opts.QueueCapacity <= 0 || opts.MaxRooms < 0 || opts.MaxCommandsPerTick < 0 {
 		return nil, fmt.Errorf("invalid room runtime options")
 	}
 	if opts.Clock == nil {
@@ -85,12 +90,17 @@ func (m *Manager) Start(roomID string, handler Handler) (*Handle, error) {
 	if _, exists := m.rooms[roomID]; exists {
 		return nil, ErrRoomExists
 	}
+	if m.opts.MaxRooms > 0 && len(m.rooms) >= m.opts.MaxRooms {
+		m.rejected++
+		return nil, ErrRoomLimit
+	}
 	ctx, cancel := context.WithCancel(m.ctx)
 	h := &Handle{
 		id: roomID, ctx: ctx, cancel: cancel, manager: m, handler: handler,
 		commands: make(chan request, m.opts.QueueCapacity), done: make(chan struct{}),
 	}
 	m.rooms[roomID] = h
+	m.admitted++
 	m.wg.Add(1)
 	go h.run()
 	return h, nil
@@ -107,6 +117,11 @@ func (m *Manager) Count() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return len(m.rooms)
+}
+func (m *Manager) AdmissionStats() (admitted, rejected uint64) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.admitted, m.rejected
 }
 
 // Close stops admission, cancels every loop and waits for all loop goroutines.
@@ -148,11 +163,13 @@ type Handle struct {
 	commands chan request
 	done     chan struct{}
 	// tick is written only by run.
-	tick uint64
+	tick      uint64
+	queueFull atomic.Uint64
 }
 
-func (h *Handle) ID() string            { return h.id }
-func (h *Handle) Done() <-chan struct{} { return h.done }
+func (h *Handle) ID() string             { return h.id }
+func (h *Handle) Done() <-chan struct{}  { return h.done }
+func (h *Handle) QueueFullCount() uint64 { return h.queueFull.Load() }
 
 // Submit refuses a full queue immediately. Once enqueued, a caller whose
 // context expires cannot assume whether the command was applied.
@@ -173,6 +190,7 @@ func (h *Handle) Submit(ctx context.Context, command any) (any, error) {
 		return nil, ErrClosed
 	case h.commands <- req:
 	default:
+		h.queueFull.Add(1)
 		return nil, ErrQueueFull
 	}
 	select {
@@ -202,7 +220,22 @@ func (h *Handle) run() {
 		close(h.done)
 		h.manager.wg.Done()
 	}()
+	remaining := h.manager.opts.MaxCommandsPerTick
 	for {
+		if h.manager.opts.MaxCommandsPerTick > 0 && remaining == 0 {
+			select {
+			case <-h.ctx.Done():
+				return
+			case at, ok := <-ticker.Chan():
+				if !ok || h.ctx.Err() != nil {
+					return
+				}
+				h.tick++
+				h.handler.HandleTick(h.ctx, Tick{Number: h.tick, Step: h.manager.opts.TickInterval, At: at})
+				remaining = h.manager.opts.MaxCommandsPerTick
+			}
+			continue
+		}
 		select {
 		case <-h.ctx.Done():
 			return
@@ -212,12 +245,16 @@ func (h *Handle) run() {
 			}
 			value, err := h.handler.HandleCommand(h.ctx, req.command)
 			req.reply <- response{value: value, err: err}
+			if h.manager.opts.MaxCommandsPerTick > 0 {
+				remaining--
+			}
 		case at, ok := <-ticker.Chan():
 			if !ok || h.ctx.Err() != nil {
 				return
 			}
 			h.tick++
 			h.handler.HandleTick(h.ctx, Tick{Number: h.tick, Step: h.manager.opts.TickInterval, At: at})
+			remaining = h.manager.opts.MaxCommandsPerTick
 		}
 	}
 }
