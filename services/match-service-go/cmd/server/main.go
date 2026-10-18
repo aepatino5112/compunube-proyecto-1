@@ -57,6 +57,6 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	defer settlementPool.Close()
 	identities := identity.NewRegistry()
 	sessions := sessionhttp.New(identities)
-	roomAPI := roomshttp.New(rooms.NewManager(runtime, rooms.UnavailableVerifier{}), identities, sessions, cfg)
+	roomAPI := roomshttp.New(rooms.NewManager(runtime, rooms.UnavailableVerifier{}, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer}), identities, sessions, cfg)
 	return server.New(cfg, logger, func(mux *http.ServeMux) { sessions.Register(mux); roomAPI.Register(mux) }).Run(ctx)
 }

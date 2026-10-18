@@ -29,9 +29,15 @@ func TestLatestInputAndJumpEdges(t *testing.T) {
 	if len(d) != 1 || d[0].Latest != nil || *d[0].JumpSeq != 2 {
 		t.Fatalf("second drain: %+v", d)
 	}
-	m.Neutral("p")
+	if err := m.Offer("p", Input{Seq: 3, JumpSeq: 3}); err != nil {
+		t.Fatal(err)
+	}
+	m.Neutral("p", 2, 2)
 	if err := m.Offer("p", Input{Seq: 1, JumpSeq: 2}); !errors.Is(err, ErrSequence) {
 		t.Fatalf("reentry reset sequence: %v", err)
+	}
+	if err := m.Offer("p", Input{Seq: 3, JumpSeq: 3}); err != nil {
+		t.Fatalf("discarded pending input blocked reentry: %v", err)
 	}
 	s := m.Stats()
 	if s.Coalesced != 2 || s.JumpRejected != 1 {

@@ -246,7 +246,7 @@ func TestRealtimeInputRateBeforeRoomCommandQueue(t *testing.T) {
 		}
 		codes[msg.Error.Code]++
 	}
-	if codes["RACE_NOT_ACTIVE"] != 4 || codes["RATE_LIMITED"] != 1 {
+	if codes["NOT_A_MEMBER"] != 4 || codes["RATE_LIMITED"] != 1 {
 		t.Fatalf("codes: %+v", codes)
 	}
 }
@@ -263,5 +263,138 @@ func TestCriticalOverflowClosesOnlyOneConnection(t *testing.T) {
 	}
 	if !b.Send("healthy") {
 		t.Fatal("other connection affected")
+	}
+}
+
+type engineClock struct{ created chan *engineTicker }
+type engineTicker struct{ ch chan time.Time }
+
+func (c *engineClock) NewTicker(time.Duration) roomruntime.Ticker {
+	ticker := &engineTicker{ch: make(chan time.Time)}
+	c.created <- ticker
+	return ticker
+}
+func (t *engineTicker) Chan() <-chan time.Time { return t.ch }
+func (t *engineTicker) Stop()                  {}
+
+type engineVerifier struct{}
+
+func (engineVerifier) Verify(_ context.Context, id string, revision uint64) (rooms.Preparation, error) {
+	return rooms.Preparation{Revision: revision, DisplayName: id, Equipment: rooms.Equipment{BoardID: "board", OutfitID: "outfit", NetID: "net", HairID: "hair", CharacterID: "character"}, Appearance: rooms.Appearance{SkinID: "skin", HairColorID: "color"}}, nil
+}
+
+func TestRealtimeInputReachesAuthoritativeRace(t *testing.T) {
+	clock := &engineClock{created: make(chan *engineTicker, 1)}
+	rt, err := roomruntime.NewManager(context.Background(), roomruntime.Options{TickInterval: 50 * time.Millisecond, QueueCapacity: 32, Clock: clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	ids := identity.NewRegistry()
+	sessions := sessionhttp.New(ids)
+	manager := rooms.NewManager(rt, engineVerifier{})
+	cfg, err := config.Parse(func(string) string { return "" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := New(manager, ids, sessions, cfg)
+	mux := http.NewServeMux()
+	api.Register(mux)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	a, tokenA, _ := ids.Create(context.Background())
+	b, tokenB, _ := ids.Create(context.Background())
+	status, created := req(t, srv.URL+"/v1/rooms", tokenA, `{"mapId":"maracaibo"}`)
+	if status != 201 {
+		t.Fatal(created)
+	}
+	roomID := created["roomId"].(string)
+	status, _ = req(t, srv.URL+"/v1/rooms/"+roomID+"/memberships", tokenB, "")
+	if status != 200 {
+		t.Fatal("join failed")
+	}
+	ticker := <-clock.created
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/v1/realtime"
+	dialer := websocket.Dialer{Subprotocols: []string{"compunube.realtime.v1"}}
+	c, _, err := dialer.Dial(url, http.Header{"Authorization": []string{"Bearer " + tokenA}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	var msg map[string]any
+	if err := c.ReadJSON(&msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Ready(context.Background(), roomID, a, true, 1, "reusable"); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Ready(context.Background(), roomID, b, true, 1, "disposable"); err != nil {
+		t.Fatal(err)
+	}
+	state, _ := manager.Snapshot(context.Background(), roomID)
+	startAt := time.UnixMilli(*state.CountdownEndsAtMs).Add(time.Millisecond)
+	ticker.ch <- startAt
+	state, _ = manager.Snapshot(context.Background(), roomID)
+	if state.RaceID == nil {
+		t.Fatal("no race ID")
+	}
+	foundStart := false
+	for i := 0; i < 6; i++ {
+		if err := c.ReadJSON(&msg); err != nil {
+			t.Fatal(err)
+		}
+		if msg["type"] == "race.start" {
+			foundStart = true
+			break
+		}
+	}
+	if !foundStart {
+		t.Fatal("race.start not delivered")
+	}
+	input := map[string]any{"type": "race.input", "protocolVersion": 1, "raceId": *state.RaceID, "seq": 1, "steer": 0.5, "netSide": 1, "boost": false, "jumpSeq": 1}
+	if err := c.WriteJSON(input); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.WriteJSON(input); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 4; i++ {
+		if err := c.ReadJSON(&msg); err != nil {
+			t.Fatal(err)
+		}
+		if msg["type"] == "error" {
+			if msg["error"].(map[string]any)["code"] != "INVALID_INPUT" {
+				t.Fatalf("duplicate: %+v", msg)
+			}
+			break
+		}
+		if i == 3 {
+			t.Fatal("duplicate input not rejected")
+		}
+	}
+	ticker.ch <- startAt.Add(50 * time.Millisecond)
+	ticker.ch <- startAt.Add(100 * time.Millisecond)
+	found := false
+	for i := 0; i < 6; i++ {
+		if err := c.ReadJSON(&msg); err != nil {
+			t.Fatal(err)
+		}
+		if msg["type"] == "race.snapshot" {
+			snapshot := msg["snapshot"].(map[string]any)
+			players := snapshot["players"].([]any)
+			for _, entry := range players {
+				p := entry.(map[string]any)
+				if p["playerId"] == a && p["lastProcessedInputSeq"].(float64) == 1 && p["lastProcessedJumpSeq"].(float64) == 1 {
+					found = true
+				}
+			}
+			if found {
+				break
+			}
+		}
+	}
+	if !found {
+		t.Fatal("input absent from authoritative snapshot")
 	}
 }

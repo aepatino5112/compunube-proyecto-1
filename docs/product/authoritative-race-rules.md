@@ -1,6 +1,6 @@
 # B16 · Reglas autoritativas de carrera y clasificación
 
-**Estado:** reglas de producto congeladas para el MVP online, **sin implementación aún**. Go ejecutará una carrera de **2 a 4 humanos, sin IA**; el cliente solo enviará intenciones y presentará estado confirmado. La [demo local B08](frontend-baseline.md) aporta geometría y valores iniciales, pero sus rivales con velocidades y posiciones Z diferentes, su fin al terminar el humano y su orden provisional no son reglas online. [B09](multiplayer-decisions.md), [B13](core-gameplay-loop.md), [B14](three-r-design.md) y [B15](water-objective.md) fijan los límites de producto y autoridad.
+**Estado:** reglas de producto congeladas para el MVP online; F53 implementa la simulación y el resultado en Go. La preparación real de perfil sigue bloqueada hasta J77/F52 y settlement/persistencia siguen pendientes. Go ejecuta una carrera de **2 a 4 humanos, sin IA**; el cliente solo envía intenciones y presenta estado confirmado. La [demo local B08](frontend-baseline.md) aporta geometría y valores iniciales, pero sus rivales con velocidades y posiciones Z diferentes, su fin al terminar el humano y su orden provisional no son reglas online. [B09](multiplayer-decisions.md), [B13](core-gameplay-loop.md), [B14](three-r-design.md) y [B15](water-objective.md) fijan los límites de producto y autoridad.
 
 ## Curso, salida y movimiento
 

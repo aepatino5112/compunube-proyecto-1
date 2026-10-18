@@ -1,6 +1,6 @@
 # B17 · Ciclo de sala y participación multijugador
 
-**Estado:** modelo de producto cerrado para el MVP online, **sin servicio conectado aún**. Esta especificación aplica las decisiones de [B09](multiplayer-decisions.md), el recorrido visible de [B10](online-player-flow.md) y las [reglas B16](authoritative-race-rules.md). Go confirma sala, preparación, inicio, carrera y resultado; el cliente presenta su estado. Los nombres siguientes son **estados conceptuales**, no mensajes ni DTO definitivos de E43.
+**Estado:** modelo de producto cerrado para el MVP online; F49/F53 implementan lifecycle y carrera en Go, con verificación real de perfil aún pendiente. Esta especificación aplica las decisiones de [B09](multiplayer-decisions.md), el recorrido visible de [B10](online-player-flow.md) y las [reglas B16](authoritative-race-rules.md). Go confirma sala, preparación, inicio, carrera y resultado; el cliente presenta su estado. Los nombres siguientes son **estados conceptuales**, no mensajes ni DTO definitivos de E43.
 
 ## Sala y acceso
 

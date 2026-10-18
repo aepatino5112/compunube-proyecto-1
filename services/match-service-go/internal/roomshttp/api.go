@@ -12,6 +12,7 @@ import (
 
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/config"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/identity"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/inputmailbox"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/outbox"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/ratelimit"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/rooms"
@@ -137,13 +138,15 @@ type outbound struct {
 	once  sync.Once
 }
 
+func (o *outbound) Close() { o.queue.Close(); o.once.Do(o.stop) }
+
 func (o *outbound) Send(v any) bool {
 	kind := outbox.Critical
 	if classified, ok := v.(interface{ RealtimeClass() outbox.Kind }); ok {
 		kind = classified.RealtimeClass()
 	}
 	if !o.queue.Push(kind, v) {
-		o.once.Do(o.stop)
+		o.Close()
 		return false
 	}
 	return true
@@ -280,6 +283,10 @@ func (a *API) realtime(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if msg.Type == "race.input" {
+			if msg.RaceID == "" || msg.Seq == nil || msg.Steer == nil || msg.NetSide == nil || msg.Boost == nil || msg.JumpSeq == nil {
+				out.Send(errorMessage("INVALID_MESSAGE", msg.Type))
+				continue
+			}
 			now := time.Now()
 			if !rate.Allow(now) {
 				if now.Sub(lastRateError) >= 100*time.Millisecond {
@@ -288,7 +295,23 @@ func (a *API) realtime(w http.ResponseWriter, r *http.Request) {
 				}
 				continue
 			}
-			out.Send(errorMessage("RACE_NOT_ACTIVE", msg.Type))
+			if roomID == "" {
+				out.Send(errorMessage("NOT_A_MEMBER", msg.Type))
+				continue
+			}
+			err = a.rooms.Input(roomID, id, msg.RaceID, inputmailbox.Input{Seq: *msg.Seq, Steer: *msg.Steer, NetSide: *msg.NetSide, Boost: *msg.Boost, JumpSeq: *msg.JumpSeq})
+			if err != nil {
+				code := "INVALID_INPUT"
+				switch {
+				case errors.Is(err, rooms.ErrNotFound), errors.Is(err, rooms.ErrRaceNotActive):
+					code = "RACE_NOT_ACTIVE"
+				case errors.Is(err, rooms.ErrMember):
+					code = "NOT_A_MEMBER"
+				case errors.Is(err, rooms.ErrRateLimited):
+					code = "RATE_LIMITED"
+				}
+				out.Send(errorMessage(code, msg.Type))
+			}
 			continue
 		}
 		if msg.RoomID == "" || msg.RoomID != roomID {
