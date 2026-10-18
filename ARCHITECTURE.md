@@ -3,6 +3,7 @@
 La arquitectura principal orientada a servicios mediante microservicios está aceptada en [ADR 0003](docs/adr/0003-primary-distributed-architecture.md); la [evaluación D26](docs/architecture/architecture-evaluation.md) documenta las alternativas docentes.
 El [diseño D28 del runtime Go](docs/architecture/go-match-runtime.md) fija tick, publicación, concurrencia por sala, reentrada y degradación de Rust.
 El [diseño D29 del Player/Profile Service](docs/architecture/rust-player-profile-service.md) fija responsabilidades, capas, idempotencia, transacciones y replicabilidad de Rust.
+El [diseño E41 de PostgreSQL](docs/architecture/postgresql-schema.md) fija tablas, constraints, índices y enforcement objetivo del ownership `match`/`player`.
 
 ## Vista general
 
@@ -115,10 +116,12 @@ Nunca son autoridad de:
 
 ## Persistencia
 
-Una sola instancia PostgreSQL con ownership lógico inicial:
+Una sola instancia PostgreSQL con ownership lógico:
 
-- schema `match`: Go;
-- schema `player`: Rust.
+- schema `match`: Go, para historia de sala/carrera, resultados y coordinación durable de settlement;
+- schema `player`: Rust, para perfil, catálogo, propiedad, economía e idempotencia.
+
+No hay claves foráneas cruzadas entre schemas ni persistencia por tick. E41 define roles runtime separados como objetivo; el Compose actual sigue usando una credencial compartida de bootstrap hasta E42/H62.
 
 ## Restricciones
 
