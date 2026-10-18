@@ -65,12 +65,12 @@ Solicita cambiar el estado ready del miembro actual. Go confirma el cambio únic
 
 Reglas:
 
-- solo se admite en **LOBBY**;
+- se admite en **LOBBY** y, para invalidar preparación/retirar ready, en **COUNTDOWN**;
 - `ready: true` exige perfil online confirmado, equipamiento/apariencia válidos y elección de Reducir;
 - `profileRevision` es obligatorio con `ready: true` y debe coincidir con la revisión de perfil que Go validó;
 - `reduceChoice` es obligatorio con `ready: true`: `reusable` o `disposable`;
 - con `ready: false`, `profileRevision`/`reduceChoice` pueden omitirse;
-- cambiar preparación o retirar ready durante COUNTDOWN cancela el countdown mediante la lógica de sala y vuelve a LOBBY; no se procesa como un cambio optimista del cliente;
+- en COUNTDOWN, retirar ready o enviar una preparación distinta a la congelada para esa cuenta atrás cancela el countdown y vuelve a LOBBY antes de confirmar el nuevo estado; no se procesa como un cambio optimista del cliente;
 - la opción de Reducir pertenece a esa participación y no modifica física, premio o saldo.
 
 ### `room.leave`
