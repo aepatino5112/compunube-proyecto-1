@@ -1,5 +1,8 @@
 //! Player/Profile Service (Rust). See `docs/architecture/rust-player-profile-service.md`.
 
+pub mod config;
+pub mod logging;
+
 /// Tonic stubs generated at build time from `proto/player_profile.proto`.
 pub mod pb {
     #![allow(clippy::all, clippy::pedantic)]
