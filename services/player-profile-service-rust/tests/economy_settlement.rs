@@ -366,3 +366,50 @@ async fn a_settlement_survives_a_service_restart() {
         (S::Conflict, false)
     );
 }
+
+#[tokio::test]
+async fn a_credit_that_would_overflow_a_balance_column_is_invalid_and_leaves_no_trace() {
+    let env = env!("a_credit_that_would_overflow_a_balance_column");
+    let player = unique("sfull");
+    let limit = i64::MAX;
+    env.fund(&player, 0, limit - 2, limit - 2).await;
+    for (plastic, metal) in [(3, 0), (0, 3), (3, 3)] {
+        assert_eq!(
+            refused(
+                settle(
+                    &env.app,
+                    command(
+                        &unique("race"),
+                        &player,
+                        RaceOutcome::Finished,
+                        plastic,
+                        metal
+                    )
+                )
+                .await
+            ),
+            (S::InvalidSettlement, false),
+            "{plastic}/{metal}"
+        );
+    }
+    let profile = env.profile(&player).await;
+    assert_eq!(
+        (profile.plastic, profile.metal, profile.revision),
+        (limit as u64 - 2, limit as u64 - 2, 1)
+    );
+    assert_eq!(settlement_rows(&env, &player).await, 0);
+
+    // the largest credit that still fits is accepted, and fills the column
+    let race = unique("race");
+    let (replayed, profile) = ok(settle(
+        &env.app,
+        command(&race, &player, RaceOutcome::Finished, 2, 1),
+    )
+    .await);
+    assert!(!replayed);
+    assert_eq!(
+        (profile.plastic, profile.metal, profile.revision),
+        (limit as u64, limit as u64 - 1, 2)
+    );
+    assert_eq!(settlement_rows(&env, &player).await, 1);
+}

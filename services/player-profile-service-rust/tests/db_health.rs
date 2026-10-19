@@ -162,3 +162,71 @@ async fn health_follows_the_database_down_and_back_up_without_a_restart() {
     business.close().await;
     probe.close().await;
 }
+
+#[tokio::test]
+async fn an_unapplied_migration_keeps_the_real_instance_not_serving_while_a_migrated_one_serves() {
+    let Some(url) =
+        common::database_url("an_unapplied_migration_keeps_the_real_instance_not_serving")
+    else {
+        return;
+    };
+    let options = postgres::connect_options(
+        &player_profile_service::config::SecretString::new(url.clone()),
+        "migration-gate",
+    )
+    .unwrap();
+
+    // Two instances over the same database; only the migration they demand
+    // differs. `9999` is a version this database will never have.
+    let mut running = Vec::new();
+    for required in ["0002", "9999"] {
+        let probe_pool = postgres::probe_pool(&options, SETTINGS.probe_timeout);
+        let metrics = Arc::new(Metrics::new("rust-migration-gate"));
+        let dependencies = Dependencies::new(
+            postgres::repositories(common::test_pool(&url, 2).await),
+            Arc::new(PostgresReadinessProbe::with_required_migration(
+                probe_pool.clone(),
+                required,
+            )),
+            Vec::new(),
+        )
+        .with_metrics(metrics.clone());
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (stop, stop_rx) = oneshot::channel::<()>();
+        let server = tokio::spawn(serve(listener, dependencies, SETTINGS, async {
+            let _ = stop_rx.await;
+        }));
+        let channel = Channel::from_shared(format!("http://{addr}"))
+            .unwrap()
+            .connect()
+            .await
+            .unwrap();
+        running.push((required, channel, metrics, stop, server, probe_pool));
+    }
+
+    let (_, migrated, migrated_metrics, ..) = &running[0];
+    wait_for(migrated, ServingStatus::Serving).await;
+    assert_eq!(health_gauge(migrated_metrics), 1.0);
+
+    // Wait until the gate has been evaluated repeatedly (counted failures, not
+    // elapsed time), then check that it never reported SERVING in between.
+    let (_, gated, gated_metrics, ..) = &running[1];
+    for _ in 0..200 {
+        if probe_failures(gated_metrics) >= 3.0 {
+            break;
+        }
+        assert_eq!(status(gated).await, ServingStatus::NotServing);
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    assert!(probe_failures(gated_metrics) >= 3.0, "the probe never ran");
+    assert_eq!(status(gated).await, ServingStatus::NotServing);
+    assert_eq!(health_gauge(gated_metrics), 0.0);
+
+    for (_, channel, _, stop, server, probe_pool) in running {
+        let _ = stop.send(());
+        drop(channel);
+        server.await.unwrap().unwrap();
+        probe_pool.close().await;
+    }
+}
