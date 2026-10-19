@@ -58,6 +58,14 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		return err
 	}
 	defer profileClient.Close()
+	resilientProfile, err := playerprofile.NewResilient(profileClient, playerprofile.ResilienceOptions{
+		FailureThreshold: cfg.PlayerProfileCBFailureThreshold, OpenDuration: cfg.PlayerProfileCBOpenDuration,
+		HalfOpenProbes: cfg.PlayerProfileCBHalfOpenProbes, ReadMaxRetries: cfg.PlayerProfileReadMaxRetries,
+		RetryBase: cfg.PlayerProfileRetryBase, RetryCap: cfg.PlayerProfileRetryCap,
+	})
+	if err != nil {
+		return err
+	}
 	settlementPool, err := workpool.New(ctx, cfg.SettlementConcurrency, cfg.SettlementQueueCapacity, cfg.SettlementJobTimeout)
 	if err != nil {
 		return err
@@ -80,10 +88,10 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	}
 	identities := identity.NewRegistry()
 	sessions := sessionhttp.New(identities)
-	verifier := playerprofile.ProfileVerifier{Port: profileClient, Pool: profilePool}
+	verifier := playerprofile.ProfileVerifier{Port: resilientProfile, Pool: profilePool}
 	roomManager := rooms.NewManager(runtime, verifier, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer, Recorder: recorder})
 	if store != nil {
-		coordinator, err := settlement.New(ctx, store, profileClient, settlementPool, roomManager, async.Durable(), cfg.SettlementConcurrency, logger)
+		coordinator, err := settlement.New(ctx, store, resilientProfile, settlementPool, roomManager, async.Durable(), cfg.SettlementConcurrency, logger)
 		if err != nil {
 			return err
 		}

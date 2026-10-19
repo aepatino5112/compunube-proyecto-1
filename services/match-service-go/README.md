@@ -80,3 +80,16 @@ go vet ./...
 go test ./...
 go test -race ./...
 ```
+
+## Resiliencia Player/Profile (J79)
+
+El adaptador gRPC apunta a `PLAYER_PROFILE_GRPC_ADDR` y se envuelve en un único circuito lógico compartido por preparación de perfil y settlement. Las lecturas `GetProfile`/`GetCatalog` admiten un retry adicional con el mismo context y jitter; las mutaciones y `SettleRace` no se reintentan automáticamente. `open` rechaza sin RPC y `half-open` admite una sola sonda de lectura. `ResilientPort.Stats()` expone estado, fallos consecutivos, reapertura y contadores internos de rechazos rápidos y retries.
+
+| Variable | Default | Significado |
+| --- | --- | --- |
+| `PLAYER_PROFILE_CB_FAILURE_THRESHOLD` | `5` | Fallos lógicos consecutivos antes de abrir |
+| `PLAYER_PROFILE_CB_OPEN_DURATION` | `10s` | Ventana abierta |
+| `PLAYER_PROFILE_CB_HALF_OPEN_PROBES` | `1` | Una sonda de lectura simultánea; único valor admitido |
+| `PLAYER_PROFILE_READ_MAX_RETRIES` | `1` | Reintentos de lectura; `0` o `1` |
+| `PLAYER_PROFILE_RETRY_BASE` | `50ms` | Base del jitter |
+| `PLAYER_PROFILE_RETRY_CAP` | `200ms` | Tope del jitter |

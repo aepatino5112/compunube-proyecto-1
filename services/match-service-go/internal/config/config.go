@@ -12,28 +12,34 @@ import (
 )
 
 type Config struct {
-	HTTPAddr                 string
-	PlayerProfileGRPCAddr    string
-	DatabaseURL              string
-	LogLevel                 slog.Level
-	ShutdownTimeout          time.Duration
-	RoomCommandQueueCapacity int
-	MaxActiveRooms           int
-	MaxConnections           int
-	RoomMaxCommandsPerTick   int
-	RoomInputSlots           int
-	RoomJumpEdgesPerPlayer   int
-	ConnectionInputRate      int
-	ConnectionInputBurst     int
-	ConnectionSnapshotSlots  int
-	ConnectionCriticalQueue  int
-	ConnectionEventQueue     int
-	ProfileConcurrency       int
-	ProfileQueueCapacity     int
-	SettlementConcurrency    int
-	SettlementQueueCapacity  int
-	ProfileJobTimeout        time.Duration
-	SettlementJobTimeout     time.Duration
+	HTTPAddr                        string
+	PlayerProfileGRPCAddr           string
+	DatabaseURL                     string
+	LogLevel                        slog.Level
+	ShutdownTimeout                 time.Duration
+	RoomCommandQueueCapacity        int
+	MaxActiveRooms                  int
+	MaxConnections                  int
+	RoomMaxCommandsPerTick          int
+	RoomInputSlots                  int
+	RoomJumpEdgesPerPlayer          int
+	ConnectionInputRate             int
+	ConnectionInputBurst            int
+	ConnectionSnapshotSlots         int
+	ConnectionCriticalQueue         int
+	ConnectionEventQueue            int
+	ProfileConcurrency              int
+	ProfileQueueCapacity            int
+	SettlementConcurrency           int
+	SettlementQueueCapacity         int
+	ProfileJobTimeout               time.Duration
+	SettlementJobTimeout            time.Duration
+	PlayerProfileCBFailureThreshold int
+	PlayerProfileCBOpenDuration     time.Duration
+	PlayerProfileCBHalfOpenProbes   int
+	PlayerProfileReadMaxRetries     int
+	PlayerProfileRetryBase          time.Duration
+	PlayerProfileRetryCap           time.Duration
 }
 
 func Load() (Config, error) { return Parse(os.Getenv) }
@@ -52,6 +58,8 @@ func Parse(getenv func(string) string) (Config, error) {
 		ConnectionCriticalQueue: 16, ConnectionEventQueue: 16,
 		ProfileConcurrency: 8, ProfileQueueCapacity: 32, SettlementConcurrency: 4, SettlementQueueCapacity: 64,
 		ProfileJobTimeout: 750 * time.Millisecond, SettlementJobTimeout: 2 * time.Second,
+		PlayerProfileCBFailureThreshold: 5, PlayerProfileCBOpenDuration: 10 * time.Second, PlayerProfileCBHalfOpenProbes: 1,
+		PlayerProfileReadMaxRetries: 1, PlayerProfileRetryBase: 50 * time.Millisecond, PlayerProfileRetryCap: 200 * time.Millisecond,
 	}
 	if err := validateAddress("HTTP_ADDR", c.HTTPAddr); err != nil {
 		return Config{}, err
@@ -108,6 +116,7 @@ func Parse(getenv func(string) string) (Config, error) {
 		{"CONNECTION_CRITICAL_QUEUE", &c.ConnectionCriticalQueue}, {"CONNECTION_EVENT_QUEUE", &c.ConnectionEventQueue},
 		{"PROFILE_CONCURRENCY", &c.ProfileConcurrency}, {"PROFILE_QUEUE_CAPACITY", &c.ProfileQueueCapacity},
 		{"SETTLEMENT_CONCURRENCY", &c.SettlementConcurrency}, {"SETTLEMENT_QUEUE_CAPACITY", &c.SettlementQueueCapacity},
+		{"PLAYER_PROFILE_CB_FAILURE_THRESHOLD", &c.PlayerProfileCBFailureThreshold}, {"PLAYER_PROFILE_CB_HALF_OPEN_PROBES", &c.PlayerProfileCBHalfOpenProbes},
 	}
 	for _, item := range integers {
 		if v := getenv(item.name); v != "" {
@@ -121,7 +130,8 @@ func Parse(getenv func(string) string) (Config, error) {
 	for _, item := range []struct {
 		name   string
 		target *time.Duration
-	}{{"PROFILE_JOB_TIMEOUT", &c.ProfileJobTimeout}, {"SETTLEMENT_JOB_TIMEOUT", &c.SettlementJobTimeout}} {
+	}{{"PROFILE_JOB_TIMEOUT", &c.ProfileJobTimeout}, {"SETTLEMENT_JOB_TIMEOUT", &c.SettlementJobTimeout},
+		{"PLAYER_PROFILE_CB_OPEN_DURATION", &c.PlayerProfileCBOpenDuration}, {"PLAYER_PROFILE_RETRY_BASE", &c.PlayerProfileRetryBase}, {"PLAYER_PROFILE_RETRY_CAP", &c.PlayerProfileRetryCap}} {
 		if v := getenv(item.name); v != "" {
 			d, err := time.ParseDuration(v)
 			if err != nil || d <= 0 {
@@ -132,6 +142,19 @@ func Parse(getenv func(string) string) (Config, error) {
 	}
 	if c.ConnectionSnapshotSlots != 1 {
 		return Config{}, fmt.Errorf("CONNECTION_SNAPSHOT_SLOTS must be 1 for latest-only delivery")
+	}
+	if v := getenv("PLAYER_PROFILE_READ_MAX_RETRIES"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 || n > 1 {
+			return Config{}, fmt.Errorf("PLAYER_PROFILE_READ_MAX_RETRIES must be 0 or 1")
+		}
+		c.PlayerProfileReadMaxRetries = n
+	}
+	if c.PlayerProfileCBHalfOpenProbes != 1 {
+		return Config{}, fmt.Errorf("PLAYER_PROFILE_CB_HALF_OPEN_PROBES must be 1")
+	}
+	if c.PlayerProfileRetryCap < c.PlayerProfileRetryBase {
+		return Config{}, fmt.Errorf("PLAYER_PROFILE_RETRY_CAP must be >= PLAYER_PROFILE_RETRY_BASE")
 	}
 	return c, nil
 }
