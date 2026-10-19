@@ -77,8 +77,17 @@ jobs:
 
       - name: Verify gRPC health through Envoy
         run: |
-          healthy=$(curl --fail --silent --show-error http://127.0.0.1:9901/clusters | grep -Ec 'player_profile_cluster::.*::health_flags::healthy' || true)
-          test "$healthy" -eq 2
+          # Rust reports NOT_SERVING until the E42 migration is applied (previous step),
+          # then needs one probe interval plus one Envoy health check to be reincorporated.
+          for attempt in $(seq 1 30); do
+            healthy=$(curl --fail --silent --show-error http://127.0.0.1:9901/clusters | grep -Ec 'player_profile_cluster::.*::health_flags::healthy' || true)
+            if [ "$healthy" -eq 2 ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Envoy sees $healthy healthy Rust replicas, expected 2" >&2
+          exit 1
 
       - name: Verify Prometheus
         run: |
