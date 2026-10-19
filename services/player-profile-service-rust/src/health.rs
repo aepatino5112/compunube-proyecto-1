@@ -13,6 +13,8 @@ use async_trait::async_trait;
 use tokio::sync::{watch, Mutex};
 use tonic_health::{server::HealthReporter, ServingStatus};
 
+use crate::{config::DEFAULT_INSTANCE_ID, metrics::Metrics};
+
 /// Service name Envoy health-checks (`infra/envoy/envoy.yaml`).
 pub const HEALTH_SERVICE_NAME: &str = "player_profile";
 
@@ -147,19 +149,28 @@ struct ControllerState {
 pub struct HealthController {
     sink: Arc<dyn StatusSink>,
     state: Mutex<ControllerState>,
+    metrics: Arc<Metrics>,
 }
 
 impl HealthController {
     /// Publishes `NOT_SERVING` immediately: an instance is not ready until the
     /// first probe succeeds.
     pub async fn start(sink: Arc<dyn StatusSink>) -> Self {
+        Self::start_with_metrics(sink, Arc::new(Metrics::new(DEFAULT_INSTANCE_ID))).await
+    }
+
+    /// Like [`HealthController::start`], also mirroring the serving state and
+    /// probe failures into `metrics`.
+    pub async fn start_with_metrics(sink: Arc<dyn StatusSink>, metrics: Arc<Metrics>) -> Self {
         sink.publish(ServingStatus::NotServing).await;
+        metrics.set_health_serving(false);
         Self {
             sink,
             state: Mutex::new(ControllerState {
                 tracker: ReadinessTracker::new(),
                 draining: false,
             }),
+            metrics,
         }
     }
 
@@ -168,12 +179,19 @@ impl HealthController {
         if state.draining {
             return;
         }
+        if result.is_err() {
+            self.metrics.probe_failed();
+        }
         match state.tracker.observe(&result) {
             Some(Transition::ToServing) => {
+                // The gauge is set first so anyone who has seen the gRPC status
+                // change also sees the gauge changed.
+                self.metrics.set_health_serving(true);
                 self.sink.publish(ServingStatus::Serving).await;
                 tracing::info!("readiness checks passed; reporting SERVING");
             }
             Some(Transition::ToNotServing(reason)) => {
+                self.metrics.set_health_serving(false);
                 self.sink.publish(ServingStatus::NotServing).await;
                 tracing::warn!(%reason, "readiness check failed; reporting NOT_SERVING");
             }
@@ -188,6 +206,7 @@ impl HealthController {
     pub async fn begin_shutdown(&self) {
         let mut state = self.state.lock().await;
         state.draining = true;
+        self.metrics.set_health_serving(false);
         self.sink.publish(ServingStatus::NotServing).await;
         tracing::info!("shutdown started; reporting NOT_SERVING");
     }
@@ -322,6 +341,47 @@ mod tests {
                 ServingStatus::NotServing,
             ]
         );
+    }
+
+    fn gauge_and_failures(metrics: &Metrics) -> (String, String) {
+        let text = metrics.render();
+        let pick = |name: &str| {
+            text.lines()
+                .find(|line| line.starts_with(name) && !line.starts_with('#'))
+                .and_then(|line| line.rsplit(' ').next())
+                .unwrap_or("missing")
+                .to_string()
+        };
+        (
+            pick("player_profile_health_serving"),
+            pick("player_profile_health_probe_failures_total"),
+        )
+    }
+
+    #[tokio::test]
+    async fn metrics_mirror_serving_state_and_count_failed_probes() {
+        let sink = Arc::new(RecordingSink::default());
+        let metrics = Arc::new(Metrics::new("rust-h"));
+        let controller = HealthController::start_with_metrics(sink, metrics.clone()).await;
+        assert_eq!(gauge_and_failures(&metrics), ("0".into(), "0".into()));
+
+        controller.report(fail("db down")).await;
+        controller.report(fail("db down")).await;
+        assert_eq!(gauge_and_failures(&metrics), ("0".into(), "2".into()));
+
+        controller.report(Ok(())).await;
+        assert_eq!(gauge_and_failures(&metrics), ("1".into(), "2".into()));
+
+        controller.report(fail("db down")).await;
+        assert_eq!(gauge_and_failures(&metrics), ("0".into(), "3".into()));
+
+        controller.report(Ok(())).await;
+        controller.begin_shutdown().await;
+        assert_eq!(gauge_and_failures(&metrics).0, "0");
+        // A late probe result neither restores SERVING nor counts as a failure.
+        controller.report(Ok(())).await;
+        controller.report(fail("late")).await;
+        assert_eq!(gauge_and_failures(&metrics), ("0".into(), "3".into()));
     }
 
     struct ScriptedProbe {

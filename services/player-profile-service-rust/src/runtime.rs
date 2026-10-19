@@ -121,12 +121,15 @@ pub fn build_dependencies(config: &Config) -> Dependencies {
         &config.database.pool,
         config.health.probe_timeout,
     ) {
-        Ok(runtime) => Dependencies::new(
-            runtime.repositories,
-            Arc::new(runtime.probe),
-            vec![Arc::new(runtime.resources)],
-        )
-        .with_metrics(metrics),
+        Ok(runtime) => {
+            metrics.set_pool_source(Arc::new(runtime.pool_stats));
+            Dependencies::new(
+                runtime.repositories,
+                Arc::new(runtime.probe),
+                vec![Arc::new(runtime.resources)],
+            )
+            .with_metrics(metrics)
+        }
         Err(error) => {
             tracing::error!(%error, "the instance will stay NOT_SERVING");
             unconfigured("DATABASE_URL is invalid").with_metrics(metrics)
@@ -260,8 +263,13 @@ where
 {
     let span = tracing::Span::current();
     let (reporter, health_service) = tonic_health::server::health_reporter();
-    let controller =
-        Arc::new(HealthController::start(Arc::new(GrpcHealthSink::new(reporter))).await);
+    let controller = Arc::new(
+        HealthController::start_with_metrics(
+            Arc::new(GrpcHealthSink::new(reporter)),
+            dependencies.metrics.clone(),
+        )
+        .await,
+    );
 
     let (probe_stop, probe_stop_rx) = watch::channel(false);
     let probe_task = tokio::spawn(
@@ -275,7 +283,10 @@ where
         .instrument(span.clone()),
     );
 
-    let app = Arc::new(PlayerProfileApp::new(dependencies.repositories));
+    let app = Arc::new(PlayerProfileApp::with_observer(
+        dependencies.repositories,
+        dependencies.metrics.clone(),
+    ));
     let (metrics_stop, metrics_task) = match dependencies.metrics_listener {
         Some(metrics_listener) => {
             let metrics_addr = metrics_listener

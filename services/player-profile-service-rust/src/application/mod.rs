@@ -6,7 +6,11 @@
 //! This layer depends only on the repository *ports*, never on SQL, `sqlx` or
 //! `tonic`.
 
-use std::fmt;
+use std::{fmt, sync::Arc};
+
+mod observer;
+
+pub use observer::{NoopObserver, OperationObserver};
 
 use crate::{
     domain::{
@@ -152,6 +156,7 @@ pub struct SettlementResult {
 /// Use cases of the Player/Profile Service.
 pub struct PlayerProfileApp {
     repositories: Repositories,
+    observer: Arc<dyn OperationObserver>,
 }
 
 fn invalid(error: ValidationError) -> ApplicationError {
@@ -160,7 +165,15 @@ fn invalid(error: ValidationError) -> ApplicationError {
 
 impl PlayerProfileApp {
     pub fn new(repositories: Repositories) -> Self {
-        Self { repositories }
+        Self::with_observer(repositories, Arc::new(NoopObserver))
+    }
+
+    /// Reports every final mutation and settlement outcome to `observer`.
+    pub fn with_observer(repositories: Repositories, observer: Arc<dyn OperationObserver>) -> Self {
+        Self {
+            repositories,
+            observer,
+        }
     }
 
     /// The confirmed profile. A player without one is provisioned on the spot
@@ -355,7 +368,7 @@ impl PlayerProfileApp {
         };
         tx.commit().await?;
 
-        log_settlement(&request, &outcome);
+        self.observer.settlement_resolved(&outcome);
         Ok(SettlementResult {
             race_id: request.race_id,
             player_id: request.player_id,
@@ -431,7 +444,7 @@ impl PlayerProfileApp {
         };
         tx.commit().await?;
 
-        log_mutation(operation, player_id, request_id, &outcome);
+        self.observer.mutation_resolved(operation, &outcome);
         Ok(MutationResult {
             request_id: request_id.to_string(),
             outcome,
@@ -464,52 +477,6 @@ fn replay(
             profile: current,
         },
     }
-}
-
-fn log_settlement(request: &SettlementRequest, outcome: &SettlementOutcome) {
-    let (result, code, replayed) = match outcome {
-        SettlementOutcome::Applied { replayed, .. } => ("applied", "", *replayed),
-        SettlementOutcome::Rejected {
-            rejection,
-            replayed,
-        } => (
-            "rejected",
-            match rejection {
-                SettlementRejection::InvalidSettlement => "INVALID_SETTLEMENT",
-                SettlementRejection::Conflict => "CONFLICT",
-            },
-            *replayed,
-        ),
-    };
-    tracing::info!(
-        operation = "settle_race",
-        race_id = %request.race_id,
-        player_id = %request.player_id,
-        outcome = request.outcome.as_str(),
-        result,
-        code,
-        replayed,
-        "settlement resolved"
-    );
-}
-
-fn log_mutation(operation: &str, player_id: &str, request_id: &str, outcome: &MutationOutcome) {
-    let (result, code, replayed) = match outcome {
-        MutationOutcome::Applied { replayed, .. } => ("applied", "", *replayed),
-        MutationOutcome::Rejected {
-            rejection,
-            replayed,
-        } => ("rejected", rejection.as_code(), *replayed),
-    };
-    tracing::info!(
-        operation,
-        player_id,
-        request_id,
-        result,
-        code,
-        replayed,
-        "mutation resolved"
-    );
 }
 
 #[cfg(test)]

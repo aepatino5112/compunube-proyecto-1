@@ -130,3 +130,52 @@ async fn served_rpcs_show_up_on_the_scrape_with_the_instance_id() {
     let _ = stop.send(());
     server.await.unwrap().unwrap();
 }
+
+#[tokio::test]
+async fn a_failing_probe_shows_as_not_serving_and_counted_failures() {
+    let grpc = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let dependencies = Dependencies::new(
+        Repositories::unavailable(),
+        Arc::new(UnconfiguredProbe::new("DATABASE_URL is not configured")),
+        Vec::new(),
+    )
+    .with_metrics(Arc::new(Metrics::new("rust-health")))
+    .with_metrics_listener(listener);
+    let (stop, stop_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(serve(grpc, dependencies, SETTINGS, async {
+        let _ = stop_rx.await;
+    }));
+
+    // The probe loop runs every 20 ms; wait (bounded) for its first failures.
+    let mut body = String::new();
+    for _ in 0..200 {
+        body = scrape(addr).await;
+        let failures = body
+            .lines()
+            .find(|l| l.starts_with("player_profile_health_probe_failures_total"))
+            .and_then(|l| l.rsplit(' ').next())
+            .and_then(|v| v.parse::<f64>().ok());
+        if failures.is_some_and(|f| f >= 1.0) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let gauge = body
+        .lines()
+        .find(|l| l.starts_with("player_profile_health_serving"))
+        .unwrap_or_else(|| panic!("no health gauge in {body}"));
+    assert!(gauge.ends_with(" 0"), "{gauge}");
+    assert!(
+        body.lines().any(
+            |l| l.starts_with("player_profile_health_probe_failures_total") && !l.ends_with(" 0")
+        ),
+        "{body}"
+    );
+    // Without a database the pool gauges are zeros, not gaps.
+    assert!(body.contains("player_profile_db_pool_max_connections"));
+
+    let _ = stop.send(());
+    server.await.unwrap().unwrap();
+}

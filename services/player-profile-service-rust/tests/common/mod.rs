@@ -228,7 +228,7 @@ pub fn rejected(outcome: MutationOutcome) -> (MutationRejection, bool) {
 // ---- in-process gRPC server over a real database --------------------------
 
 use player_profile_service::{
-    pb::player_profile_service_client::PlayerProfileServiceClient,
+    metrics::Metrics, pb::player_profile_service_client::PlayerProfileServiceClient,
     transport::grpc::PlayerProfileGrpc,
 };
 use std::sync::Arc;
@@ -259,14 +259,24 @@ impl Instance {
 
 /// One service instance: its own pool, its own gRPC server.
 pub async fn start_instance(url: &str) -> (Instance, PgPool) {
+    start_instance_with_metrics(url, Arc::new(Metrics::new("rust-test"))).await
+}
+
+/// Like [`start_instance`], reporting to `metrics` exactly as the runtime does
+/// (RPC edge, application observer and business pool gauges).
+pub async fn start_instance_with_metrics(url: &str, metrics: Arc<Metrics>) -> (Instance, PgPool) {
     let pool = test_pool(url, 10).await;
-    let app = Arc::new(PlayerProfileApp::new(postgres::repositories(pool.clone())));
+    metrics.set_pool_source(Arc::new(postgres::BusinessPoolStats::new(pool.clone())));
+    let app = Arc::new(PlayerProfileApp::with_observer(
+        postgres::repositories(pool.clone()),
+        metrics.clone(),
+    ));
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let (stop, stop_rx) = oneshot::channel::<()>();
     let task = tokio::spawn(async move {
         let _ = Server::builder()
-            .add_service(PlayerProfileGrpc::new(app).into_server())
+            .add_service(PlayerProfileGrpc::with_metrics(app, metrics).into_server())
             .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
                 let _ = stop_rx.await;
             })
