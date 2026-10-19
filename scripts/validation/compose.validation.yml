@@ -1,0 +1,13 @@
+# Compose override for the J77/F55/F54 validation harness.
+#
+# Only retags the locally built images so the harness never overwrites or
+# removes the developer's `compunube-player-profile-service:dev` image.
+# Host ports are overridden through the POSTGRES_PORT / GO_HTTP_PORT /
+# ENVOY_GRPC_PORT / ENVOY_ADMIN_PORT variables defined in compose.yml.
+services:
+  player-profile-rust-1:
+    image: compunube-validation-rust:dev
+  player-profile-rust-2:
+    image: compunube-validation-rust:dev
+  match-service-go:
+    image: compunube-validation-go:dev
