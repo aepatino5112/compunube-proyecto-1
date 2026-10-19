@@ -93,3 +93,7 @@ El adaptador gRPC apunta a `PLAYER_PROFILE_GRPC_ADDR` y se envuelve en un único
 | `PLAYER_PROFILE_READ_MAX_RETRIES` | `1` | Reintentos de lectura; `0` o `1` |
 | `PLAYER_PROFILE_RETRY_BASE` | `50ms` | Base del jitter |
 | `PLAYER_PROFILE_RETRY_CAP` | `200ms` | Tope del jitter |
+
+## API pública de perfil y economía (J80)
+
+Go expone las rutas E45 `GET /v1/profile`, `GET /v1/catalog` y `POST /v1/profile/{purchases,crafts,exchanges,equipment}` y `PUT /v1/profile/appearance`. Todas requieren una sesión F48; `playerId` se obtiene solo del contexto de sesión. Las mutaciones por cookie exigen Origin del mismo origen. Los handlers usan `profilePool` y el port resiliente J79; nunca consultan gRPC desde el RoomLoop ni escriben `player.*`. JSON desconocido o malformado se rechaza con `INVALID_REQUEST`; fallos de dependencia dan `PROFILE_UNAVAILABLE`, y un timeout de mutación iniciada da `MUTATION_OUTCOME_UNKNOWN` con el `requestId` original para repetir la misma intención. Las pruebas de este paquete usan un port fake; la integración real queda pendiente de F47/F52.

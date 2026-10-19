@@ -13,6 +13,7 @@ import (
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/identity"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/matchstore"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/playerprofile"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/profilehttp"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomruntime"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/rooms"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomshttp"
@@ -98,5 +99,6 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		defer coordinator.Close()
 	}
 	roomAPI := roomshttp.New(roomManager, identities, sessions, cfg)
-	return server.New(cfg, logger, func(mux *http.ServeMux) { sessions.Register(mux); roomAPI.Register(mux) }).Run(ctx)
+	profileAPI := profilehttp.New(sessions, resilientProfile, profilePool)
+	return server.New(cfg, logger, func(mux *http.ServeMux) { sessions.Register(mux); roomAPI.Register(mux); profileAPI.Register(mux) }).Run(ctx)
 }
