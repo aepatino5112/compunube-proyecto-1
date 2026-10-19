@@ -33,6 +33,8 @@ Cada réplica Rust anuncia por gRPC Health `service_name=player_profile`:
 
 La transición de Rust no depende de memoria crítica de una sola réplica. La verificación usa un probe pequeño y acotado a PostgreSQL con el rol propio, más un estado compatible del esquema cuando E42 materialice migraciones; no toca `match` ni ejecuta mutaciones. Debe limitar frecuencia/tiempo y aislar recursos del pool de negocio para que una avalancha de probes no ahogue solicitudes normales. Al parar, Rust anuncia `NOT_SERVING` antes de dejar de aceptar trabajo cuando sea posible.
 
+**Telemetría de health (H67).** Además del gRPC Health, cada réplica Rust expone en `GET /metrics` (puerto interno `9100`, ver [Observabilidad](rust-player-profile-service.md#observabilidad-h67)) `player_profile_health_serving` (`1` solo mientras publica `SERVING`, `0` en arranque, fallo o apagado) y `player_profile_health_probe_failures_total` (sondeos fallidos acumulados), ambos con `instance_id`. Son evidencia para observar y alertar; no sustituyen al gRPC Health que usa Envoy y el endpoint no depende de PostgreSQL, por lo que sigue respondiendo con la base caída.
+
 Para PostgreSQL se requieren **dos niveles**: `pg_isready` comprueba disponibilidad básica del servidor y una **consulta real `SELECT 1` con credenciales de la aplicación** comprueba que la conexión/consulta funciona. TCP abierto o `pg_isready` solo no prueban permisos ni esquema. La readiness de Go/Rust verifica además su schema esperado (`match`/`player`) y versión de migración cuando E42 exista; no presupone un mecanismo de migración ya implementado. Un fallo físico de la única instancia PostgreSQL puede degradar ambos servicios, pero los ticks activos en memoria Go continúan mientras su proceso viva.
 
 ## Envoy y topología observada
@@ -52,7 +54,7 @@ El [envoy.yaml actual](../../infra/envoy/envoy.yaml) usa `ROUND_ROBIN`, `connect
 | Envoy | gRPC health por instancia y admin `/ready` ya configurados. | J78 comprobará exclusión/reincorporación con Rust health ligado a DB y tráfico real. |
 | CI de integración | [Workflow](../../.github/workflows/ci-integration.yml) consulta Go `/healthz`/`/readyz`, Envoy `/ready` y dos Rust healthy. | Extender pruebas de fallo/degradación en J78/I73; el verde actual prueba scaffolding, no toda esta semántica. |
 
-Prometheus en **9090** observa targets y Grafana en **3000** visualiza; ninguno decide failover. H68 instrumentará scraping/tableros finales. Puertos y destinos expuestos hoy por Compose son **configurables por entorno**; D31/A05 determinarán la topología física, sin fijar IPs en este diseño.
+Prometheus en **9090** observa targets y Grafana en **3000** visualiza; ninguno decide failover. H68 instrumentará scraping/tableros finales; el objetivo Rust es `player-profile-rust-1:9100` y `player-profile-rust-2:9100`, ruta `/metrics`. Puertos y destinos expuestos hoy por Compose son **configurables por entorno**; D31/A05 determinarán la topología física, sin fijar IPs en este diseño.
 
 ## Matriz de escenarios a demostrar
 

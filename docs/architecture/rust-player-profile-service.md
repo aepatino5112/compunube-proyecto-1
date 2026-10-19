@@ -298,7 +298,8 @@ docker compose -p compunube-f52-test down -v
 | Variable | Defecto | Uso |
 | --- | --- | --- |
 | `SERVICE_ADDR` | `0.0.0.0:50051` | Dirección gRPC. |
-| `INSTANCE_ID` | `rust-local` | Identidad de la réplica en logs. |
+| `METRICS_ADDR` | `0.0.0.0:9100` | Listener HTTP de `GET /metrics` (Prometheus), separado del gRPC. Debe diferir de `SERVICE_ADDR`; si no se puede enlazar el servicio no arranca. |
+| `INSTANCE_ID` | `rust-local` | Identidad de la réplica en logs y en la etiqueta `instance_id` de las métricas. |
 | `DATABASE_URL` | sin valor | Conexión PostgreSQL. Nunca se imprime (`Debug`/`Display` redactados). |
 | `DB_POOL_MAX_CONNECTIONS` / `DB_POOL_MIN_CONNECTIONS` | `10` / `0` | Límites del pool de negocio por instancia. |
 | `DB_POOL_ACQUIRE_TIMEOUT_MS` | `3000` | Espera máxima por una conexión. |
@@ -311,13 +312,53 @@ Un valor numérico inválido detiene el arranque. Un `DATABASE_URL` ausente o in
 
 1. `player_profile` (y el nombre vacío) arrancan en `NOT_SERVING`.
 2. Un bucle de fondo usa un pool aislado de una conexión, distinto del pool de negocio, y comprueba `SELECT 1`, la versión `0002` en `public.schema_migrations` (publica el catálogo `online-v1` y el almacenamiento de rechazos; requiere `0001`) y las nueve tablas `player.*`. Pasa a `SERVING` solo si todo cumple, vuelve a `NOT_SERVING` ante cualquier fallo o timeout y se recupera solo; por eso una réplica levantada antes de migrar se vuelve `SERVING` después de `migrate.sh` sin reiniciar.
-3. Ante SIGTERM o SIGINT: se publica `NOT_SERVING` (los sondeos posteriores se ignoran), se dejan de aceptar conexiones nuevas, las RPC en curso terminan dentro de `SHUTDOWN_DRAIN_TIMEOUT_MS` y por último se cierran los pools.
+3. Ante SIGTERM o SIGINT: se publica `NOT_SERVING` (los sondeos posteriores se ignoran), se dejan de aceptar conexiones nuevas, las RPC en curso terminan dentro de `SHUTDOWN_DRAIN_TIMEOUT_MS`, se cierran los pools y por último se detiene el listener de métricas (así el drenaje sigue siendo observable).
 
-Los logs son JSON (`tracing`); `service=player-profile-service` e `instance_id` viajan en el span raíz (`span.service`, `span.instance_id`) y ninguna línea incluye credenciales.
+Los logs son JSON (`tracing`); `service=player-profile-service` e `instance_id` viajan en el span raíz (`span.service`, `span.instance_id`) y ninguna línea incluye credenciales. Ver [Observabilidad](#observabilidad-h67) para la línea por solicitud.
+
+### Observabilidad (H67)
+
+**Endpoint.** Cada réplica sirve `GET /metrics` (formato texto de Prometheus, `text/plain; version=0.0.4`) en `METRICS_ADDR` (por defecto **`0.0.0.0:9100`**), un listener HTTP propio y distinto del gRPC `50051`. No toca PostgreSQL: responde aunque la base esté caída, y se detiene al final del apagado ordenado. Es interno: Envoy no lo enruta (se scrapea cada réplica por su nombre, no a través del balanceador) y `compose.yml` no lo publica al host. `HEAD /metrics` responde solo cabeceras; cualquier otra ruta da `404` y otro método `405`.
+
+**Etiquetas constantes** en todas las series: `service="player-profile-service"` e `instance_id` (el `INSTANCE_ID` de la réplica: `rust-1`, `rust-2`). Ninguna serie lleva `player_id`, `request_id`, `race_id`, versión de catálogo, tokens, SQL ni mensajes de error (cardinalidad y privacidad). La etiqueta `code` solo toma valores de enums cerrados: códigos de rechazo de negocio (`INSUFFICIENT_COINS`, `IDEMPOTENCY_CONFLICT`, `INVALID_SETTLEMENT`, `CONFLICT`, ...) y nombres de estado gRPC (`INVALID_ARGUMENT`, `NOT_FOUND`, `DEADLINE_EXCEEDED`, `RESOURCE_EXHAUSTED`, `UNAVAILABLE`, `INTERNAL`), más `OK` y `CANCELLED`.
+
+| Métrica | Tipo | Etiquetas (además de las constantes) | Significado |
+| --- | --- | --- | --- |
+| `player_profile_up` | gauge | | Siempre `1` mientras el proceso corre. |
+| `player_profile_rpc_requests_total` | counter | `rpc`, `outcome`, `code` | RPC terminadas. `outcome`: `applied`, `rejected` (rechazo de negocio en el cuerpo, gRPC OK), `replayed` (ya resuelta antes), `conflict` (misma clave con datos distintos) o `error` (estado gRPC distinto de OK o cancelada). |
+| `player_profile_rpc_duration_seconds` | histogram | `rpc` | Duración de la RPC incluida la transacción (buckets de 1 ms a 5 s). |
+| `player_profile_rpc_in_flight` | gauge | `rpc` | RPC en curso por método. |
+| `player_profile_idempotency_replays_total` | counter | `operation` | Solicitudes respondidas desde una anterior idéntica. `operation`: `buy`, `craft`, `exchange`, `equip`, `appearance`, `settle_race`. |
+| `player_profile_idempotency_conflicts_total` | counter | `operation` | Reutilización de clave con datos distintos. |
+| `player_profile_settlements_total` | counter | `outcome` | Resultado de `SettleRace`: `credited`, `replayed`, `conflict`, `invalid`. |
+| `player_profile_db_pool_connections` | gauge | | Conexiones abiertas del pool de negocio (inactivas + en uso). |
+| `player_profile_db_pool_idle_connections` | gauge | | Conexiones abiertas sin trabajo. |
+| `player_profile_db_pool_in_use_connections` | gauge | | Conexiones ejecutando una consulta o transacción. |
+| `player_profile_db_pool_max_connections` | gauge | | Máximo configurado (`DB_POOL_MAX_CONNECTIONS`). Sin `DATABASE_URL` válido, los cuatro gauges del pool valen `0`. |
+| `player_profile_health_serving` | gauge | | `1` si la réplica publica `SERVING` en gRPC Health, `0` si `NOT_SERVING` (incluye arranque y apagado). |
+| `player_profile_health_probe_failures_total` | counter | | Sondeos de readiness fallidos (base inalcanzable, migración ausente, timeout). |
+
+Las series sin eventos aún (por RPC, operación, resultado de settlement, pool, health) existen desde el primer scrape en `0`. Cada `SettleRace` repetida o en conflicto también se cuenta en las métricas de idempotencia con `operation="settle_race"`. El pool se lee en cada scrape; el contador de replays no distingue si el rechazo repetido era de negocio o un éxito.
+
+**Logs.** Una línea JSON por RPC, mensaje `rpc completed`, con `service`, `instance_id`, `rpc`, `outcome`, `code`, `error_class` (`none`, `business`, `client`, `server`, `cancelled`) y `latency_ms`. Nivel `info` para éxitos y rechazos de negocio, `warn` para errores de cliente, cancelaciones y fallos de servidor, `error` para `INTERNAL`. No incluye `player_id`, `request_id`, `race_id`, payloads, SQL ni `DATABASE_URL`; el detalle saneado de un `INTERNAL` se registra aparte, sin esos campos.
+
+**Correlación.** No existe hoy un identificador de correlación en `proto/` ni en Go, así que Rust no captura ninguno; añadirlo es una decisión de contrato (E43) que no forma parte de H67.
+
+**Scrape para H68** (Prometheus, red de Compose; los servicios se llaman `player-profile-rust-1` y `-2`):
+
+```yaml
+scrape_configs:
+  - job_name: player-profile-rust
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["player-profile-rust-1:9100", "player-profile-rust-2:9100"]
+```
+
+Las etiquetas `service` e `instance_id` ya vienen en cada serie, así que no hace falta `relabel_configs` para distinguir réplicas. Consultas útiles: tasa de errores `sum by (instance_id, rpc) (rate(player_profile_rpc_requests_total{outcome="error"}[5m]))`, latencia p95 `histogram_quantile(0.95, sum by (le, rpc) (rate(player_profile_rpc_duration_seconds_bucket[5m])))`, saturación del pool `player_profile_db_pool_in_use_connections / player_profile_db_pool_max_connections` y réplicas fuera de servicio `player_profile_health_serving == 0`. Configurar Prometheus/Grafana y publicar el puerto es trabajo de H68/H69; este cambio no los toca.
 
 ### Pendiente
 
-- Deadlines/correlación propagados por operación y métricas de deduplicación/settlement (hoy cada resolución se registra como línea de log con `operation`, `player_id`, `request_id`/`race_id`, resultado y `replayed`).
+- Deadlines y correlación propagados por operación: dependen de un identificador de correlación que el contrato aún no define (ver [Observabilidad](#observabilidad-h67)). Las métricas de deduplicación/settlement, pool y health ya se exponen en `/metrics`.
 - Credenciales LOGIN separadas por rol runtime (H62) y TLS hacia PostgreSQL cuando haya un requisito concreto.
 
 ## Límites de D29

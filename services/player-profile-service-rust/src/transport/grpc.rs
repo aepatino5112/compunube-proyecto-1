@@ -8,11 +8,17 @@ use super::{
         catalog_to_pb, decode_material, decode_outcome, mutation_response, profile_to_pb,
         settlement_response,
     },
+    observe::RpcObserver,
 };
 use crate::{
     application::{
         ApplicationError, ExchangeMaterialsCommand, GetCatalogCommand, GetProfileCommand,
         ItemCommand, MutationResult, PlayerProfileApp, SetAppearanceCommand, SettleRaceCommand,
+    },
+    config::DEFAULT_INSTANCE_ID,
+    metrics::{
+        rpc::{Rpc, RpcResult},
+        Metrics,
     },
     pb::{
         player_profile_service_server::{PlayerProfileService, PlayerProfileServiceServer},
@@ -25,11 +31,21 @@ use crate::{
 /// Tonic adapter for `compunube.player.v1.PlayerProfileService`.
 pub struct PlayerProfileGrpc {
     app: Arc<PlayerProfileApp>,
+    observer: RpcObserver,
 }
 
 impl PlayerProfileGrpc {
+    /// An adapter with a detached metrics registry (nothing scrapes it).
     pub fn new(app: Arc<PlayerProfileApp>) -> Self {
-        Self { app }
+        Self::with_metrics(app, Arc::new(Metrics::new(DEFAULT_INSTANCE_ID)))
+    }
+
+    /// An adapter that reports every RPC to `metrics` and to the request log.
+    pub fn with_metrics(app: Arc<PlayerProfileApp>, metrics: Arc<Metrics>) -> Self {
+        Self {
+            app,
+            observer: RpcObserver::new(metrics),
+        }
     }
 
     pub fn into_server(self) -> PlayerProfileServiceServer<Self> {
@@ -85,12 +101,13 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<GetProfileRequest>,
     ) -> Result<Response<GetProfileResponse>, Status> {
+        let call = self.observer.start(Rpc::GetProfile);
         let command = GetProfileCommand {
             player_id: request.into_inner().player_id,
         };
-        self.app
-            .get_profile(command)
-            .await
+        let result = self.app.get_profile(command).await;
+        call.finish(RpcResult::from_read(&result));
+        result
             .map(|profile| {
                 Response::new(GetProfileResponse {
                     profile: Some(profile_to_pb(&profile)),
@@ -103,12 +120,13 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<GetCatalogRequest>,
     ) -> Result<Response<GetCatalogResponse>, Status> {
+        let call = self.observer.start(Rpc::GetCatalog);
         let command = GetCatalogCommand {
             catalog_version: request.into_inner().catalog_version,
         };
-        self.app
-            .get_catalog(command)
-            .await
+        let result = self.app.get_catalog(command).await;
+        call.finish(RpcResult::from_read(&result));
+        result
             .map(|catalog| Response::new(catalog_to_pb(&catalog)))
             .map_err(|error| status_from(&error))
     }
@@ -117,43 +135,60 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<BuyItemRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        respond_mutation(self.app.buy_item(request.into_inner().into()).await)
+        let call = self.observer.start(Rpc::BuyItem);
+        let result = self.app.buy_item(request.into_inner().into()).await;
+        call.finish(RpcResult::from_mutation(&result));
+        respond_mutation(result)
     }
 
     async fn craft_item(
         &self,
         request: Request<CraftItemRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        respond_mutation(self.app.craft_item(request.into_inner().into()).await)
+        let call = self.observer.start(Rpc::CraftItem);
+        let result = self.app.craft_item(request.into_inner().into()).await;
+        call.finish(RpcResult::from_mutation(&result));
+        respond_mutation(result)
     }
 
     async fn exchange_materials(
         &self,
         request: Request<ExchangeMaterialsRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
+        let call = self.observer.start(Rpc::ExchangeMaterials);
         let r = request.into_inner();
-        let material = decode_material(r.material).map_err(|error| status_from(&error))?;
-        let command = ExchangeMaterialsCommand {
-            player_id: r.player_id,
-            request_id: r.request_id,
-            catalog_version: r.catalog_version,
-            material,
-            amount: r.amount,
+        let result = match decode_material(r.material) {
+            Ok(material) => {
+                let command = ExchangeMaterialsCommand {
+                    player_id: r.player_id,
+                    request_id: r.request_id,
+                    catalog_version: r.catalog_version,
+                    material,
+                    amount: r.amount,
+                };
+                self.app.exchange_materials(command).await
+            }
+            Err(error) => Err(error),
         };
-        respond_mutation(self.app.exchange_materials(command).await)
+        call.finish(RpcResult::from_mutation(&result));
+        respond_mutation(result)
     }
 
     async fn equip_item(
         &self,
         request: Request<EquipItemRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        respond_mutation(self.app.equip_item(request.into_inner().into()).await)
+        let call = self.observer.start(Rpc::EquipItem);
+        let result = self.app.equip_item(request.into_inner().into()).await;
+        call.finish(RpcResult::from_mutation(&result));
+        respond_mutation(result)
     }
 
     async fn set_appearance(
         &self,
         request: Request<SetAppearanceRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
+        let call = self.observer.start(Rpc::SetAppearance);
         let r = request.into_inner();
         let command = SetAppearanceCommand {
             player_id: r.player_id,
@@ -162,25 +197,32 @@ impl PlayerProfileService for PlayerProfileGrpc {
             skin_id: r.skin_id,
             hair_color_id: r.hair_color_id,
         };
-        respond_mutation(self.app.set_appearance(command).await)
+        let result = self.app.set_appearance(command).await;
+        call.finish(RpcResult::from_mutation(&result));
+        respond_mutation(result)
     }
 
     async fn settle_race(
         &self,
         request: Request<SettleRaceRequest>,
     ) -> Result<Response<SettleRaceResponse>, Status> {
+        let call = self.observer.start(Rpc::SettleRace);
         let r = request.into_inner();
-        let outcome = decode_outcome(r.outcome).map_err(|error| status_from(&error))?;
-        let command = SettleRaceCommand {
-            race_id: r.race_id,
-            player_id: r.player_id,
-            outcome,
-            credited_plastic: r.credited_plastic,
-            credited_metal: r.credited_metal,
+        let result = match decode_outcome(r.outcome) {
+            Ok(outcome) => {
+                let command = SettleRaceCommand {
+                    race_id: r.race_id,
+                    player_id: r.player_id,
+                    outcome,
+                    credited_plastic: r.credited_plastic,
+                    credited_metal: r.credited_metal,
+                };
+                self.app.settle_race(command).await
+            }
+            Err(error) => Err(error),
         };
-        self.app
-            .settle_race(command)
-            .await
+        call.finish(RpcResult::from_settlement(&result));
+        result
             .map(|result| Response::new(settlement_response(result)))
             .map_err(|error| status_from(&error))
     }

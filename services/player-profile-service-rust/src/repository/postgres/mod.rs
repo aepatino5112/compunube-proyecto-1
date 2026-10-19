@@ -23,7 +23,7 @@ use sqlx::{
 
 use async_trait::async_trait;
 
-use super::{Closeable, Repositories};
+use super::{Closeable, PoolSnapshot, PoolStatsSource, Repositories};
 use crate::config::{PoolConfig, SecretString};
 
 pub use error::{describe_sqlx_error, map_sqlx_error};
@@ -89,10 +89,32 @@ impl Closeable for PostgresResources {
     }
 }
 
+/// Pool numbers of the business pool for the metrics adapter.
+pub struct BusinessPoolStats {
+    pool: PgPool,
+}
+
+impl BusinessPoolStats {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+impl PoolStatsSource for BusinessPoolStats {
+    fn snapshot(&self) -> PoolSnapshot {
+        PoolSnapshot {
+            size: self.pool.size(),
+            idle: u32::try_from(self.pool.num_idle()).unwrap_or(u32::MAX),
+            max: self.pool.options().get_max_connections(),
+        }
+    }
+}
+
 /// Everything the runtime needs from PostgreSQL, built without touching the
 /// network.
 pub struct PostgresRuntime {
     pub repositories: Repositories,
+    pub pool_stats: BusinessPoolStats,
     pub probe: PostgresReadinessProbe,
     pub resources: PostgresResources,
 }
@@ -108,6 +130,7 @@ pub fn connect(
     let probe = probe_pool(&options, probe_timeout);
     Ok(PostgresRuntime {
         repositories: repositories(business.clone()),
+        pool_stats: BusinessPoolStats::new(business.clone()),
         probe: PostgresReadinessProbe::new(probe.clone()),
         resources: PostgresResources { business, probe },
     })
@@ -131,6 +154,26 @@ mod tests {
         let probe = probe_pool(&options, config.acquire_timeout);
         assert_eq!(business.size(), 0);
         assert_eq!(probe.size(), 0);
+    }
+
+    #[tokio::test]
+    async fn pool_stats_report_configured_maximum_and_no_connections_before_use() {
+        let url = SecretString::new("postgres://u:p@127.0.0.1:1/db");
+        let options = connect_options(&url, "rust-test").unwrap();
+        let config = PoolConfig {
+            max_connections: 7,
+            min_connections: 0,
+            acquire_timeout: std::time::Duration::from_millis(100),
+        };
+        let stats = BusinessPoolStats::new(business_pool(&options, &config));
+        assert_eq!(
+            stats.snapshot(),
+            PoolSnapshot {
+                size: 0,
+                idle: 0,
+                max: 7
+            }
+        );
     }
 
     #[test]
