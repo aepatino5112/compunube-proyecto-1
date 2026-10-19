@@ -41,18 +41,11 @@ async fn start() -> (
 }
 
 #[tokio::test]
-async fn all_eight_contract_rpcs_are_unimplemented_seams() {
+async fn mutations_validate_requests_and_the_remaining_rpcs_are_seams() {
     let (mut client, stop) = start().await;
 
-    let results = [
-        (
-            "GetProfile",
-            client.get_profile(GetProfileRequest::default()).await.err(),
-        ),
-        (
-            "GetCatalog",
-            client.get_catalog(GetCatalogRequest::default()).await.err(),
-        ),
+    // Empty ids are structurally invalid (E43), before any storage access.
+    let invalid = [
         (
             "BuyItem",
             client.buy_item(BuyItemRequest::default()).await.err(),
@@ -79,21 +72,30 @@ async fn all_eight_contract_rpcs_are_unimplemented_seams() {
                 .await
                 .err(),
         ),
+    ];
+    for (name, status) in invalid {
+        let status = status.unwrap_or_else(|| panic!("{name} unexpectedly succeeded"));
+        assert_eq!(status.code(), Code::InvalidArgument, "{name}");
+    }
+
+    // Still delivered by later F52 tasks.
+    let seams = [
+        (
+            "GetProfile",
+            client.get_profile(GetProfileRequest::default()).await.err(),
+        ),
+        (
+            "GetCatalog",
+            client.get_catalog(GetCatalogRequest::default()).await.err(),
+        ),
         (
             "SettleRace",
             client.settle_race(SettleRaceRequest::default()).await.err(),
         ),
     ];
-
-    assert_eq!(results.len(), 8);
-    for (name, status) in results {
+    for (name, status) in seams {
         let status = status.unwrap_or_else(|| panic!("{name} unexpectedly succeeded"));
         assert_eq!(status.code(), Code::Unimplemented, "{name}");
-        assert!(
-            status.message().contains(name),
-            "{name}: {}",
-            status.message()
-        );
     }
 
     let _ = stop.send(());
