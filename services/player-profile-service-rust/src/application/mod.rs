@@ -46,7 +46,6 @@ impl std::error::Error for ApplicationError {}
 impl From<RepositoryError> for ApplicationError {
     fn from(error: RepositoryError) -> Self {
         match error {
-            RepositoryError::NotImplemented(what) => Self::NotImplemented(what),
             RepositoryError::Unavailable => Self::Unavailable,
             RepositoryError::PoolExhausted => Self::ResourceExhausted,
             RepositoryError::Timeout => Self::DeadlineExceeded,
@@ -167,10 +166,6 @@ mod tests {
         assert_eq!(
             ApplicationError::from(RepositoryError::Timeout),
             ApplicationError::DeadlineExceeded
-        );
-        assert_eq!(
-            ApplicationError::from(RepositoryError::NotImplemented("X")),
-            ApplicationError::NotImplemented("X")
         );
         assert_eq!(
             ApplicationError::from(RepositoryError::Unexpected("boom".into())),

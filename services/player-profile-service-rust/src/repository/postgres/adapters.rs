@@ -1,98 +1,49 @@
-//! Adapter skeletons: one struct per port. The SQL for the economy lands with
-//! F52; until then each method reports `NotImplemented` so nothing can be
-//! mistaken for a working persistence path.
+//! Port implementations over one [`PgPool`]. The queries themselves live in
+//! `catalog`, `profile` and `transaction`.
+
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use sqlx::PgPool;
 
+use super::{catalog, error::map_sqlx_error, transaction::PgTransaction};
 use crate::{
-    domain::{CatalogVersion, EconomicOperationRecord, PlayerProfile, SettlementRecord},
+    domain::Catalog,
     repository::{
-        CatalogRepository, EconomicOperationRepository, InventoryRepository,
-        PlayerProfileRepository, Repositories, RepositoryError, SettlementRepository,
+        CatalogRepository, EconomyTransaction, Repositories, RepositoryError, TransactionManager,
     },
 };
 
 pub(super) fn repositories(pool: PgPool) -> Repositories {
-    use std::sync::Arc;
     Repositories {
-        profiles: Arc::new(PostgresPlayerProfileRepository { pool: pool.clone() }),
-        inventory: Arc::new(PostgresInventoryRepository { pool: pool.clone() }),
         catalog: Arc::new(PostgresCatalogRepository { pool: pool.clone() }),
-        operations: Arc::new(PostgresEconomicOperationRepository { pool: pool.clone() }),
-        settlements: Arc::new(PostgresSettlementRepository { pool }),
+        transactions: Arc::new(PostgresTransactionManager { pool }),
     }
-}
-
-struct PostgresPlayerProfileRepository {
-    #[allow(dead_code)] // used by the F52 queries
-    pool: PgPool,
-}
-
-struct PostgresInventoryRepository {
-    #[allow(dead_code)] // used by the F52 queries
-    pool: PgPool,
 }
 
 struct PostgresCatalogRepository {
-    #[allow(dead_code)] // used by the F52 queries
     pool: PgPool,
 }
 
-struct PostgresEconomicOperationRepository {
-    #[allow(dead_code)] // used by the F52 queries
+struct PostgresTransactionManager {
     pool: PgPool,
-}
-
-struct PostgresSettlementRepository {
-    #[allow(dead_code)] // used by the F52 queries
-    pool: PgPool,
-}
-
-#[async_trait]
-impl PlayerProfileRepository for PostgresPlayerProfileRepository {
-    async fn find_profile(&self, _: &str) -> Result<Option<PlayerProfile>, RepositoryError> {
-        Err(RepositoryError::NotImplemented("PlayerProfileRepository"))
-    }
-}
-
-#[async_trait]
-impl InventoryRepository for PostgresInventoryRepository {
-    async fn list_owned_item_ids(&self, _: &str) -> Result<Vec<String>, RepositoryError> {
-        Err(RepositoryError::NotImplemented("InventoryRepository"))
-    }
 }
 
 #[async_trait]
 impl CatalogRepository for PostgresCatalogRepository {
-    async fn find_catalog_version(
+    async fn find_catalog(
         &self,
-        _: Option<&str>,
-    ) -> Result<Option<CatalogVersion>, RepositoryError> {
-        Err(RepositoryError::NotImplemented("CatalogRepository"))
+        version: Option<&str>,
+    ) -> Result<Option<Catalog>, RepositoryError> {
+        let mut conn = self.pool.acquire().await.map_err(|e| map_sqlx_error(&e))?;
+        catalog::load(&mut conn, version).await
     }
 }
 
 #[async_trait]
-impl EconomicOperationRepository for PostgresEconomicOperationRepository {
-    async fn find_operation(
-        &self,
-        _: &str,
-        _: &str,
-    ) -> Result<Option<EconomicOperationRecord>, RepositoryError> {
-        Err(RepositoryError::NotImplemented(
-            "EconomicOperationRepository",
-        ))
-    }
-}
-
-#[async_trait]
-impl SettlementRepository for PostgresSettlementRepository {
-    async fn find_settlement(
-        &self,
-        _: &str,
-        _: &str,
-    ) -> Result<Option<SettlementRecord>, RepositoryError> {
-        Err(RepositoryError::NotImplemented("SettlementRepository"))
+impl TransactionManager for PostgresTransactionManager {
+    async fn begin(&self) -> Result<Box<dyn EconomyTransaction>, RepositoryError> {
+        let tx = self.pool.begin().await.map_err(|e| map_sqlx_error(&e))?;
+        Ok(Box::new(PgTransaction::new(tx)))
     }
 }

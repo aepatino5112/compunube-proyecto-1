@@ -27,24 +27,6 @@ pub use economy::{Effect, Material, MutationIntent, MutationRejection};
 pub use profile::{Appearance, Equipment, ProfileState, Slot};
 pub use settlement::{RaceOutcome, SettlementRejection, SettlementRequest};
 
-/// Persistent profile row (`player.profiles`). Superseded by [`ProfileState`]
-/// when the repository ports are reworked.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlayerProfile {
-    pub player_id: String,
-    pub coins: u64,
-    pub plastic: u64,
-    pub metal: u64,
-    pub profile_revision: u64,
-}
-
-/// Catalog publication (`player.catalog_versions`).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CatalogVersion {
-    pub version: String,
-    pub active: bool,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationStatus {
     Applied,
@@ -57,7 +39,12 @@ pub enum OperationStatus {
 pub struct EconomicOperationRecord {
     pub player_id: String,
     pub request_id: String,
+    /// `buy`, `craft`, `exchange`, `equip` or `appearance`.
+    pub operation_type: String,
     pub request_fingerprint: String,
+    /// `None` when the request named a catalog version that does not exist
+    /// (the column is a foreign key).
+    pub catalog_version: Option<String>,
     pub status: OperationStatus,
     /// Present exactly when `status` is [`OperationStatus::Rejected`].
     pub rejection: Option<MutationRejection>,

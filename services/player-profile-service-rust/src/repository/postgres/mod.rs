@@ -7,8 +7,12 @@
 //! crate builds without a live database (ci-rust has none).
 
 mod adapters;
+mod catalog;
+mod convert;
 mod error;
 pub mod probe;
+mod profile;
+mod transaction;
 
 use std::str::FromStr;
 

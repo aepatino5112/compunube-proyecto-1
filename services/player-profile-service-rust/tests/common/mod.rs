@@ -8,6 +8,7 @@
 #![allow(dead_code)] // each test binary uses a different subset
 
 use std::{
+    io::Write,
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -26,7 +27,10 @@ pub fn database_url(test: &str) -> Option<String> {
                 std::env::var(REQUIRE_VAR).map_or(true, |v| v != "1"),
                 "{URL_VAR} is required ({REQUIRE_VAR}=1) but not set"
             );
-            eprintln!(
+            // Written straight to stderr: `eprintln!` would be swallowed by the
+            // test harness' output capture and the skip would go unnoticed.
+            let _ = writeln!(
+                std::io::stderr(),
                 "\n!!! SKIPPED `{test}`: {URL_VAR} is not set. Run database/scripts/migrate.sh \
                  against a throwaway PostgreSQL and export the URL to execute DB tests. !!!\n"
             );
