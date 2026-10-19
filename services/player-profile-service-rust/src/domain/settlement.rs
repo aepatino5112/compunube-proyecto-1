@@ -29,6 +29,20 @@ pub enum SettlementRejection {
 }
 
 impl SettlementRejection {
+    pub const ALL: [SettlementRejection; 2] = [
+        SettlementRejection::InvalidSettlement,
+        SettlementRejection::Conflict,
+    ];
+
+    /// Stable code for logs and metric labels; matches the contract names
+    /// without the `SETTLEMENT_REJECTION_` prefix.
+    pub fn as_code(self) -> &'static str {
+        match self {
+            SettlementRejection::InvalidSettlement => "INVALID_SETTLEMENT",
+            SettlementRejection::Conflict => "CONFLICT",
+        }
+    }
+
     pub fn message(self) -> &'static str {
         match self {
             SettlementRejection::InvalidSettlement => "only a finished race may credit materials",

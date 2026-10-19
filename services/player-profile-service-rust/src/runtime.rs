@@ -298,7 +298,9 @@ where
     let mut server_task: ServerTask = tokio::spawn(
         Server::builder()
             .add_service(health_service)
-            .add_service(PlayerProfileGrpc::new(app).into_server())
+            .add_service(
+                PlayerProfileGrpc::with_metrics(app, dependencies.metrics.clone()).into_server(),
+            )
             .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
                 let _ = server_stop_rx.await;
             })

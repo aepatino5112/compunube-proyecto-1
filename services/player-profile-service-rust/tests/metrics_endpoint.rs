@@ -82,3 +82,51 @@ async fn metrics_are_scrapable_without_a_database_and_stop_with_the_service() {
         "metrics listener must stop with the service"
     );
 }
+
+#[tokio::test]
+async fn served_rpcs_show_up_on_the_scrape_with_the_instance_id() {
+    use player_profile_service::pb::{
+        player_profile_service_client::PlayerProfileServiceClient, GetProfileRequest,
+    };
+
+    let grpc = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let grpc_addr = grpc.local_addr().unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let dependencies = Dependencies::new(
+        Repositories::unavailable(),
+        Arc::new(UnconfiguredProbe::new("DATABASE_URL is not configured")),
+        Vec::new(),
+    )
+    .with_metrics(Arc::new(Metrics::new("rust-wired")))
+    .with_metrics_listener(listener);
+    let (stop, stop_rx) = oneshot::channel::<()>();
+    let server = tokio::spawn(serve(grpc, dependencies, SETTINGS, async {
+        let _ = stop_rx.await;
+    }));
+
+    let mut client = PlayerProfileServiceClient::connect(format!("http://{grpc_addr}"))
+        .await
+        .unwrap();
+    let status = client
+        .get_profile(GetProfileRequest::default())
+        .await
+        .unwrap_err();
+    assert_eq!(status.code(), tonic::Code::InvalidArgument);
+
+    let body = scrape(addr).await;
+    let line = body
+        .lines()
+        .find(|l| {
+            l.starts_with("player_profile_rpc_requests_total{")
+                && l.contains(r#"rpc="GetProfile""#)
+                && l.contains(r#"code="INVALID_ARGUMENT""#)
+        })
+        .unwrap_or_else(|| panic!("no GetProfile series in {body}"));
+    assert!(line.contains(r#"instance_id="rust-wired""#), "{line}");
+    assert!(line.ends_with(" 1"), "{line}");
+
+    drop(client);
+    let _ = stop.send(());
+    server.await.unwrap().unwrap();
+}
