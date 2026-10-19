@@ -3,8 +3,10 @@
 //! request, E43 `INVALID_ARGUMENT`); no rule and no storage is involved.
 
 use crate::{
-    application::{ApplicationError, MutationOutcome, MutationResult},
-    domain::{Material, MutationRejection, ProfileState},
+    application::{
+        ApplicationError, MutationOutcome, MutationResult, SettlementOutcome, SettlementResult,
+    },
+    domain::{Material, MutationRejection, ProfileState, RaceOutcome, SettlementRejection},
     pb,
 };
 
@@ -77,6 +79,51 @@ pub fn mutation_response(result: MutationResult) -> pb::ProfileMutationResponse 
     pb::ProfileMutationResponse {
         request_id: result.request_id,
         outcome: Some(outcome),
+    }
+}
+
+pub fn settlement_rejection_to_pb(rejection: SettlementRejection) -> pb::SettlementRejectionCode {
+    match rejection {
+        SettlementRejection::InvalidSettlement => {
+            pb::SettlementRejectionCode::SettlementRejectionInvalidSettlement
+        }
+        SettlementRejection::Conflict => pb::SettlementRejectionCode::SettlementRejectionConflict,
+    }
+}
+
+pub fn settlement_response(result: SettlementResult) -> pb::SettleRaceResponse {
+    let outcome = match result.outcome {
+        SettlementOutcome::Applied { replayed, profile } => {
+            pb::settle_race_response::Outcome::Success(pb::SettlementSuccess {
+                replayed,
+                profile: Some(profile_to_pb(&profile)),
+            })
+        }
+        SettlementOutcome::Rejected {
+            rejection,
+            replayed,
+        } => pb::settle_race_response::Outcome::Rejection(pb::SettlementRejection {
+            code: settlement_rejection_to_pb(rejection) as i32,
+            message: rejection.message().to_string(),
+            replayed,
+        }),
+    };
+    pb::SettleRaceResponse {
+        race_id: result.race_id,
+        player_id: result.player_id,
+        outcome: Some(outcome),
+    }
+}
+
+pub fn decode_outcome(value: i32) -> Result<RaceOutcome, ApplicationError> {
+    match pb::RaceOutcome::try_from(value) {
+        Ok(pb::RaceOutcome::Finished) => Ok(RaceOutcome::Finished),
+        Ok(pb::RaceOutcome::Disqualified) => Ok(RaceOutcome::Disqualified),
+        Ok(pb::RaceOutcome::Left) => Ok(RaceOutcome::Left),
+        Ok(pb::RaceOutcome::Dnf) => Ok(RaceOutcome::Dnf),
+        Ok(pb::RaceOutcome::Unspecified) | Err(_) => Err(ApplicationError::InvalidArgument(
+            "outcome is required".to_string(),
+        )),
     }
 }
 
@@ -165,6 +212,73 @@ mod tests {
                 assert!(!rejection.message.is_empty());
             }
             other => panic!("unexpected arm {other:?}"),
+        }
+    }
+
+    #[test]
+    fn settlement_rejections_map_to_the_contract_codes() {
+        assert_eq!(
+            settlement_rejection_to_pb(SettlementRejection::InvalidSettlement).as_str_name(),
+            "SETTLEMENT_REJECTION_INVALID_SETTLEMENT"
+        );
+        assert_eq!(
+            settlement_rejection_to_pb(SettlementRejection::Conflict).as_str_name(),
+            "SETTLEMENT_REJECTION_CONFLICT"
+        );
+    }
+
+    #[test]
+    fn settlement_outcomes_use_the_matching_oneof_arm() {
+        let applied = settlement_response(SettlementResult {
+            race_id: "race".into(),
+            player_id: "p1".into(),
+            outcome: SettlementOutcome::Applied {
+                replayed: false,
+                profile: initial_state("p1"),
+            },
+        });
+        assert_eq!(
+            (applied.race_id.as_str(), applied.player_id.as_str()),
+            ("race", "p1")
+        );
+        assert!(matches!(
+            applied.outcome,
+            Some(pb::settle_race_response::Outcome::Success(ref s)) if !s.replayed && s.profile.is_some()
+        ));
+        let rejected = settlement_response(SettlementResult {
+            race_id: "race".into(),
+            player_id: "p1".into(),
+            outcome: SettlementOutcome::Rejected {
+                rejection: SettlementRejection::Conflict,
+                replayed: false,
+            },
+        });
+        match rejected.outcome.unwrap() {
+            pb::settle_race_response::Outcome::Rejection(r) => {
+                assert_eq!(
+                    r.code,
+                    pb::SettlementRejectionCode::SettlementRejectionConflict as i32
+                );
+                assert!(!r.message.is_empty());
+            }
+            other => panic!("unexpected arm {other:?}"),
+        }
+    }
+
+    #[test]
+    fn outcome_decoding_covers_the_four_outcomes_and_rejects_the_rest() {
+        assert_eq!(decode_outcome(1), Ok(RaceOutcome::Finished));
+        assert_eq!(decode_outcome(2), Ok(RaceOutcome::Disqualified));
+        assert_eq!(decode_outcome(3), Ok(RaceOutcome::Left));
+        assert_eq!(decode_outcome(4), Ok(RaceOutcome::Dnf));
+        for bad in [0, 5, -1] {
+            assert!(
+                matches!(
+                    decode_outcome(bad),
+                    Err(ApplicationError::InvalidArgument(_))
+                ),
+                "{bad}"
+            );
         }
     }
 

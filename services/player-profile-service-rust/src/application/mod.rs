@@ -11,9 +11,9 @@ use std::{convert::Infallible, fmt};
 
 use crate::{
     domain::{
-        validation::{validate_exchange_amount, validate_id, ValidationError},
+        validation::{validate_credit, validate_exchange_amount, validate_id, ValidationError},
         EconomicOperationRecord, Material, MutationIntent, MutationRejection, OperationStatus,
-        ProfileState,
+        ProfileState, RaceOutcome, SettlementRecord, SettlementRejection, SettlementRequest,
     },
     repository::{LockMode, Repositories, RepositoryError},
 };
@@ -101,8 +101,7 @@ pub struct SetAppearanceCommand {
 pub struct SettleRaceCommand {
     pub race_id: String,
     pub player_id: String,
-    /// Raw wire value of `RaceOutcome`; decoding and validation belong to F52.
-    pub outcome: i32,
+    pub outcome: RaceOutcome,
     pub credited_plastic: u64,
     pub credited_metal: u64,
 }
@@ -129,6 +128,28 @@ pub enum MutationOutcome {
 pub struct MutationResult {
     pub request_id: String,
     pub outcome: MutationOutcome,
+}
+
+/// Business result of a settlement; see [`MutationOutcome`].
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SettlementOutcome {
+    Applied {
+        /// The `(race_id, player_id)` was already settled; nothing was credited again.
+        replayed: bool,
+        profile: ProfileState,
+    },
+    Rejected {
+        rejection: SettlementRejection,
+        replayed: bool,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettlementResult {
+    pub race_id: String,
+    pub player_id: String,
+    pub outcome: SettlementOutcome,
 }
 
 /// Use cases of the Player/Profile Service.
@@ -238,8 +259,86 @@ impl PlayerProfileApp {
         .await
     }
 
-    pub async fn settle_race(&self, _: SettleRaceCommand) -> UseCaseResult {
-        Err(ApplicationError::NotImplemented("SettleRace"))
+    /// Credits the materials Go decided, once per `(race_id, player_id)`:
+    /// BEGIN -> lock profile -> settlement lookup -> validate -> credit ->
+    /// record -> COMMIT. Rust never recomputes rank or pickups; it only checks
+    /// that the credit is acceptable for the outcome.
+    pub async fn settle_race(
+        &self,
+        command: SettleRaceCommand,
+    ) -> Result<SettlementResult, ApplicationError> {
+        validate_id("race_id", &command.race_id).map_err(invalid)?;
+        validate_id("player_id", &command.player_id).map_err(invalid)?;
+        validate_credit("credited_plastic", command.credited_plastic).map_err(invalid)?;
+        validate_credit("credited_metal", command.credited_metal).map_err(invalid)?;
+        let request = SettlementRequest {
+            race_id: command.race_id,
+            player_id: command.player_id,
+            outcome: command.outcome,
+            credited_plastic: command.credited_plastic,
+            credited_metal: command.credited_metal,
+        };
+        let fingerprint = request.fingerprint();
+
+        let mut tx = self.repositories.transactions.begin().await?;
+        let state = tx
+            .lock_profile(&request.player_id, LockMode::Update)
+            .await?;
+        let existing = tx
+            .find_settlement(&request.race_id, &request.player_id)
+            .await?;
+
+        let outcome = if let Some(existing) = existing {
+            if existing.result_fingerprint == fingerprint {
+                SettlementOutcome::Applied {
+                    replayed: true,
+                    profile: state,
+                }
+            } else {
+                SettlementOutcome::Rejected {
+                    rejection: SettlementRejection::Conflict,
+                    replayed: false,
+                }
+            }
+        } else {
+            match request.credit() {
+                Ok(credit) if credit.fits(&state) => {
+                    let mut profile = state;
+                    if !credit.is_zero() {
+                        // E8: only a positive credit moves the revision.
+                        profile.revision = tx.credit_materials(&request.player_id, credit).await?;
+                        credit.apply_to_balances(&mut profile);
+                    }
+                    tx.record_settlement(&SettlementRecord {
+                        race_id: request.race_id.clone(),
+                        player_id: request.player_id.clone(),
+                        result_fingerprint: fingerprint,
+                        credited_plastic: credit.plastic,
+                        credited_metal: credit.metal,
+                        profile_revision_after: profile.revision,
+                    })
+                    .await?;
+                    SettlementOutcome::Applied {
+                        replayed: false,
+                        profile,
+                    }
+                }
+                // Not stored: an invalid request leaves no trace and may be
+                // corrected under the same key.
+                _ => SettlementOutcome::Rejected {
+                    rejection: SettlementRejection::InvalidSettlement,
+                    replayed: false,
+                },
+            }
+        };
+        tx.commit().await?;
+
+        log_settlement(&request, &outcome);
+        Ok(SettlementResult {
+            race_id: request.race_id,
+            player_id: request.player_id,
+            outcome,
+        })
     }
 
     /// The transactional frame shared by the five mutations:
@@ -343,6 +442,33 @@ fn replay(
             profile: current,
         },
     }
+}
+
+fn log_settlement(request: &SettlementRequest, outcome: &SettlementOutcome) {
+    let (result, code, replayed) = match outcome {
+        SettlementOutcome::Applied { replayed, .. } => ("applied", "", *replayed),
+        SettlementOutcome::Rejected {
+            rejection,
+            replayed,
+        } => (
+            "rejected",
+            match rejection {
+                SettlementRejection::InvalidSettlement => "INVALID_SETTLEMENT",
+                SettlementRejection::Conflict => "CONFLICT",
+            },
+            *replayed,
+        ),
+    };
+    tracing::info!(
+        operation = "settle_race",
+        race_id = %request.race_id,
+        player_id = %request.player_id,
+        outcome = request.outcome.as_str(),
+        result,
+        code,
+        replayed,
+        "settlement resolved"
+    );
 }
 
 fn log_mutation(operation: &str, player_id: &str, request_id: &str, outcome: &MutationOutcome) {
@@ -456,6 +582,39 @@ mod tests {
         );
     }
 
+    fn settle(race: &str, player: &str, plastic: u64, metal: u64) -> SettleRaceCommand {
+        SettleRaceCommand {
+            race_id: race.into(),
+            player_id: player.into(),
+            outcome: RaceOutcome::Finished,
+            credited_plastic: plastic,
+            credited_metal: metal,
+        }
+    }
+
+    #[tokio::test]
+    async fn malformed_settlements_are_rejected_before_storage_and_valid_ones_reach_it() {
+        let app = PlayerProfileApp::new(Repositories::unavailable());
+        for command in [
+            settle("", "p", 0, 0),
+            settle("race", "", 0, 0),
+            settle("race", "p", 1_000_000_000, 0),
+            settle("race", "p", 0, u64::MAX),
+        ] {
+            assert!(
+                matches!(
+                    app.settle_race(command.clone()).await,
+                    Err(ApplicationError::InvalidArgument(_))
+                ),
+                "{command:?}"
+            );
+        }
+        assert_eq!(
+            app.settle_race(settle("race", "p", 1, 1)).await,
+            Err(ApplicationError::Unavailable)
+        );
+    }
+
     #[tokio::test]
     async fn remaining_use_cases_are_still_transitional_seams() {
         let app = PlayerProfileApp::new(Repositories::unavailable());
@@ -466,14 +625,6 @@ mod tests {
             .await,
             app.get_catalog(GetCatalogCommand {
                 catalog_version: String::new(),
-            })
-            .await,
-            app.settle_race(SettleRaceCommand {
-                race_id: "race".into(),
-                player_id: "p".into(),
-                outcome: 1,
-                credited_plastic: 0,
-                credited_metal: 0,
             })
             .await,
         ];

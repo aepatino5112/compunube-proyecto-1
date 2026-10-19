@@ -72,6 +72,10 @@ async fn mutations_validate_requests_and_the_remaining_rpcs_are_seams() {
                 .await
                 .err(),
         ),
+        (
+            "SettleRace",
+            client.settle_race(SettleRaceRequest::default()).await.err(),
+        ),
     ];
     for (name, status) in invalid {
         let status = status.unwrap_or_else(|| panic!("{name} unexpectedly succeeded"));
@@ -87,10 +91,6 @@ async fn mutations_validate_requests_and_the_remaining_rpcs_are_seams() {
         (
             "GetCatalog",
             client.get_catalog(GetCatalogRequest::default()).await.err(),
-        ),
-        (
-            "SettleRace",
-            client.settle_race(SettleRaceRequest::default()).await.err(),
         ),
     ];
     for (name, status) in seams {

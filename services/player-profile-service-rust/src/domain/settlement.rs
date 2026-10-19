@@ -74,12 +74,12 @@ impl Credit {
                 .is_some_and(|v| v <= limit)
     }
 
-    /// Mirrors the repository update for the response; saturating so it can
-    /// never panic (`fits` is checked beforehand).
-    pub fn apply_to(self, state: &mut ProfileState) {
+    /// Mirrors the repository balance update for the response; saturating so
+    /// it can never panic (`fits` is checked beforehand). The revision comes
+    /// from the repository.
+    pub fn apply_to_balances(self, state: &mut ProfileState) {
         state.plastic = state.plastic.saturating_add(self.plastic);
         state.metal = state.metal.saturating_add(self.metal);
-        state.revision = state.revision.saturating_add(1);
     }
 }
 
@@ -131,8 +131,8 @@ mod tests {
         let credit = request(RaceOutcome::Finished, 7, 3).credit().unwrap();
         assert_eq!((credit.plastic, credit.metal), (7, 3));
         let mut state = initial_state("p1");
-        credit.apply_to(&mut state);
-        assert_eq!((state.plastic, state.metal, state.revision), (7, 3, 2));
+        credit.apply_to_balances(&mut state);
+        assert_eq!((state.plastic, state.metal, state.revision), (7, 3, 1));
     }
 
     #[test]

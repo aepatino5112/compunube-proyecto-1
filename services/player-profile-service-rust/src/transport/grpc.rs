@@ -4,7 +4,7 @@ use tonic::{Request, Response, Status};
 
 use super::{
     error::status_from,
-    mapping::{decode_material, mutation_response},
+    mapping::{decode_material, decode_outcome, mutation_response, settlement_response},
 };
 use crate::{
     application::{
@@ -168,13 +168,18 @@ impl PlayerProfileService for PlayerProfileGrpc {
         request: Request<SettleRaceRequest>,
     ) -> Result<Response<SettleRaceResponse>, Status> {
         let r = request.into_inner();
+        let outcome = decode_outcome(r.outcome).map_err(|error| status_from(&error))?;
         let command = SettleRaceCommand {
             race_id: r.race_id,
             player_id: r.player_id,
-            outcome: r.outcome,
+            outcome,
             credited_plastic: r.credited_plastic,
             credited_metal: r.credited_metal,
         };
-        respond(self.app.settle_race(command).await)
+        self.app
+            .settle_race(command)
+            .await
+            .map(|result| Response::new(settlement_response(result)))
+            .map_err(|error| status_from(&error))
     }
 }
