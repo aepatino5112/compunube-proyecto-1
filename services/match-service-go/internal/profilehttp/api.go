@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"unicode/utf8"
@@ -115,8 +116,8 @@ func (a *API) profile(w http.ResponseWriter, r *http.Request) {
 	write(w, 200, profileDTO(p))
 }
 func (a *API) catalog(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	if len(q) > 1 || (len(q) == 1 && !q.Has("catalogVersion")) || len(q["catalogVersion"]) > 1 || (q.Has("catalogVersion") && !validID(q.Get("catalogVersion"))) {
+	q, queryErr := url.ParseQuery(r.URL.RawQuery)
+	if queryErr != nil || len(q) > 1 || (len(q) == 1 && !q.Has("catalogVersion")) || len(q["catalogVersion"]) > 1 || (q.Has("catalogVersion") && !validID(q.Get("catalogVersion"))) {
 		fail(w, 400, "INVALID_REQUEST", "")
 		return
 	}

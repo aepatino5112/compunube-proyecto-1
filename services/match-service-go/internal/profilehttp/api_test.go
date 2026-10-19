@@ -218,6 +218,14 @@ func TestStrictBodiesAndErrorMapping(t *testing.T) {
 	if w.Code != 422 || !strings.Contains(w.Body.String(), "INVALID_CATALOG_VERSION") {
 		t.Fatalf("catalog not found: %d %s", w.Code, w.Body.String())
 	}
+	r := httptest.NewRequest("GET", "http://example.test/v1/catalog", nil)
+	r.URL.RawQuery = "catalogVersion=%ZZ"
+	r.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 400 {
+		t.Fatalf("malformed query: %d %s", w.Code, w.Body.String())
+	}
 }
 
 func TestAuthAndOpenCircuit(t *testing.T) {
