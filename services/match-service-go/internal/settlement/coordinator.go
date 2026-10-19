@@ -25,9 +25,13 @@ type Store interface {
 type Publisher interface {
 	ConfirmSettlement(context.Context, string, string) error
 }
+type RecoveryProber interface {
+	Probe(context.Context, string) error
+}
 type Coordinator struct {
 	store       Store
 	port        playerprofile.Port
+	prober      RecoveryProber
 	pool        *workpool.Pool
 	publish     Publisher
 	logger      *slog.Logger
@@ -40,12 +44,12 @@ type Coordinator struct {
 	lease, poll time.Duration
 }
 
-func New(parent context.Context, store Store, port playerprofile.Port, pool *workpool.Pool, publish Publisher, wake <-chan struct{}, workers int, logger *slog.Logger) (*Coordinator, error) {
-	if parent == nil || store == nil || port == nil || pool == nil || workers < 1 || logger == nil {
+func New(parent context.Context, store Store, port playerprofile.Port, prober RecoveryProber, pool *workpool.Pool, publish Publisher, wake <-chan struct{}, workers int, logger *slog.Logger) (*Coordinator, error) {
+	if parent == nil || store == nil || port == nil || prober == nil || pool == nil || workers < 1 || logger == nil {
 		return nil, errors.New("invalid settlement coordinator options")
 	}
 	ctx, cancel := context.WithCancel(parent)
-	c := &Coordinator{store: store, port: port, pool: pool, publish: publish, logger: logger, ctx: ctx, cancel: cancel, wake: wake, lease: 10 * time.Second, poll: 500 * time.Millisecond}
+	c := &Coordinator{store: store, port: port, prober: prober, pool: pool, publish: publish, logger: logger, ctx: ctx, cancel: cancel, wake: wake, lease: 10 * time.Second, poll: 500 * time.Millisecond}
 	c.wg.Add(workers)
 	for i := 0; i < workers; i++ {
 		go c.worker()
@@ -120,7 +124,7 @@ func (c *Coordinator) process(d matchstore.Delivery) {
 		return
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		c.retry(d, "DEADLINE_EXCEEDED")
+		c.retryTransient(d, "DEADLINE_EXCEEDED")
 		return
 	}
 	var fault *playerprofile.Fault
@@ -129,12 +133,27 @@ func (c *Coordinator) process(d matchstore.Delivery) {
 		return
 	}
 	switch fault.Kind {
-	case playerprofile.Unavailable, playerprofile.ResourceExhausted, playerprofile.Deadline:
-		c.retry(d, fault.Code)
+	case playerprofile.Unavailable, playerprofile.ResourceExhausted, playerprofile.Deadline, playerprofile.System:
+		c.retryTransient(d, fault.Code)
 	case playerprofile.Canceled:
 		return
 	default:
 		c.fail(d, fault.Code)
+	}
+}
+func (c *Coordinator) retryTransient(d matchstore.Delivery, code string) {
+	if c.prober != nil {
+		// Even a successful read only closes the circuit. The claimed delivery
+		// follows its normal durable Retry; no second SettleRace is sent here.
+		if probeErr := c.prober.Probe(c.ctx, d.PlayerID); probeErr != nil {
+			var fault *playerprofile.Fault
+			if errors.As(probeErr, &fault) && fault.Kind == playerprofile.Fatal {
+				c.logger.Error("settlement recovery probe configuration failure", "code", fault.Code)
+			}
+		}
+	}
+	if c.ctx.Err() == nil {
+		c.retry(d, code)
 	}
 }
 func (c *Coordinator) queuePublish(roomID, raceID string) {

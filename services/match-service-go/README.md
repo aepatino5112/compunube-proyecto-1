@@ -97,3 +97,7 @@ El adaptador gRPC apunta a `PLAYER_PROFILE_GRPC_ADDR` y se envuelve en un único
 ## API pública de perfil y economía (J80)
 
 Go expone las rutas E45 `GET /v1/profile`, `GET /v1/catalog` y `POST /v1/profile/{purchases,crafts,exchanges,equipment}` y `PUT /v1/profile/appearance`. Todas requieren una sesión F48; `playerId` se obtiene solo del contexto de sesión. Las mutaciones por cookie exigen Origin del mismo origen. Los handlers usan `profilePool` y el port resiliente J79; nunca consultan gRPC desde el RoomLoop ni escriben `player.*`. JSON desconocido o malformado se rechaza con `INVALID_REQUEST`; fallos de dependencia dan `PROFILE_UNAVAILABLE`, y un timeout de mutación iniciada da `MUTATION_OUTCOME_UNKNOWN` con el `requestId` original para repetir la misma intención. Las pruebas de este paquete usan un port fake; la integración real queda pendiente de F47/F52.
+
+## Recuperación autónoma de settlement (J81)
+
+Cuando una entrega durable falla transitoriamente, el coordinador consulta el estado del circuito J79 mediante un `RecoveryProber` inyectado. En `closed` no añade RPC; en `open` rechaza sin tráfico; en `half-open` consulta `GetProfile(playerId)` con `profilePool` y su deadline, fuera del RoomLoop. `SettleRace` permanece en `settlementPool` y nunca sirve como sonda. El resultado de la lectura solo puede cerrar o reabrir el circuito: la entrega continúa `pending` con su backoff y `next_attempt_at`, y únicamente un intento posterior de `SettleRace` puede confirmarla. Así la recuperación no depende de tráfico de usuario.
