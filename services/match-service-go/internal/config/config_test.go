@@ -56,6 +56,10 @@ func TestParseRejectsInvalidWithoutLeakingSecrets(t *testing.T) {
 		{"room limit", map[string]string{"MAX_ACTIVE_ROOMS": "0"}},
 		{"snapshot slots", map[string]string{"CONNECTION_SNAPSHOT_SLOTS": "2"}},
 		{"profile deadline", map[string]string{"PROFILE_JOB_TIMEOUT": "invalid"}},
+		{"cb threshold", map[string]string{"PLAYER_PROFILE_CB_FAILURE_THRESHOLD": "0"}},
+		{"cb probes", map[string]string{"PLAYER_PROFILE_CB_HALF_OPEN_PROBES": "2"}},
+		{"read retries", map[string]string{"PLAYER_PROFILE_READ_MAX_RETRIES": "-1"}},
+		{"retry cap", map[string]string{"PLAYER_PROFILE_RETRY_CAP": "1ms"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Parse(from(tc.values))
