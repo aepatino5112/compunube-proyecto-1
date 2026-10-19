@@ -2,8 +2,14 @@
 name = "player-profile-service"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
+prost = "0.13"
 tokio = { version = "1.40", features = ["macros", "rt-multi-thread", "signal"] }
 tonic = { version = "0.12", features = ["transport"] }
 tonic-health = "0.12"
+
+[build-dependencies]
+protoc-bin-vendored = "3"
+tonic-build = "0.12"
