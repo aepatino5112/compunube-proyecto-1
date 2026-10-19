@@ -32,11 +32,11 @@ type Repository interface {
 }
 
 type Delivery struct {
-	RaceID, PlayerID, Outcome      string
-	CreditedPlastic, CreditedMetal int64
-	AttemptCount                   int
-	State                          string
-	NextAttemptAt                  *time.Time
+	RoomID, RaceID, PlayerID, Outcome string
+	CreditedPlastic, CreditedMetal    int64
+	AttemptCount                      int
+	State                             string
+	NextAttemptAt                     *time.Time
 }
 
 func CopyRecord(in Record) Record {
