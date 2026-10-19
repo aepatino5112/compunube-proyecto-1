@@ -207,6 +207,8 @@ Toda operación que pueda cambiar recursos o propiedad sigue esta frontera trans
 9. commit;
 10. responder.
 
+Implementación F52: el orden real es `BEGIN` -> `SELECT ... FOR UPDATE` del perfil (creándolo de forma perezosa con 12 objetos base, 5 ranuras y apariencia por defecto, `profile_revision = 1`) -> búsqueda de la operación **bajo ese lock** -> validación -> efecto -> revisión -> registro -> `COMMIT`; las lecturas (`GetProfile`) usan `FOR SHARE`. Los rechazos se registran con `rejection_code` y no mueven la revisión.
+
 El lock por perfil serializa mutaciones concurrentes del mismo jugador aunque lleguen a **réplicas Rust distintas**. Jugadores diferentes no se bloquean entre sí. Las claves únicas siguen siendo la última defensa contra duplicados.
 
 Para settlement se usa la misma idea: insertar/detectar `(race_id, player_id)`, bloquear perfil, aplicar crédito una sola vez, actualizar revisión y confirmar todo en una transacción.
