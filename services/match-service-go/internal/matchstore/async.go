@@ -21,11 +21,12 @@ type Async struct {
 	repo    Repository
 	logger  *slog.Logger
 	wake    chan struct{}
+	durable chan struct{}
 	done    chan struct{}
 }
 
 func NewAsync(ctx context.Context, repo Repository, logger *slog.Logger) *Async {
-	a := &Async{pending: map[string]queued{}, repo: repo, logger: logger, wake: make(chan struct{}, 1), done: make(chan struct{})}
+	a := &Async{pending: map[string]queued{}, repo: repo, logger: logger, wake: make(chan struct{}, 1), durable: make(chan struct{}, 1), done: make(chan struct{})}
 	go a.run(ctx)
 	return a
 }
@@ -47,8 +48,9 @@ func (a *Async) Offer(r Record) {
 	default:
 	}
 }
-func (a *Async) Pending() int { a.mu.Lock(); defer a.mu.Unlock(); return len(a.pending) }
-func (a *Async) Close()       { <-a.done }
+func (a *Async) Pending() int             { a.mu.Lock(); defer a.mu.Unlock(); return len(a.pending) }
+func (a *Async) Durable() <-chan struct{} { return a.durable }
+func (a *Async) Close()                   { <-a.done }
 func (a *Async) run(ctx context.Context) {
 	defer close(a.done)
 	ticker := time.NewTicker(time.Second)
@@ -79,6 +81,12 @@ func (a *Async) run(ctx context.Context) {
 				delete(a.pending, k)
 			}
 			a.mu.Unlock()
+			if v.record.Result != nil {
+				select {
+				case a.durable <- struct{}{}:
+				default:
+				}
+			}
 		}
 	}
 }

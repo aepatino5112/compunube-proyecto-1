@@ -1,6 +1,6 @@
 # D28 — Runtime autoritativo de Go, realtime y concurrencia
 
-Este diseño desarrolla el [modelo C25](domain-model.md) y [ADR 0003](../adr/0003-primary-distributed-architecture.md) bajo las reglas de [B16](../product/authoritative-race-rules.md), [B17](../product/multiplayer-room-lifecycle.md) y [C22](../requirements/non-functional-requirements.md). [F50](../../services/match-service-go/README.md) implementa la base concurrente por sala; F49/F53 implementan reglas y simulación; la verificación real de perfil, settlement y persistencia siguen pendientes. La carrera viva existe en memoria de Go, con Go como única autoridad de tiempo, movimiento, objetos, estados y resultado.
+Este diseño desarrolla el [modelo C25](domain-model.md) y [ADR 0003](../adr/0003-primary-distributed-architecture.md) bajo las reglas de [B16](../product/authoritative-race-rules.md), [B17](../product/multiplayer-room-lifecycle.md) y [C22](../requirements/non-functional-requirements.md). [F50](../../services/match-service-go/README.md) implementa la base concurrente por sala; F49/F53 implementan reglas y simulación; F55 persiste `match.*`; J77/F54 implementan los lados Go de perfil y settlement con pruebas fake. La validación real contra F47/F52 Rust sigue pendiente. La carrera viva existe en memoria de Go, con Go como única autoridad de tiempo, movimiento, objetos, estados y resultado.
 
 ## Fronteras y ritmos
 

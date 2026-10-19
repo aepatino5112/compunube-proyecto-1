@@ -18,6 +18,7 @@ import (
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomshttp"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/server"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/sessionhttp"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/settlement"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/workpool"
 )
 
@@ -63,13 +64,15 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	}
 	defer settlementPool.Close()
 	var recorder interface{ Offer(matchstore.Record) }
+	var store *matchstore.Postgres
+	var async *matchstore.Async
 	if cfg.DatabaseURL != "" {
-		store, err := matchstore.Open(ctx, cfg.DatabaseURL, int32(cfg.SettlementConcurrency+2))
+		store, err = matchstore.Open(ctx, cfg.DatabaseURL, int32(cfg.SettlementConcurrency+2))
 		if err != nil {
 			return err
 		}
 		storeCtx, cancelStore := context.WithCancel(ctx)
-		async := matchstore.NewAsync(storeCtx, store, logger)
+		async = matchstore.NewAsync(storeCtx, store, logger)
 		defer func() { cancelStore(); async.Close(); store.Close() }()
 		recorder = async
 	} else {
@@ -78,6 +81,14 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	identities := identity.NewRegistry()
 	sessions := sessionhttp.New(identities)
 	verifier := playerprofile.ProfileVerifier{Port: profileClient, Pool: profilePool}
-	roomAPI := roomshttp.New(rooms.NewManager(runtime, verifier, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer, Recorder: recorder}), identities, sessions, cfg)
+	roomManager := rooms.NewManager(runtime, verifier, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer, Recorder: recorder})
+	if store != nil {
+		coordinator, err := settlement.New(ctx, store, profileClient, settlementPool, roomManager, async.Durable(), cfg.SettlementConcurrency, logger)
+		if err != nil {
+			return err
+		}
+		defer coordinator.Close()
+	}
+	roomAPI := roomshttp.New(roomManager, identities, sessions, cfg)
 	return server.New(cfg, logger, func(mux *http.ServeMux) { sessions.Register(mux); roomAPI.Register(mux) }).Run(ctx)
 }

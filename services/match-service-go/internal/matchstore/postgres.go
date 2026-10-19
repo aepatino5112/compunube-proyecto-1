@@ -130,8 +130,8 @@ func (p *Postgres) Due(ctx context.Context, now time.Time, limit int) ([]Deliver
 	if limit < 1 {
 		return nil, errors.New("limit must be positive")
 	}
-	rows, err := p.pool.Query(ctx, `SELECT d.race_id,d.player_id,p.outcome,p.credited_plastic,p.credited_metal,d.attempt_count,d.state,d.next_attempt_at
- FROM match.settlement_delivery d JOIN match.race_participants p USING(race_id,player_id)
+	rows, err := p.pool.Query(ctx, `SELECT r.room_id,d.race_id,d.player_id,p.outcome,p.credited_plastic,p.credited_metal,d.attempt_count,d.state,d.next_attempt_at
+ FROM match.settlement_delivery d JOIN match.race_participants p USING(race_id,player_id) JOIN match.races r USING(race_id)
  WHERE d.state='pending' AND (d.next_attempt_at IS NULL OR d.next_attempt_at<=$1)
  ORDER BY d.next_attempt_at NULLS FIRST,d.updated_at,d.race_id,d.player_id LIMIT $2`, now, limit)
 	if err != nil {
@@ -141,7 +141,7 @@ func (p *Postgres) Due(ctx context.Context, now time.Time, limit int) ([]Deliver
 	out := []Delivery{}
 	for rows.Next() {
 		var d Delivery
-		if err = rows.Scan(&d.RaceID, &d.PlayerID, &d.Outcome, &d.CreditedPlastic, &d.CreditedMetal, &d.AttemptCount, &d.State, &d.NextAttemptAt); err != nil {
+		if err = rows.Scan(&d.RoomID, &d.RaceID, &d.PlayerID, &d.Outcome, &d.CreditedPlastic, &d.CreditedMetal, &d.AttemptCount, &d.State, &d.NextAttemptAt); err != nil {
 			return nil, err
 		}
 		out = append(out, d)
@@ -152,8 +152,8 @@ func (p *Postgres) Failed(ctx context.Context, limit int) ([]Delivery, error) {
 	if limit < 1 {
 		return nil, errors.New("limit must be positive")
 	}
-	rows, err := p.pool.Query(ctx, `SELECT d.race_id,d.player_id,p.outcome,p.credited_plastic,p.credited_metal,d.attempt_count,d.state,d.next_attempt_at
- FROM match.settlement_delivery d JOIN match.race_participants p USING(race_id,player_id)
+	rows, err := p.pool.Query(ctx, `SELECT r.room_id,d.race_id,d.player_id,p.outcome,p.credited_plastic,p.credited_metal,d.attempt_count,d.state,d.next_attempt_at
+ FROM match.settlement_delivery d JOIN match.race_participants p USING(race_id,player_id) JOIN match.races r USING(race_id)
  WHERE d.state='failed' ORDER BY d.updated_at DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
@@ -162,7 +162,7 @@ func (p *Postgres) Failed(ctx context.Context, limit int) ([]Delivery, error) {
 	out := []Delivery{}
 	for rows.Next() {
 		var d Delivery
-		if err = rows.Scan(&d.RaceID, &d.PlayerID, &d.Outcome, &d.CreditedPlastic, &d.CreditedMetal, &d.AttemptCount, &d.State, &d.NextAttemptAt); err != nil {
+		if err = rows.Scan(&d.RoomID, &d.RaceID, &d.PlayerID, &d.Outcome, &d.CreditedPlastic, &d.CreditedMetal, &d.AttemptCount, &d.State, &d.NextAttemptAt); err != nil {
 			return nil, err
 		}
 		out = append(out, d)

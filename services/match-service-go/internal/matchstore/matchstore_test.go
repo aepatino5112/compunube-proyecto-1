@@ -95,7 +95,7 @@ func TestPostgresRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(store.Close)
 	if err = store.Ping(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +105,12 @@ func TestPostgresRoundTrip(t *testing.T) {
 	r.RaceID += suffix
 	r.Result.RoomID = r.RoomID
 	r.Result.RaceID = r.RaceID
+	t.Cleanup(func() {
+		_, _ = store.pool.Exec(context.Background(), `DELETE FROM match.settlement_delivery WHERE race_id=$1`, r.RaceID)
+		_, _ = store.pool.Exec(context.Background(), `DELETE FROM match.race_participants WHERE race_id=$1`, r.RaceID)
+		_, _ = store.pool.Exec(context.Background(), `DELETE FROM match.races WHERE race_id=$1`, r.RaceID)
+		_, _ = store.pool.Exec(context.Background(), `DELETE FROM match.rooms WHERE room_id=$1`, r.RoomID)
+	})
 	startOnly := CopyRecord(r)
 	startOnly.Result = nil
 	if err = store.Save(ctx, startOnly); err != nil {

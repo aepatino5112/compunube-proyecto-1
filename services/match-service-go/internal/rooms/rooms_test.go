@@ -120,6 +120,31 @@ func TestLifecycleAndCapacity(t *testing.T) {
 			t.Fatal("settlement confirmed without Rust")
 		}
 	}
+	if err := m.ConfirmSettlement(ctx, id, secondEnded.Result.RaceID); err != nil {
+		t.Fatal(err)
+	}
+	if len(secondReplay.messages) != 3 {
+		t.Fatalf("confirmed result not reemitted: %d", len(secondReplay.messages))
+	}
+	confirmed, ok := secondReplay.messages[2].(race.EndedMessage)
+	if !ok {
+		t.Fatalf("confirmation replay: %T", secondReplay.messages[2])
+	}
+	for i := range confirmed.Result.Participants {
+		if confirmed.Result.Participants[i].SettlementState != "confirmed" {
+			t.Fatal("settlement still pending")
+		}
+		confirmed.Result.Participants[i].SettlementState = "pending"
+	}
+	if !reflect.DeepEqual(secondEnded.Result, confirmed.Result) {
+		t.Fatal("competitive result changed on settlement confirmation")
+	}
+	if err := m.ConfirmSettlement(ctx, id, secondEnded.Result.RaceID); err != nil {
+		t.Fatal(err)
+	}
+	if len(secondReplay.messages) != 3 {
+		t.Fatal("duplicate confirmation emitted another result")
+	}
 	if err := m.Repeat(ctx, id); err != nil {
 		t.Fatal(err)
 	}

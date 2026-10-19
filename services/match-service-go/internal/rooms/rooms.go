@@ -309,6 +309,17 @@ func (m *Manager) Repeat(ctx context.Context, id string) error {
 	return err
 }
 
+// ConfirmSettlement runs on the room loop after every durable delivery for a
+// race is confirmed. Only settlementState may change in the replayed result.
+func (m *Manager) ConfirmSettlement(ctx context.Context, roomID, raceID string) error {
+	e, err := m.get(roomID)
+	if err != nil {
+		return err
+	}
+	_, err = e.handle.Submit(ctx, settlementConfirmed{raceID: raceID})
+	return err
+}
+
 type room struct {
 	id, mapID, state      string
 	members               map[string]*Member
@@ -331,6 +342,7 @@ type bind struct {
 type disconnect struct{ playerID, connectionID string }
 type snapshot struct{}
 type repeat struct{}
+type settlementConfirmed struct{ raceID string }
 type setReady struct {
 	playerID string
 	ready    bool
@@ -498,6 +510,24 @@ func (r *room) HandleCommand(_ context.Context, c any) (any, error) {
 			r.close()
 		}
 		r.publish()
+		return nil, nil
+	case settlementConfirmed:
+		if r.state != Results || r.race == nil || r.race.ID != x.raceID || r.race.Result == nil {
+			return nil, ErrState
+		}
+		changed := false
+		for i := range r.race.Result.Participants {
+			if r.race.Result.Participants[i].SettlementState != "confirmed" {
+				r.race.Result.Participants[i].SettlementState = "confirmed"
+				changed = true
+			}
+		}
+		if changed {
+			message := race.EndedMessage{Type: "race.ended", ProtocolVersion: 1, Result: r.race.Result.Copy()}
+			for _, sink := range r.sinks {
+				sink.Send(message)
+			}
+		}
 		return nil, nil
 	}
 	return nil, ErrState
