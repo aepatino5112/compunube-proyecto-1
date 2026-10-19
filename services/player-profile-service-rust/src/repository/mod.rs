@@ -78,6 +78,12 @@ pub trait SettlementRepository: Send + Sync {
     ) -> Result<Option<SettlementRecord>, RepositoryError>;
 }
 
+/// A resource released at the end of the shutdown sequence (e.g. DB pools).
+#[async_trait]
+pub trait Closeable: Send + Sync {
+    async fn close(&self);
+}
+
 /// The set of ports handed to the application layer.
 #[derive(Clone)]
 pub struct Repositories {

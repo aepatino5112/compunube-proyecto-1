@@ -3,8 +3,10 @@
 pub mod application;
 pub mod config;
 pub mod domain;
+pub mod health;
 pub mod logging;
 pub mod repository;
+pub mod runtime;
 pub mod transport;
 
 /// Tonic stubs generated at build time from `proto/player_profile.proto`.

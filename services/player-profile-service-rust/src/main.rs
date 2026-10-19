@@ -1,10 +1,8 @@
-use player_profile_service::{config::Config, logging};
-use tonic::transport::Server;
-use tonic_health::ServingStatus;
+use player_profile_service::{config::Config, logging, runtime};
 use tracing::Instrument;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() {
     logging::init();
 
     let config = match Config::from_env() {
@@ -16,27 +14,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let span = logging::root_span(&config.instance_id);
-    async move {
-        let (mut reporter, health_service) = tonic_health::server::health_reporter();
-        reporter
-            .set_service_status("player_profile", ServingStatus::Serving)
-            .await;
-
+    let result = async {
         tracing::info!(
             listen_addr = %config.service_addr,
             database_configured = config.database.url.is_some(),
-            "player/profile service listening"
+            pool_max_connections = config.database.pool.max_connections,
+            "starting player/profile service"
         );
-
-        Server::builder()
-            .add_service(health_service)
-            .serve_with_shutdown(config.service_addr, async {
-                let _ = tokio::signal::ctrl_c().await;
-            })
-            .await?;
-
-        Ok(())
+        runtime::run(config).await
     }
-    .instrument(span)
-    .await
+    .instrument(span.clone())
+    .await;
+
+    if let Err(error) = result {
+        span.in_scope(|| tracing::error!(%error, "service terminated with an error"));
+        std::process::exit(1);
+    }
 }

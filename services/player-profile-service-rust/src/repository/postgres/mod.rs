@@ -8,6 +8,7 @@
 
 mod adapters;
 mod error;
+pub mod probe;
 
 use std::str::FromStr;
 
@@ -16,10 +17,13 @@ use sqlx::{
     PgPool,
 };
 
-use super::Repositories;
+use async_trait::async_trait;
+
+use super::{Closeable, Repositories};
 use crate::config::{PoolConfig, SecretString};
 
 pub use error::{describe_sqlx_error, map_sqlx_error};
+pub use probe::PostgresReadinessProbe;
 
 /// The URL could not be parsed. Deliberately carries no detail because parser
 /// messages may echo parts of the URL.
@@ -65,6 +69,44 @@ pub fn probe_pool(options: &PgConnectOptions, acquire_timeout: std::time::Durati
 
 pub fn repositories(pool: PgPool) -> Repositories {
     adapters::repositories(pool)
+}
+
+/// Pools that must be closed at the end of the shutdown sequence.
+pub struct PostgresResources {
+    business: PgPool,
+    probe: PgPool,
+}
+
+#[async_trait]
+impl Closeable for PostgresResources {
+    async fn close(&self) {
+        self.probe.close().await;
+        self.business.close().await;
+    }
+}
+
+/// Everything the runtime needs from PostgreSQL, built without touching the
+/// network.
+pub struct PostgresRuntime {
+    pub repositories: Repositories,
+    pub probe: PostgresReadinessProbe,
+    pub resources: PostgresResources,
+}
+
+pub fn connect(
+    url: &SecretString,
+    instance_id: &str,
+    pool: &PoolConfig,
+    probe_timeout: std::time::Duration,
+) -> Result<PostgresRuntime, InvalidDatabaseUrl> {
+    let options = connect_options(url, instance_id)?;
+    let business = business_pool(&options, pool);
+    let probe = probe_pool(&options, probe_timeout);
+    Ok(PostgresRuntime {
+        repositories: repositories(business.clone()),
+        probe: PostgresReadinessProbe::new(probe.clone()),
+        resources: PostgresResources { business, probe },
+    })
 }
 
 #[cfg(test)]
