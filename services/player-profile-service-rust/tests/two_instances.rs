@@ -386,6 +386,134 @@ async fn mixed_buy_craft_exchange_and_settlement_across_replicas_keep_the_ledger
     );
 }
 
+fn settle(race: &str, player: &str, plastic: u64, metal: u64) -> SettleRaceRequest {
+    SettleRaceRequest {
+        race_id: race.into(),
+        player_id: player.into(),
+        outcome: 1,
+        credited_plastic: plastic,
+        credited_metal: metal,
+    }
+}
+
+/// `Ok((replayed, profile))` for a settlement, `Err(code)` for a rejection.
+fn settlement_result(
+    response: player_profile_service::pb::SettleRaceResponse,
+) -> Result<(bool, PlayerProfile), i32> {
+    match response.outcome.unwrap() {
+        SettleArm::Success(s) => Ok((s.replayed, s.profile.unwrap())),
+        SettleArm::Rejection(r) => Err(r.code),
+    }
+}
+
+async fn settlement_rows(p: &Pair, player: &str) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM player.settlements WHERE player_id = $1")
+        .bind(player)
+        .fetch_one(&p.pool)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn one_settlement_sent_to_both_replicas_credits_once() {
+    let p = pair!("one_settlement_sent_to_both_replicas");
+    let player = unique("two-settle");
+    let race = unique("two-race");
+    p.fund(&player, 0, 0, 0).await;
+    let mut tasks = Vec::new();
+    for n in 0..16 {
+        let mut client = p.pick(n);
+        let request = settle(&race, &player, 6, 4);
+        tasks.push(tokio::spawn(async move {
+            client.settle_race(request).await.unwrap().into_inner()
+        }));
+    }
+    let (mut fresh, mut replays) = (0, 0);
+    for task in tasks {
+        let (replayed, profile) =
+            settlement_result(task.await.unwrap()).expect("every duplicate succeeds");
+        assert_eq!((profile.plastic, profile.metal), (6, 4));
+        if replayed {
+            replays += 1
+        } else {
+            fresh += 1
+        }
+    }
+    assert_eq!((fresh, replays), (1, 15));
+    assert_eq!(settlement_rows(&p, &player).await, 1);
+    assert_eq!(p.profile(&player).await.profile_revision, 2);
+
+    // once settled, no replica accepts different data for the same key
+    let mut tasks = Vec::new();
+    for n in 0..8 {
+        let mut client = p.pick(n);
+        let request = settle(&race, &player, 7 + n as u64, 4);
+        tasks.push(tokio::spawn(async move {
+            client.settle_race(request).await.unwrap().into_inner()
+        }));
+    }
+    for task in tasks {
+        assert_eq!(
+            settlement_result(task.await.unwrap()),
+            Err(SettlementRejectionCode::SettlementRejectionConflict as i32)
+        );
+    }
+    let profile = p.profile(&player).await;
+    assert_eq!(
+        (profile.plastic, profile.metal, profile.profile_revision),
+        (6, 4, 2)
+    );
+    assert_eq!(settlement_rows(&p, &player).await, 1);
+}
+
+#[tokio::test]
+async fn racing_settlements_with_different_data_across_replicas_have_exactly_one_winner() {
+    let p = pair!("racing_settlements_with_different_data");
+    let player = unique("two-race-win");
+    let race = unique("two-race");
+    p.fund(&player, 0, 0, 0).await;
+    // Even tasks settle 5/5, odd tasks 8/2, alternating replicas independently.
+    let mut tasks = Vec::new();
+    for n in 0..16usize {
+        let mut client = if (n / 2).is_multiple_of(2) {
+            p.a.clone()
+        } else {
+            p.b.clone()
+        };
+        let (plastic, metal) = if n.is_multiple_of(2) { (5, 5) } else { (8, 2) };
+        let request = settle(&race, &player, plastic, metal);
+        tasks.push(tokio::spawn(async move {
+            (
+                (plastic, metal),
+                client.settle_race(request).await.unwrap().into_inner(),
+            )
+        }));
+    }
+    let mut fresh = Vec::new();
+    for task in tasks {
+        let (wanted, response) = task.await.unwrap();
+        match settlement_result(response) {
+            Ok((false, _)) => fresh.push(wanted),
+            Ok((true, profile)) => {
+                assert_eq!(
+                    (profile.plastic, profile.metal),
+                    wanted,
+                    "replay of the winner"
+                )
+            }
+            Err(code) => assert_eq!(
+                code,
+                SettlementRejectionCode::SettlementRejectionConflict as i32
+            ),
+        }
+    }
+    assert_eq!(fresh.len(), 1, "exactly one request is applied: {fresh:?}");
+    let profile = p.profile(&player).await;
+    assert_eq!((profile.plastic, profile.metal), fresh[0]);
+    assert_eq!(profile.profile_revision, 2);
+    assert_eq!(settlement_rows(&p, &player).await, 1);
+}
+
 #[tokio::test]
 async fn a_replacement_instance_continues_where_a_stopped_one_left_off() {
     let Some(url) = common::database_url("a_replacement_instance_continues") else {

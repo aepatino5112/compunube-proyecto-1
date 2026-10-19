@@ -308,6 +308,42 @@ async fn exchange_rejects_malformed_amounts_as_invalid_arguments() {
     );
 }
 
+#[tokio::test]
+async fn an_exchange_that_would_overflow_the_coin_column_is_refused_and_replays_as_refused() {
+    let env = env!("an_exchange_that_would_overflow_the_coin_column");
+    let player = unique("exchfull");
+    let limit = i64::MAX;
+    env.fund(&player, limit - 3, 10, 10).await;
+    // 1 plastic pays 4 coins, 1 metal pays 6: neither fits below the limit
+    for (request, material) in [("o1", Material::Plastic), ("o2", Material::Metal)] {
+        assert_eq!(
+            rejected(env.exchange(&player, request, material, 1).await),
+            (R::InvalidAction, false),
+            "{request}"
+        );
+    }
+    let profile = env.profile(&player).await;
+    assert_eq!(
+        (
+            profile.coins,
+            profile.plastic,
+            profile.metal,
+            profile.revision
+        ),
+        (limit as u64 - 3, 10, 10, 1),
+        "a refused exchange changes nothing"
+    );
+    // the refusal is stored, so it replays as the same refusal
+    assert_eq!(
+        rejected(env.exchange(&player, "o1", Material::Plastic, 1).await),
+        (R::InvalidAction, true)
+    );
+    // what still fits is applied
+    env.fund(&player, limit - 4, 10, 10).await;
+    let (_, profile) = applied(env.exchange(&player, "o3", Material::Plastic, 1).await);
+    assert_eq!((profile.coins, profile.plastic), (limit as u64, 9));
+}
+
 // ---- EquipItem -------------------------------------------------------------
 
 #[tokio::test]

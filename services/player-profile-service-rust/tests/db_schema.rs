@@ -1,9 +1,10 @@
-//! Structural expectations of migration 0002 (F52). Needs PostgreSQL, see
+//! Structural expectations of migration 0002 (F52) and the integrity
+//! constraints of the `player` schema (I71). Needs PostgreSQL, see
 //! `tests/common/mod.rs`.
 
 mod common;
 
-use sqlx::Row;
+use sqlx::{PgPool, Row};
 
 async fn pool(test: &str) -> Option<sqlx::PgPool> {
     let url = common::database_url(test)?;
@@ -160,4 +161,258 @@ async fn online_v1_economy_values_match_the_prototype() {
     assert_eq!(get("red-faro"), (None, 16, 10));
     assert_eq!(get("red-aurora"), (None, 20, 12));
     assert_eq!(get("red-sol"), (None, 24, 16));
+}
+
+// ---- integrity constraints (I71) --------------------------------------------
+//
+// The application keeps the economy consistent, but the database is the last
+// line of defence (E41): these tests talk to it directly, bypassing every
+// application rule, and check the SQLSTATE so a constraint cannot be replaced
+// by an unrelated failure.
+
+const CHECK_VIOLATION: &str = "23514";
+const FOREIGN_KEY_VIOLATION: &str = "23503";
+const UNIQUE_VIOLATION: &str = "23505";
+
+/// The SQLSTATE a statement fails with, or `None` when it succeeds.
+async fn sqlstate(pool: &PgPool, sql: &str, binds: &[&str]) -> Option<String> {
+    let mut query = sqlx::query(sql);
+    for value in binds {
+        query = query.bind(*value);
+    }
+    match query.execute(pool).await {
+        Ok(_) => None,
+        Err(sqlx::Error::Database(error)) => error.code().map(|code| code.to_string()),
+        Err(other) => panic!("not a database error: {other}"),
+    }
+}
+
+async fn provisioned(pool: &PgPool, prefix: &str) -> String {
+    let player = common::unique(prefix);
+    assert_eq!(
+        sqlstate(
+            pool,
+            "INSERT INTO player.profiles (player_id, profile_revision) VALUES ($1, 1)",
+            &[&player],
+        )
+        .await,
+        None
+    );
+    player
+}
+
+#[tokio::test]
+async fn balances_revision_and_settlement_credits_can_never_be_negative() {
+    let Some(pool) = pool("balances_revision_and_settlement_credits_can_never_be_negative").await
+    else {
+        return;
+    };
+    let player = provisioned(&pool, "schema-neg").await;
+    for column in ["coins", "plastic", "metal", "profile_revision"] {
+        let sql = format!("UPDATE player.profiles SET {column} = -1 WHERE player_id = $1");
+        assert_eq!(
+            sqlstate(&pool, &sql, &[&player]).await.as_deref(),
+            Some(CHECK_VIOLATION),
+            "{column} accepted a negative value"
+        );
+    }
+    // zero is fine, so the failures above come from the sign check alone
+    assert_eq!(
+        sqlstate(
+            &pool,
+            "UPDATE player.profiles SET coins = 0, plastic = 0, metal = 0 WHERE player_id = $1",
+            &[&player],
+        )
+        .await,
+        None
+    );
+    let revision: i64 =
+        sqlx::query_scalar("SELECT profile_revision FROM player.profiles WHERE player_id = $1")
+            .bind(&player)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(revision, 1, "refused statements changed nothing");
+
+    for (plastic, metal, revision) in [(-1, 0, 1), (0, -1, 1), (0, 0, -1)] {
+        let sql = format!(
+            "INSERT INTO player.settlements \
+             (race_id, player_id, result_fingerprint, credited_plastic, credited_metal, \
+              profile_revision_after) VALUES ($1, $2, 'fp', {plastic}, {metal}, {revision})"
+        );
+        assert_eq!(
+            sqlstate(&pool, &sql, &[&common::unique("race"), &player])
+                .await
+                .as_deref(),
+            Some(CHECK_VIOLATION),
+            "settlement {plastic}/{metal}/{revision} accepted"
+        );
+    }
+}
+
+#[tokio::test]
+async fn ownership_equipment_and_records_refuse_orphans_duplicates_and_unknown_values() {
+    let Some(pool) =
+        pool("ownership_equipment_and_records_refuse_orphans_duplicates_and_unknown_values").await
+    else {
+        return;
+    };
+    let player = provisioned(&pool, "schema-keys").await;
+    let own = "INSERT INTO player.owned_items (player_id, item_id, acquisition_type) \
+               VALUES ($1, $2, 'buy')";
+
+    // ownership: one row per (player, item), both sides must exist
+    assert_eq!(sqlstate(&pool, own, &[&player, "manglar"]).await, None);
+    assert_eq!(
+        sqlstate(&pool, own, &[&player, "manglar"]).await.as_deref(),
+        Some(UNIQUE_VIOLATION),
+        "double ownership"
+    );
+    assert_eq!(
+        sqlstate(&pool, own, &[&player, "no-such-item"])
+            .await
+            .as_deref(),
+        Some(FOREIGN_KEY_VIOLATION)
+    );
+    assert_eq!(
+        sqlstate(&pool, own, &["no-such-player", "sol"])
+            .await
+            .as_deref(),
+        Some(FOREIGN_KEY_VIOLATION)
+    );
+
+    // equipment: a known slot and an owned item, one item per slot
+    let equip = "INSERT INTO player.equipment_slots (player_id, slot, item_id) VALUES ($1, $2, $3)";
+    assert_eq!(
+        sqlstate(&pool, equip, &[&player, "board", "manglar"]).await,
+        None
+    );
+    assert_eq!(
+        sqlstate(&pool, equip, &[&player, "board", "manglar"])
+            .await
+            .as_deref(),
+        Some(UNIQUE_VIOLATION),
+        "one item per slot"
+    );
+    assert_eq!(
+        sqlstate(&pool, equip, &[&player, "cape", "manglar"])
+            .await
+            .as_deref(),
+        Some(CHECK_VIOLATION),
+        "unknown slot"
+    );
+    assert_eq!(
+        sqlstate(&pool, equip, &[&player, "outfit", "brisa"])
+            .await
+            .as_deref(),
+        Some(FOREIGN_KEY_VIOLATION),
+        "equipping an item the player does not own"
+    );
+
+    // operations and settlements: the idempotency keys are primary keys
+    let operation = "INSERT INTO player.economic_operations \
+                     (player_id, request_id, operation_type, request_fingerprint, status, \
+                      profile_revision_after) VALUES ($1, $2, $3, 'fp', 'applied', 1)";
+    assert_eq!(
+        sqlstate(&pool, operation, &[&player, "req-1", "buy"]).await,
+        None
+    );
+    assert_eq!(
+        sqlstate(&pool, operation, &[&player, "req-1", "craft"])
+            .await
+            .as_deref(),
+        Some(UNIQUE_VIOLATION),
+        "(player_id, request_id) is the idempotency key"
+    );
+    assert_eq!(
+        sqlstate(&pool, operation, &[&player, "req-2", "teleport"])
+            .await
+            .as_deref(),
+        Some(CHECK_VIOLATION),
+        "unknown operation type"
+    );
+    assert_eq!(
+        sqlstate(&pool, operation, &["no-such-player", "req-1", "buy"])
+            .await
+            .as_deref(),
+        Some(FOREIGN_KEY_VIOLATION)
+    );
+    assert_eq!(
+        sqlstate(
+            &pool,
+            "INSERT INTO player.economic_operations \
+             (player_id, request_id, operation_type, request_fingerprint, status, catalog_version) \
+             VALUES ($1, 'req-3', 'buy', 'fp', 'applied', 'no-such-version')",
+            &[&player],
+        )
+        .await
+        .as_deref(),
+        Some(FOREIGN_KEY_VIOLATION),
+        "unknown catalog version"
+    );
+    assert_eq!(
+        sqlstate(
+            &pool,
+            "INSERT INTO player.economic_operations \
+             (player_id, request_id, operation_type, request_fingerprint, status) \
+             VALUES ($1, 'req-4', 'buy', 'fp', 'pending')",
+            &[&player],
+        )
+        .await
+        .as_deref(),
+        Some(CHECK_VIOLATION),
+        "unknown status"
+    );
+
+    let settlement = "INSERT INTO player.settlements \
+                      (race_id, player_id, result_fingerprint, credited_plastic, credited_metal, \
+                       profile_revision_after) VALUES ($1, $2, 'fp', 1, 1, 2)";
+    let race = common::unique("race");
+    assert_eq!(sqlstate(&pool, settlement, &[&race, &player]).await, None);
+    assert_eq!(
+        sqlstate(&pool, settlement, &[&race, &player])
+            .await
+            .as_deref(),
+        Some(UNIQUE_VIOLATION),
+        "(race_id, player_id) is the settlement key"
+    );
+    assert_eq!(
+        sqlstate(
+            &pool,
+            settlement,
+            &[&common::unique("race"), "no-such-player"]
+        )
+        .await
+        .as_deref(),
+        Some(FOREIGN_KEY_VIOLATION)
+    );
+}
+
+#[tokio::test]
+async fn at_most_one_catalog_version_can_be_active() {
+    let Some(pool) = pool("at_most_one_catalog_version_can_be_active").await else {
+        return;
+    };
+    // online-v1 is already active, so a second active version must be refused
+    // (and, being refused, leaves the shared database untouched).
+    assert_eq!(
+        sqlstate(
+            &pool,
+            "INSERT INTO player.catalog_versions (catalog_version, active) VALUES ($1, true)",
+            &[&common::unique("second-active")],
+        )
+        .await
+        .as_deref(),
+        Some(UNIQUE_VIOLATION)
+    );
+    assert_eq!(
+        sqlstate(
+            &pool,
+            "INSERT INTO player.catalog_versions (catalog_version, active) VALUES ($1, false)",
+            &[&common::unique("inactive")],
+        )
+        .await,
+        None,
+        "any number of inactive versions is fine"
+    );
 }
