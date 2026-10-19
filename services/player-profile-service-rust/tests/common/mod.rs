@@ -224,3 +224,63 @@ pub fn rejected(outcome: MutationOutcome) -> (MutationRejection, bool) {
         other => panic!("expected a rejection, got {other:?}"),
     }
 }
+
+// ---- in-process gRPC server over a real database --------------------------
+
+use player_profile_service::{
+    pb::player_profile_service_client::PlayerProfileServiceClient,
+    transport::grpc::PlayerProfileGrpc,
+};
+use std::sync::Arc;
+use tokio::{net::TcpListener, sync::oneshot};
+use tokio_stream::wrappers::TcpListenerStream;
+use tonic::transport::{Channel, Server};
+
+pub type Client = PlayerProfileServiceClient<Channel>;
+
+pub struct Instance {
+    pub client: Client,
+    stop: Option<oneshot::Sender<()>>,
+    task: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl Instance {
+    /// Stops the server and waits for it; the pool is not closed here.
+    pub async fn shutdown(mut self) {
+        if let Some(stop) = self.stop.take() {
+            let _ = stop.send(());
+        }
+        drop(self.client.clone());
+        if let Some(task) = self.task.take() {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(5), task).await;
+        }
+    }
+}
+
+/// One service instance: its own pool, its own gRPC server.
+pub async fn start_instance(url: &str) -> (Instance, PgPool) {
+    let pool = test_pool(url, 10).await;
+    let app = Arc::new(PlayerProfileApp::new(postgres::repositories(pool.clone())));
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (stop, stop_rx) = oneshot::channel::<()>();
+    let task = tokio::spawn(async move {
+        let _ = Server::builder()
+            .add_service(PlayerProfileGrpc::new(app).into_server())
+            .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
+                let _ = stop_rx.await;
+            })
+            .await;
+    });
+    let client = PlayerProfileServiceClient::connect(format!("http://{addr}"))
+        .await
+        .unwrap();
+    (
+        Instance {
+            client,
+            stop: Some(stop),
+            task: Some(task),
+        },
+        pool,
+    )
+}

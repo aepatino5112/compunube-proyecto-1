@@ -1,19 +1,19 @@
 //! Application layer: one use case per RPC of `compunube.player.v1` (D29).
 //!
-//! The five mutations are implemented (F52); the remaining use cases are still
-//! the F47 seams ([`std::convert::Infallible`] on purpose, so the compiler
-//! points at every transport arm that must be mapped once they are built).
+//! Each use case validates the request shape, then runs its rules inside one
+//! repository transaction. Business rejections are results, never errors.
 //!
 //! This layer depends only on the repository *ports*, never on SQL, `sqlx` or
 //! `tonic`.
 
-use std::{convert::Infallible, fmt};
+use std::fmt;
 
 use crate::{
     domain::{
         validation::{validate_credit, validate_exchange_amount, validate_id, ValidationError},
-        EconomicOperationRecord, Material, MutationIntent, MutationRejection, OperationStatus,
-        ProfileState, RaceOutcome, SettlementRecord, SettlementRejection, SettlementRequest,
+        Catalog, EconomicOperationRecord, Material, MutationIntent, MutationRejection,
+        OperationStatus, ProfileState, RaceOutcome, SettlementRecord, SettlementRejection,
+        SettlementRequest,
     },
     repository::{LockMode, Repositories, RepositoryError},
 };
@@ -21,8 +21,6 @@ use crate::{
 /// Failure categories the transport maps onto gRPC statuses (E43).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ApplicationError {
-    /// Transitional seam: the use case is delivered by F52.
-    NotImplemented(&'static str),
     InvalidArgument(String),
     NotFound(String),
     DeadlineExceeded,
@@ -35,7 +33,6 @@ pub enum ApplicationError {
 impl fmt::Display for ApplicationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotImplemented(op) => write!(f, "{op} is not implemented"),
             Self::InvalidArgument(msg) => write!(f, "invalid argument: {msg}"),
             Self::NotFound(msg) => write!(f, "not found: {msg}"),
             Self::DeadlineExceeded => f.write_str("deadline exceeded"),
@@ -157,8 +154,6 @@ pub struct PlayerProfileApp {
     repositories: Repositories,
 }
 
-type UseCaseResult = Result<Infallible, ApplicationError>;
-
 fn invalid(error: ValidationError) -> ApplicationError {
     ApplicationError::InvalidArgument(error.to_string())
 }
@@ -168,12 +163,39 @@ impl PlayerProfileApp {
         Self { repositories }
     }
 
-    pub async fn get_profile(&self, _: GetProfileCommand) -> UseCaseResult {
-        Err(ApplicationError::NotImplemented("GetProfile"))
+    /// The confirmed profile. A player without one is provisioned on the spot
+    /// (E7), so this never answers `NOT_FOUND` for a valid id. The row is read
+    /// under `FOR SHARE`: concurrent reads do not block each other, but a read
+    /// never observes half of a mutation.
+    pub async fn get_profile(
+        &self,
+        command: GetProfileCommand,
+    ) -> Result<ProfileState, ApplicationError> {
+        validate_id("player_id", &command.player_id).map_err(invalid)?;
+        let mut tx = self.repositories.transactions.begin().await?;
+        let profile = tx.lock_profile(&command.player_id, LockMode::Share).await?;
+        tx.commit().await?;
+        Ok(profile)
     }
 
-    pub async fn get_catalog(&self, _: GetCatalogCommand) -> UseCaseResult {
-        Err(ApplicationError::NotImplemented("GetCatalog"))
+    /// A published catalog version; the active one when none is named.
+    pub async fn get_catalog(
+        &self,
+        command: GetCatalogCommand,
+    ) -> Result<Catalog, ApplicationError> {
+        let requested = if command.catalog_version.is_empty() {
+            None
+        } else {
+            validate_id("catalog_version", &command.catalog_version).map_err(invalid)?;
+            Some(command.catalog_version.as_str())
+        };
+        match self.repositories.catalog.find_catalog(requested).await? {
+            Some(catalog) => Ok(catalog),
+            None => Err(ApplicationError::NotFound(match requested {
+                Some(version) => format!("catalog version {version} does not exist"),
+                None => "no catalog version is active".to_string(),
+            })),
+        }
     }
 
     pub async fn buy_item(&self, command: ItemCommand) -> Result<MutationResult, ApplicationError> {
@@ -616,20 +638,40 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn remaining_use_cases_are_still_transitional_seams() {
+    async fn reads_validate_the_request_and_then_reach_storage() {
         let app = PlayerProfileApp::new(Repositories::unavailable());
-        let results = [
+        for player in ["", "bad\nid"] {
+            let result = app
+                .get_profile(GetProfileCommand {
+                    player_id: player.into(),
+                })
+                .await;
+            assert!(matches!(result, Err(ApplicationError::InvalidArgument(_))));
+        }
+        assert_eq!(
             app.get_profile(GetProfileCommand {
-                player_id: "p".into(),
+                player_id: "p".into()
             })
             .await,
-            app.get_catalog(GetCatalogCommand {
-                catalog_version: String::new(),
+            Err(ApplicationError::Unavailable)
+        );
+        let bad_version = app
+            .get_catalog(GetCatalogCommand {
+                catalog_version: "x".repeat(200),
             })
-            .await,
-        ];
-        for result in results {
-            assert!(matches!(result, Err(ApplicationError::NotImplemented(_))));
+            .await;
+        assert!(matches!(
+            bad_version,
+            Err(ApplicationError::InvalidArgument(_))
+        ));
+        for version in ["", "online-v1"] {
+            assert_eq!(
+                app.get_catalog(GetCatalogCommand {
+                    catalog_version: version.into()
+                })
+                .await,
+                Err(ApplicationError::Unavailable)
+            );
         }
     }
 

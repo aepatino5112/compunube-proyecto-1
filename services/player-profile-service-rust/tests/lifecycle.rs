@@ -45,6 +45,12 @@ impl ReadinessProbe for SwitchProbe {
     }
 }
 
+fn profile_request() -> GetProfileRequest {
+    GetProfileRequest {
+        player_id: "lifecycle-player".into(),
+    }
+}
+
 struct ClosedFlag(Arc<AtomicBool>);
 
 #[async_trait]
@@ -139,13 +145,11 @@ async fn health_follows_the_probe_and_recovers_automatically() {
         ServingStatus::Serving
     );
 
-    // Business RPCs are routed through the same server (seam until F52).
+    // Business RPCs are routed through the same server; with no usable store
+    // a well-formed request is UNAVAILABLE.
     let mut business = PlayerProfileServiceClient::new(harness.channel.clone());
-    let error = business
-        .get_profile(GetProfileRequest::default())
-        .await
-        .unwrap_err();
-    assert_eq!(error.code(), Code::Unimplemented);
+    let error = business.get_profile(profile_request()).await.unwrap_err();
+    assert_eq!(error.code(), Code::Unavailable);
 
     drop(client);
     drop(business);
@@ -230,11 +234,11 @@ async fn missing_database_url_keeps_the_instance_alive_but_not_serving() {
     let mut business = PlayerProfileServiceClient::new(harness.channel.clone());
     assert_eq!(
         business
-            .get_profile(GetProfileRequest::default())
+            .get_profile(profile_request())
             .await
             .unwrap_err()
             .code(),
-        Code::Unimplemented
+        Code::Unavailable
     );
 
     drop(business);

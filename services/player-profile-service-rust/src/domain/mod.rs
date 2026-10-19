@@ -19,7 +19,7 @@ pub mod settlement;
 pub mod validation;
 
 #[cfg(test)]
-mod fixtures;
+pub(crate) mod fixtures;
 
 pub use appearance::{AppearanceOption, HAIR_COLORS, SKIN_TONES};
 pub use catalog::{Catalog, CatalogItem, ItemType};

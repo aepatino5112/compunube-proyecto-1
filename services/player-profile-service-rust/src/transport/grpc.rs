@@ -4,7 +4,10 @@ use tonic::{Request, Response, Status};
 
 use super::{
     error::status_from,
-    mapping::{decode_material, decode_outcome, mutation_response, settlement_response},
+    mapping::{
+        catalog_to_pb, decode_material, decode_outcome, mutation_response, profile_to_pb,
+        settlement_response,
+    },
 };
 use crate::{
     application::{
@@ -67,19 +70,6 @@ impl From<EquipItemRequest> for ItemCommand {
     }
 }
 
-/// Success is `Infallible` until F52, so the `Ok` arm cannot be reached; this
-/// keeps the handlers exhaustive without inventing responses.
-// `Status` is the error type mandated by the generated tonic trait.
-#[allow(clippy::result_large_err)]
-fn respond<T>(
-    result: Result<std::convert::Infallible, crate::application::ApplicationError>,
-) -> Result<Response<T>, Status> {
-    match result {
-        Ok(never) => match never {},
-        Err(error) => Err(status_from(&error)),
-    }
-}
-
 #[allow(clippy::result_large_err)]
 fn respond_mutation(
     result: Result<MutationResult, ApplicationError>,
@@ -98,7 +88,15 @@ impl PlayerProfileService for PlayerProfileGrpc {
         let command = GetProfileCommand {
             player_id: request.into_inner().player_id,
         };
-        respond(self.app.get_profile(command).await)
+        self.app
+            .get_profile(command)
+            .await
+            .map(|profile| {
+                Response::new(GetProfileResponse {
+                    profile: Some(profile_to_pb(&profile)),
+                })
+            })
+            .map_err(|error| status_from(&error))
     }
 
     async fn get_catalog(
@@ -108,7 +106,11 @@ impl PlayerProfileService for PlayerProfileGrpc {
         let command = GetCatalogCommand {
             catalog_version: request.into_inner().catalog_version,
         };
-        respond(self.app.get_catalog(command).await)
+        self.app
+            .get_catalog(command)
+            .await
+            .map(|catalog| Response::new(catalog_to_pb(&catalog)))
+            .map_err(|error| status_from(&error))
     }
 
     async fn buy_item(

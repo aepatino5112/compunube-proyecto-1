@@ -6,7 +6,10 @@ use crate::{
     application::{
         ApplicationError, MutationOutcome, MutationResult, SettlementOutcome, SettlementResult,
     },
-    domain::{Material, MutationRejection, ProfileState, RaceOutcome, SettlementRejection},
+    domain::{
+        AppearanceOption, Catalog, CatalogItem, ItemType, Material, MutationRejection,
+        ProfileState, RaceOutcome, SettlementRejection, HAIR_COLORS, SKIN_TONES,
+    },
     pb,
 };
 
@@ -30,6 +33,58 @@ pub fn profile_to_pb(profile: &ProfileState) -> pb::PlayerProfile {
             skin_id: profile.appearance.skin_id.clone(),
             hair_color_id: profile.appearance.hair_color_id.clone(),
         }),
+    }
+}
+
+fn item_type_to_pb(item_type: ItemType) -> pb::ItemType {
+    match item_type {
+        ItemType::Character => pb::ItemType::Character,
+        ItemType::Board => pb::ItemType::Board,
+        ItemType::Outfit => pb::ItemType::Outfit,
+        ItemType::Net => pb::ItemType::Net,
+        ItemType::Hair => pb::ItemType::Hair,
+    }
+}
+
+fn item_to_pb(item: &CatalogItem) -> pb::CatalogItem {
+    pb::CatalogItem {
+        item_id: item.item_id.clone(),
+        item_type: item_type_to_pb(item.item_type) as i32,
+        name: item.name.clone(),
+        description: item.description.clone(),
+        enabled: item.enabled,
+        purchasable: item.purchasable(),
+        // The wire has no "absent" price; `purchasable` carries that meaning.
+        price_coins: item.price_coins.unwrap_or(0),
+        craftable: item.craftable(),
+        recipe_plastic: item.recipe_plastic,
+        recipe_metal: item.recipe_metal,
+        // BTreeMap iteration is sorted by key.
+        metadata: item
+            .metadata
+            .iter()
+            .map(|(key, value)| pb::CatalogMetadataEntry {
+                key: key.clone(),
+                value: value.clone(),
+            })
+            .collect(),
+    }
+}
+
+fn option_to_pb(option: &AppearanceOption) -> pb::AppearanceOption {
+    pb::AppearanceOption {
+        option_id: option.id.to_string(),
+        name: option.name.to_string(),
+        color: option.color.to_string(),
+    }
+}
+
+pub fn catalog_to_pb(catalog: &Catalog) -> pb::GetCatalogResponse {
+    pb::GetCatalogResponse {
+        catalog_version: catalog.version.clone(),
+        items: catalog.items.iter().map(item_to_pb).collect(),
+        skin_tones: SKIN_TONES.iter().map(option_to_pb).collect(),
+        hair_colors: HAIR_COLORS.iter().map(option_to_pb).collect(),
     }
 }
 
@@ -213,6 +268,37 @@ mod tests {
             }
             other => panic!("unexpected arm {other:?}"),
         }
+    }
+
+    #[test]
+    fn catalog_maps_flags_prices_metadata_and_appearance_options() {
+        let wire = catalog_to_pb(&crate::domain::fixtures::catalog());
+        assert_eq!(wire.catalog_version, "online-v1");
+        assert_eq!(wire.skin_tones.len(), 5);
+        assert_eq!(wire.hair_colors.len(), 6);
+        assert_eq!(wire.skin_tones[2].option_id, "medium");
+        assert_eq!(wire.hair_colors[0].color, "#29201d");
+
+        let item = |id: &str| wire.items.iter().find(|i| i.item_id == id).unwrap();
+        let manglar = item("manglar");
+        assert_eq!(manglar.item_type, pb::ItemType::Board as i32);
+        assert!(manglar.purchasable && !manglar.craftable && manglar.enabled);
+        assert_eq!(manglar.price_coins, 60);
+        let reuso = item("red-reuso");
+        assert_eq!(reuso.item_type, pb::ItemType::Net as i32);
+        assert!(!reuso.purchasable && reuso.craftable);
+        assert_eq!(
+            (reuso.price_coins, reuso.recipe_plastic, reuso.recipe_metal),
+            (0, 6, 3)
+        );
+        let luna = item("luna");
+        assert_eq!(luna.item_type, pb::ItemType::Character as i32);
+        let keys: Vec<_> = luna.metadata.iter().map(|m| m.key.as_str()).collect();
+        let mut sorted = keys.clone();
+        sorted.sort_unstable();
+        assert_eq!(keys, sorted, "metadata is ordered by key");
+        assert_eq!(item("swept").item_type, pb::ItemType::Hair as i32);
+        assert_eq!(item("brisa").item_type, pb::ItemType::Outfit as i32);
     }
 
     #[test]
