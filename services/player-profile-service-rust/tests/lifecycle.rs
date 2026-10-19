@@ -107,13 +107,13 @@ async fn wait_for(channel: &Channel, expected: ServingStatus) {
 }
 
 fn dependencies(healthy: &Arc<AtomicBool>, closed: &Arc<AtomicBool>) -> Dependencies {
-    Dependencies {
-        repositories: Repositories::unavailable(),
-        probe: Arc::new(SwitchProbe {
+    Dependencies::new(
+        Repositories::unavailable(),
+        Arc::new(SwitchProbe {
             healthy: healthy.clone(),
         }),
-        resources: vec![Arc::new(ClosedFlag(closed.clone()))],
-    }
+        vec![Arc::new(ClosedFlag(closed.clone()))],
+    )
 }
 
 #[tokio::test]

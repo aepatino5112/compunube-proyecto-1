@@ -5,6 +5,7 @@ pub mod config;
 pub mod domain;
 pub mod health;
 pub mod logging;
+pub mod metrics;
 pub mod repository;
 pub mod runtime;
 pub mod transport;

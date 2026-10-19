@@ -92,11 +92,11 @@ async fn health_follows_the_database_down_and_back_up_without_a_restart() {
     };
     let business = postgres::business_pool(&options, &pool_config);
     let probe = postgres::probe_pool(&options, SETTINGS.probe_timeout);
-    let dependencies = Dependencies {
-        repositories: postgres::repositories(business.clone()),
-        probe: Arc::new(PostgresReadinessProbe::new(probe.clone())),
-        resources: Vec::new(),
-    };
+    let dependencies = Dependencies::new(
+        postgres::repositories(business.clone()),
+        Arc::new(PostgresReadinessProbe::new(probe.clone())),
+        Vec::new(),
+    );
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
