@@ -102,7 +102,7 @@ Definición versionada de cada objeto.
 
 PK compuesta: **`(catalog_version, item_id)`**.
 
-Los valores de precio/receta vienen de datos de referencia del juego; E41 no inventa cantidades. Reglas como «solo redes son craftables» siguen siendo invariantes de dominio Rust además de los constraints básicos.
+Los valores de precio/receta vienen de datos de referencia del juego; E41 no inventa cantidades. La migración `0002` (F52) publica `online-v1` con las 22 entradas copiadas de `apps/web/dist/economy.js`; `price_coins` NULL significa «no se vende» y una receta > 0 significa «se fabrica». `metadata` guarda como strings `color`, `rarity` (redes) y, en personajes, `gender`, `morph`, `skin`, `hairColor`, `hair`. Reglas como «solo redes son craftables» siguen siendo invariantes de dominio Rust además de los constraints básicos.
 
 ### `player.owned_items`
 
@@ -159,13 +159,14 @@ Libro técnico de deduplicación para comandos económicos, no Event Sourcing.
 | `request_fingerprint` | `TEXT` | NOT NULL; huella canónica del comando para detectar reutilización conflictiva del mismo requestId. |
 | `catalog_version` | `TEXT` | NULL cuando no aplica; FK → `catalog_versions`. |
 | `status` | `TEXT` | `applied` o `rejected`; no se deja una operación `applied` sin sus cambios de negocio en la misma transacción. |
+| `rejection_code` | `TEXT` | Migración `0002` (F52). NULL salvo `status = 'rejected'` (CHECK en ambos sentidos); CHECK de los 9 códigos de `MutationRejectionCode`. Permite que un retry de una petición rechazada devuelva el mismo código. |
 | `profile_revision_after` | `BIGINT` | NULL si no hubo mutación; CHECK `>= 0`. |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL. |
 | `completed_at` | `TIMESTAMPTZ` | NOT NULL al registrar resultado durable. |
 
 PK: **`(player_id, request_id)`**.
 
-Al recibir de nuevo la misma clave, Rust compara la huella. Misma huella → respuesta coherente sin repetir efectos; huella distinta → conflicto de idempotencia. El formato exacto de `requestId` y de la respuesta pertenece a E43.
+Al recibir de nuevo la misma clave, Rust compara la huella. Misma huella → respuesta coherente sin repetir efectos (éxito o el mismo rechazo almacenado); huella distinta → conflicto de idempotencia (no se almacena: la fila original se conserva). Una versión de catálogo desconocida se rechaza con `catalog_version = NULL` porque la columna es FK. El formato exacto de `requestId` y de la respuesta pertenece a E43.
 
 Índices:
 - `(player_id, created_at DESC)`;

@@ -28,9 +28,13 @@ sh "$script_dir/seed.sh" >/dev/null
 before=$(psql "$DATABASE_URL" -X -At -c 'SELECT count(*) FROM public.schema_migrations')
 sh "$script_dir/migrate.sh"
 after=$(psql "$DATABASE_URL" -X -At -c 'SELECT count(*) FROM public.schema_migrations')
-[ "$before" = 1 ] && [ "$after" = 1 ]
+[ "$before" = 2 ] && [ "$after" = 2 ]
 [ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM information_schema.tables WHERE table_schema IN ('match','player')")" = 13 ]
-[ "$(psql "$DATABASE_URL" -X -At -c 'SELECT count(*) FROM player.item_definitions')" = 18 ]
+[ "$(psql "$DATABASE_URL" -X -At -c 'SELECT count(*) FROM player.item_definitions')" = 22 ]
+# F52 (0002): published active online-v1 catalog covering all 22 items, and stored rejections.
+[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM player.catalog_versions WHERE catalog_version = 'online-v1' AND active AND published_at IS NOT NULL")" = 1 ]
+[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM player.catalog_entries WHERE catalog_version = 'online-v1' AND enabled")" = 22 ]
+[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'player' AND table_name = 'economic_operations' AND column_name = 'rejection_code'")" = 1 ]
 
 # Negative constraints and cross-schema DML must fail without leaving rows.
 if psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "INSERT INTO player.profiles(player_id, coins) VALUES ('e42-negative', -1)" >/dev/null 2>&1; then
@@ -55,6 +59,9 @@ if psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "INSERT INTO match.race_part
   echo 'DNF credit was accepted' >&2; exit 1
 fi
 psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "INSERT INTO player.profiles(player_id) VALUES ('e42-player')"
+if psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "INSERT INTO player.economic_operations(player_id,request_id,operation_type,request_fingerprint,status,rejection_code) VALUES ('e42-player','e52-bad-rejection','buy','fp','rejected','MADE_UP')" >/dev/null 2>&1; then
+  echo 'unknown rejection code was accepted' >&2; exit 1
+fi
 if psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "INSERT INTO player.equipment_slots(player_id,slot,item_id) VALUES ('e42-player','board','coral')" >/dev/null 2>&1; then
   echo 'unowned equipment was accepted' >&2; exit 1
 fi
@@ -62,5 +69,5 @@ sh "$script_dir/backup.sh" "$backup_file"
 createdb -h 127.0.0.1 -U "$POSTGRES_USER" "$restore_db"
 DATABASE_URL="postgresql://$POSTGRES_USER@127.0.0.1:5432/$restore_db" RESTORE_CONFIRM=YES sh "$script_dir/restore.sh" "$backup_file"
 [ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$restore_db" -X -At -c "SELECT count(*) FROM match.rooms WHERE room_id='e42-backup-fixture'")" = 1 ]
-[ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$restore_db" -X -At -c 'SELECT count(*) FROM public.schema_migrations')" = 1 ]
-echo 'E42 migration, permissions, backup and restore smoke: PASS'
+[ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$restore_db" -X -At -c 'SELECT count(*) FROM public.schema_migrations')" = 2 ]
+echo 'E42/F52 migration, permissions, backup and restore smoke: PASS'

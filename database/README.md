@@ -4,7 +4,7 @@ La instancia comparte hardware, pero `match` pertenece a Go y `player` a Rust. [
 
 ## Migrar y sembrar
 
-`database/init/00-bootstrap.sql` conserva el bootstrap de schemas de Compose en volúmenes nuevos. La migración real es `migrations/0001_schema.up.sql`, aplicada de forma atómica por `0001_apply.sql`: toma un advisory lock de transacción, consulta la versión y registra `0001` en la misma transacción. Una segunda ejecución no vuelve a crear objetos. `scripts/migrate.sh` recorre los archivos `*_apply.sql` en orden; futuras versiones añaden un par `NNNN_apply.sql`/`NNNN_*.up.sql` y mantienen las migraciones ya aplicadas inmutables.
+`database/init/00-bootstrap.sql` conserva el bootstrap de schemas de Compose en volúmenes nuevos. La migración inicial es `migrations/0001_schema.up.sql`, aplicada de forma atómica por `0001_apply.sql`: toma un advisory lock de transacción, consulta la versión y registra `0001` en la misma transacción. Una segunda ejecución no vuelve a crear objetos. `scripts/migrate.sh` recorre los archivos `*_apply.sql` en orden; futuras versiones añaden un par `NNNN_apply.sql`/`NNNN_*.up.sql` y mantienen las migraciones ya aplicadas inmutables.
 
 Se necesita una cuenta de despliegue con DDL/creación de roles (el `POSTGRES_USER` inicial de Compose sirve en desarrollo). Los roles `compunube_migrator`, `compunube_match_app` y `compunube_player_app` son **NOLOGIN**: las tablas pertenecen al migrator, mientras cada rol runtime obtiene USAGE/DML solo en su schema. H62 creará/configurará credenciales LOGIN separadas para los procesos; Compose todavía entrega la credencial compartida de bootstrap. Esto permite probar grants ahora sin afirmar que el aislamiento runtime ya está activado en Compose.
 
@@ -22,7 +22,17 @@ docker compose up -d postgres --wait
 docker compose exec -T postgres sh -c 'export PGPASSWORD="$POSTGRES_PASSWORD"; export DATABASE_URL="postgresql://$POSTGRES_USER@127.0.0.1:5432/$POSTGRES_DB"; sh /opt/compunube-database/scripts/migrate.sh; sh /opt/compunube-database/scripts/seed.sh'
 ```
 
-El seed solo añade **18 IDs/tipos de objeto** verificados en [`apps/web/dist/economy.js`](../apps/web/dist/economy.js). No crea versión activa de catálogo, entradas con precio/receta, perfiles, balances ni inventarios: el catálogo local todavía no es una publicación económica online aprobada. Rust/F52 decidirá cómo publicar un catálogo con versión y reglas confirmadas. Repetir el seed no duplica filas.
+El seed añade las **18 referencias de objeto** verificadas en [`apps/web/dist/economy.js`](../apps/web/dist/economy.js) (no crea perfiles, balances ni inventarios). Repetirlo no duplica filas. Los 4 personajes y el catálogo online no dependen del seed: los registra la migración `0002`.
+
+### Migración 0002 (F52): catálogo `online-v1` y rechazos
+
+`0002_apply.sql` (+ `0002_online_catalog.up.sql`) sigue la convención de `0001`: advisory lock, registro de la versión `0002` y reaplicación sin efecto. Añade, todo idempotente (`ON CONFLICT DO NOTHING` / `IF NOT EXISTS`):
+
+- `player.economic_operations.rejection_code` con CHECK de los 9 códigos de `MutationRejectionCode` y CHECK `status = 'rejected'` ⇔ código presente, para que un retry de una petición rechazada devuelva el mismo código (E1).
+- Las 22 referencias de objeto (las 18 del seed más `nico`, `luna`, `amara`, `samuel`), de modo que el catálogo no dependa de haber ejecutado el seed (E3).
+- La versión de catálogo `online-v1`, publicada y activa (salvo que ya hubiera otra activa), con una entrada por cada uno de los 22 objetos: nombre, descripción, precio y receta **copiados de `economy.js`** y color/rareza/apariencia del personaje como `metadata` JSONB de strings. `price_coins` es `NULL` en las redes con receta (no se venden). Las tasas de canje (plástico 4, metal 6) y las opciones de piel/color de cabello no tienen tabla: son constantes del dominio Rust ligadas a `online-v1`.
+
+El servicio Rust exige que `0002` esté aplicada para pasar a `SERVING`.
 
 ## Backup, restore y rollback
 
@@ -37,7 +47,7 @@ La migración inicial crea toda la estructura; su `down` destruiría datos y no 
 
 ## Verificación
 
-`scripts/smoke.sh` corre dentro del contenedor PostgreSQL de Compose: crea esquema limpio, reaplica migración, comprueba 13 tablas y 18 referencias, prueba balance negativo y DML cruzado con `SET ROLE`, agrega una fila fixture solo en la base efímera, hace backup, restaura en otra base efímera y compara el dato. CI Integration lo ejecuta y limpia el volumen al terminar. Para reproducirlo localmente use un proyecto Compose aislado; **el smoke inserta un fixture** y no debe ejecutarse contra datos persistentes reales.
+`scripts/smoke.sh` corre dentro del contenedor PostgreSQL de Compose: crea esquema limpio, reaplica migración, comprueba 13 tablas, 22 referencias, el catálogo `online-v1` (22 entradas) y la columna `rejection_code`, prueba balance negativo y DML cruzado con `SET ROLE`, agrega una fila fixture solo en la base efímera, hace backup, restaura en otra base efímera y compara el dato. CI Integration lo ejecuta y limpia el volumen al terminar. Para reproducirlo localmente use un proyecto Compose aislado; **el smoke inserta un fixture** y no debe ejecutarse contra datos persistentes reales.
 
 ```bash
 docker compose -p compunube-e42-test up -d postgres --wait
