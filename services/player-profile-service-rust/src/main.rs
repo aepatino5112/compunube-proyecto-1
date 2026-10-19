@@ -17,6 +17,7 @@ async fn main() {
     let result = async {
         tracing::info!(
             listen_addr = %config.service_addr,
+            metrics_addr = %config.metrics_addr,
             database_configured = config.database.url.is_some(),
             pool_max_connections = config.database.pool.max_connections,
             "starting player/profile service"

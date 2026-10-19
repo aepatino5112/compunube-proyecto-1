@@ -7,7 +7,8 @@
 //! 1. report `NOT_SERVING` (and stop probing so it cannot flip back);
 //! 2. stop accepting new connections and RPCs;
 //! 3. let in-flight RPCs drain, bounded by `SHUTDOWN_DRAIN_TIMEOUT_MS`;
-//! 4. close the database pools.
+//! 4. close the database pools, then stop the metrics listener so the drain
+//!    itself stays observable.
 
 use std::{fmt, future::Future, sync::Arc, time::Duration};
 
@@ -25,6 +26,7 @@ use crate::{
     application::PlayerProfileApp,
     config::Config,
     health::{run_probe_loop, GrpcHealthSink, HealthController, ReadinessProbe, UnconfiguredProbe},
+    metrics::{self, Metrics},
     repository::{postgres, Closeable, Repositories},
     transport::grpc::PlayerProfileGrpc,
 };
@@ -32,6 +34,7 @@ use crate::{
 #[derive(Debug)]
 pub enum RunError {
     Bind(std::io::Error),
+    BindMetrics(std::io::Error),
     Serve(String),
 }
 
@@ -39,6 +42,7 @@ impl fmt::Display for RunError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Bind(error) => write!(f, "cannot bind service address: {error}"),
+            Self::BindMetrics(error) => write!(f, "cannot bind metrics address: {error}"),
             Self::Serve(error) => write!(f, "gRPC server failed: {error}"),
         }
     }
@@ -51,6 +55,38 @@ pub struct Dependencies {
     pub repositories: Repositories,
     pub probe: Arc<dyn ReadinessProbe>,
     pub resources: Vec<Arc<dyn Closeable>>,
+    /// Registry shared by every component that reports metrics.
+    pub metrics: Arc<Metrics>,
+    /// When present, `GET /metrics` is served on it until shutdown.
+    pub metrics_listener: Option<TcpListener>,
+}
+
+impl Dependencies {
+    /// Dependencies with a detached metrics registry and no metrics listener,
+    /// which is what tests and tools that do not scrape need.
+    pub fn new(
+        repositories: Repositories,
+        probe: Arc<dyn ReadinessProbe>,
+        resources: Vec<Arc<dyn Closeable>>,
+    ) -> Self {
+        Self {
+            repositories,
+            probe,
+            resources,
+            metrics: Arc::new(Metrics::new(crate::config::DEFAULT_INSTANCE_ID)),
+            metrics_listener: None,
+        }
+    }
+
+    pub fn with_metrics(mut self, metrics: Arc<Metrics>) -> Self {
+        self.metrics = metrics;
+        self
+    }
+
+    pub fn with_metrics_listener(mut self, listener: TcpListener) -> Self {
+        self.metrics_listener = Some(listener);
+        self
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -74,9 +110,10 @@ impl RuntimeSettings {
 /// or invalid `DATABASE_URL` yields a running but permanently `NOT_SERVING`
 /// instance (D4); the reason is logged without the URL.
 pub fn build_dependencies(config: &Config) -> Dependencies {
+    let metrics = Arc::new(Metrics::new(&config.instance_id));
     let Some(url) = &config.database.url else {
         tracing::warn!("DATABASE_URL is not set; the instance will stay NOT_SERVING");
-        return unconfigured("DATABASE_URL is not configured");
+        return unconfigured("DATABASE_URL is not configured").with_metrics(metrics);
     };
     match postgres::connect(
         url,
@@ -84,32 +121,41 @@ pub fn build_dependencies(config: &Config) -> Dependencies {
         &config.database.pool,
         config.health.probe_timeout,
     ) {
-        Ok(runtime) => Dependencies {
-            repositories: runtime.repositories,
-            probe: Arc::new(runtime.probe),
-            resources: vec![Arc::new(runtime.resources)],
-        },
+        Ok(runtime) => {
+            metrics.set_pool_source(Arc::new(runtime.pool_stats));
+            Dependencies::new(
+                runtime.repositories,
+                Arc::new(runtime.probe),
+                vec![Arc::new(runtime.resources)],
+            )
+            .with_metrics(metrics)
+        }
         Err(error) => {
             tracing::error!(%error, "the instance will stay NOT_SERVING");
-            unconfigured("DATABASE_URL is invalid")
+            unconfigured("DATABASE_URL is invalid").with_metrics(metrics)
         }
     }
 }
 
 fn unconfigured(reason: &str) -> Dependencies {
-    Dependencies {
-        repositories: Repositories::unavailable(),
-        probe: Arc::new(UnconfiguredProbe::new(reason)),
-        resources: Vec::new(),
-    }
+    Dependencies::new(
+        Repositories::unavailable(),
+        Arc::new(UnconfiguredProbe::new(reason)),
+        Vec::new(),
+    )
 }
 
-/// Binds the configured address and serves until SIGTERM or SIGINT.
+/// Binds the gRPC and metrics addresses and serves until SIGTERM or SIGINT.
+/// A metrics address that cannot be bound is a startup error: an instance that
+/// silently runs unobserved is worse than one that refuses to start.
 pub async fn run(config: Config) -> Result<(), RunError> {
     let listener = TcpListener::bind(config.service_addr)
         .await
         .map_err(RunError::Bind)?;
-    let dependencies = build_dependencies(&config);
+    let metrics_listener = TcpListener::bind(config.metrics_addr)
+        .await
+        .map_err(RunError::BindMetrics)?;
+    let dependencies = build_dependencies(&config).with_metrics_listener(metrics_listener);
     serve(
         listener,
         dependencies,
@@ -143,6 +189,8 @@ struct RuntimeShutdown {
     probe_task: Option<JoinHandle<()>>,
     server_stop: Option<oneshot::Sender<()>>,
     server_task: Option<ServerTask>,
+    metrics_stop: Option<oneshot::Sender<()>>,
+    metrics_task: Option<JoinHandle<()>>,
     server_result: Option<Result<(), RunError>>,
     drain_timeout: Duration,
     resources: Vec<Arc<dyn Closeable>>,
@@ -192,6 +240,12 @@ impl ShutdownSteps for RuntimeShutdown {
         for resource in &self.resources {
             resource.close().await;
         }
+        if let Some(stop) = self.metrics_stop.take() {
+            let _ = stop.send(());
+        }
+        if let Some(task) = self.metrics_task.take() {
+            let _ = task.await;
+        }
         tracing::info!("resources closed; shutdown complete");
     }
 }
@@ -209,8 +263,13 @@ where
 {
     let span = tracing::Span::current();
     let (reporter, health_service) = tonic_health::server::health_reporter();
-    let controller =
-        Arc::new(HealthController::start(Arc::new(GrpcHealthSink::new(reporter))).await);
+    let controller = Arc::new(
+        HealthController::start_with_metrics(
+            Arc::new(GrpcHealthSink::new(reporter)),
+            dependencies.metrics.clone(),
+        )
+        .await,
+    );
 
     let (probe_stop, probe_stop_rx) = watch::channel(false);
     let probe_task = tokio::spawn(
@@ -224,13 +283,35 @@ where
         .instrument(span.clone()),
     );
 
-    let app = Arc::new(PlayerProfileApp::new(dependencies.repositories));
+    let app = Arc::new(PlayerProfileApp::with_observer(
+        dependencies.repositories,
+        dependencies.metrics.clone(),
+    ));
+    let (metrics_stop, metrics_task) = match dependencies.metrics_listener {
+        Some(metrics_listener) => {
+            let metrics_addr = metrics_listener
+                .local_addr()
+                .map_err(RunError::BindMetrics)?;
+            let (stop, stop_rx) = oneshot::channel::<()>();
+            let task = tokio::spawn(
+                metrics::server::serve(metrics_listener, dependencies.metrics.clone(), async {
+                    let _ = stop_rx.await;
+                })
+                .instrument(span.clone()),
+            );
+            tracing::info!(listen_addr = %metrics_addr, path = "/metrics", "metrics listener started");
+            (Some(stop), Some(task))
+        }
+        None => (None, None),
+    };
     let local_addr = listener.local_addr().map_err(RunError::Bind)?;
     let (server_stop, server_stop_rx) = oneshot::channel::<()>();
     let mut server_task: ServerTask = tokio::spawn(
         Server::builder()
             .add_service(health_service)
-            .add_service(PlayerProfileGrpc::new(app).into_server())
+            .add_service(
+                PlayerProfileGrpc::with_metrics(app, dependencies.metrics.clone()).into_server(),
+            )
             .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
                 let _ = server_stop_rx.await;
             })
@@ -260,6 +341,8 @@ where
         } else {
             Some(server_task)
         },
+        metrics_stop,
+        metrics_task,
         server_result: None,
         drain_timeout: settings.drain_timeout,
         resources: dependencies.resources,

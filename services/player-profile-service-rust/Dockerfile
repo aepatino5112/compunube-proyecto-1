@@ -21,5 +21,5 @@ USER app
 
 COPY --from=build /src/services/player-profile-service-rust/target/release/player-profile-service /usr/local/bin/player-profile-service
 
-EXPOSE 50051
+EXPOSE 50051 9100
 ENTRYPOINT ["/usr/local/bin/player-profile-service"]

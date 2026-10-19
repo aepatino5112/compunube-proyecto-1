@@ -130,6 +130,28 @@ pub trait Closeable: Send + Sync {
     async fn close(&self);
 }
 
+/// Point-in-time view of a connection pool, for operational metrics only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PoolSnapshot {
+    /// Connections currently open (idle + in use).
+    pub size: u32,
+    /// Open connections waiting for work.
+    pub idle: u32,
+    /// Configured upper bound.
+    pub max: u32,
+}
+
+impl PoolSnapshot {
+    pub fn in_use(&self) -> u32 {
+        self.size.saturating_sub(self.idle)
+    }
+}
+
+/// Read-only window into the business pool; implemented by the storage adapter.
+pub trait PoolStatsSource: Send + Sync {
+    fn snapshot(&self) -> PoolSnapshot;
+}
+
 /// The set of ports handed to the application layer.
 #[derive(Clone)]
 pub struct Repositories {
@@ -169,6 +191,22 @@ impl TransactionManager for Unavailable {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn in_use_is_open_minus_idle_and_never_underflows() {
+        let busy = PoolSnapshot {
+            size: 5,
+            idle: 2,
+            max: 10,
+        };
+        assert_eq!(busy.in_use(), 3);
+        let racy = PoolSnapshot {
+            size: 1,
+            idle: 2,
+            max: 10,
+        };
+        assert_eq!(racy.in_use(), 0);
+    }
 
     #[tokio::test]
     async fn unavailable_ports_fail_closed() {

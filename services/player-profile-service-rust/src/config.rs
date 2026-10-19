@@ -9,6 +9,7 @@
 use std::{fmt, net::SocketAddr, time::Duration};
 
 pub const DEFAULT_SERVICE_ADDR: &str = "0.0.0.0:50051";
+pub const DEFAULT_METRICS_ADDR: &str = "0.0.0.0:9100";
 pub const DEFAULT_INSTANCE_ID: &str = "rust-local";
 
 const DEFAULT_POOL_MAX_CONNECTIONS: u32 = 10;
@@ -77,6 +78,8 @@ pub struct ShutdownConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
     pub service_addr: SocketAddr,
+    /// Prometheus listener (`GET /metrics`), separate from the gRPC port.
+    pub metrics_addr: SocketAddr,
     pub instance_id: String,
     pub database: DatabaseConfig,
     pub health: HealthConfig,
@@ -122,6 +125,20 @@ impl Config {
                 reason: "expected host:port such as 0.0.0.0:50051".to_string(),
             })?;
 
+        let metrics_addr = get("METRICS_ADDR")
+            .unwrap_or_else(|| DEFAULT_METRICS_ADDR.to_string())
+            .parse::<SocketAddr>()
+            .map_err(|_| ConfigError {
+                variable: "METRICS_ADDR",
+                reason: "expected host:port such as 0.0.0.0:9100".to_string(),
+            })?;
+        if metrics_addr == service_addr {
+            return Err(ConfigError {
+                variable: "METRICS_ADDR",
+                reason: "must differ from SERVICE_ADDR".to_string(),
+            });
+        }
+
         let instance_id = get("INSTANCE_ID").unwrap_or_else(|| DEFAULT_INSTANCE_ID.to_string());
 
         let max_connections = parse_u32(
@@ -161,6 +178,7 @@ impl Config {
 
         Ok(Self {
             service_addr,
+            metrics_addr,
             instance_id,
             database: DatabaseConfig {
                 url: get("DATABASE_URL").map(SecretString::new),
@@ -231,6 +249,7 @@ mod tests {
     fn defaults_apply_when_nothing_is_set() {
         let config = load(&[]).unwrap();
         assert_eq!(config.service_addr, "0.0.0.0:50051".parse().unwrap());
+        assert_eq!(config.metrics_addr, "0.0.0.0:9100".parse().unwrap());
         assert_eq!(config.instance_id, "rust-local");
         assert!(config.database.url.is_none());
         assert_eq!(config.database.pool.max_connections, 10);
@@ -248,6 +267,7 @@ mod tests {
     fn explicit_values_override_defaults() {
         let config = load(&[
             ("SERVICE_ADDR", "127.0.0.1:6000"),
+            ("METRICS_ADDR", "127.0.0.1:6100"),
             ("INSTANCE_ID", "rust-2"),
             ("DATABASE_URL", "postgres://u:p@db:5432/app"),
             ("DB_POOL_MAX_CONNECTIONS", "4"),
@@ -259,6 +279,7 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(config.service_addr.port(), 6000);
+        assert_eq!(config.metrics_addr.port(), 6100);
         assert_eq!(config.instance_id, "rust-2");
         assert_eq!(
             config.database.url.as_ref().unwrap().expose(),
@@ -279,11 +300,13 @@ mod tests {
     fn blank_values_are_treated_as_unset() {
         let config = load(&[
             ("SERVICE_ADDR", "  "),
+            ("METRICS_ADDR", " "),
             ("INSTANCE_ID", ""),
             ("DATABASE_URL", "   "),
         ])
         .unwrap();
         assert_eq!(config.instance_id, DEFAULT_INSTANCE_ID);
+        assert_eq!(config.metrics_addr.to_string(), DEFAULT_METRICS_ADDR);
         assert!(config.database.url.is_none());
     }
 
@@ -291,6 +314,7 @@ mod tests {
     fn invalid_values_name_the_variable() {
         let cases: &[(&str, &str)] = &[
             ("SERVICE_ADDR", "not-an-addr"),
+            ("METRICS_ADDR", "9100"),
             ("DB_POOL_MAX_CONNECTIONS", "abc"),
             ("DB_POOL_MAX_CONNECTIONS", "0"),
             ("DB_POOL_MAX_CONNECTIONS", "100000"),
@@ -304,6 +328,16 @@ mod tests {
             let error = load(&[(name, value)]).unwrap_err();
             assert_eq!(&error.variable, name, "{name}={value}");
         }
+    }
+
+    #[test]
+    fn metrics_listener_must_not_share_the_grpc_address() {
+        let error = load(&[
+            ("SERVICE_ADDR", "0.0.0.0:7000"),
+            ("METRICS_ADDR", "0.0.0.0:7000"),
+        ])
+        .unwrap_err();
+        assert_eq!(error.variable, "METRICS_ADDR");
     }
 
     #[test]

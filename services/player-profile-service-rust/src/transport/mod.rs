@@ -4,3 +4,4 @@
 pub mod error;
 pub mod grpc;
 pub mod mapping;
+pub mod observe;
