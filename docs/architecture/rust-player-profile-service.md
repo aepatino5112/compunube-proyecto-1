@@ -227,6 +227,50 @@ D29 se considera implementable si el siguiente comportamiento puede demostrarse 
 
 La topología física y los puertos finales pertenecen a D31; esta validación puede realizarse primero en el entorno local/Compose.
 
+## Estado de implementación (F47)
+
+F47 convierte el scaffold en la base modular del servicio. **No implementa reglas de economía ni de perfil**: esas pertenecen a F52. Las ocho RPC de `compunube.player.v1` existen como *seams* transitorios que responden `UNIMPLEMENTED`; el `Ok` de los casos de uso es `Infallible` hasta que F52 defina resultados reales.
+
+| Módulo (`services/player-profile-service-rust/src`) | Capa D29 | Contenido actual |
+| --- | --- | --- |
+| `transport/` | Transporte/adaptadores | Servicio Tonic generado desde `proto/player_profile.proto` en `build.rs` (sin stubs versionados) y mapeo de errores E43. Sin reglas de negocio. |
+| `application/` | Aplicación | Un caso de uso por RPC; depende solo de los puertos de repositorio. |
+| `domain/` | Dominio | Registros persistentes de E41; los invariantes económicos llegan con F52. |
+| `repository/` | Puertos | `PlayerProfileRepository`, `InventoryRepository`, `CatalogRepository`, `EconomicOperationRepository`, `SettlementRepository`. |
+| `repository/postgres/` | Adaptador PostgreSQL | Pools `sqlx` perezosos, sondeo de readiness y esqueleto de adaptadores. **Único lugar con SQL**; solo `player.*` más lectura de `public.schema_migrations`; nunca `match.*`. Consultas en tiempo de ejecución, sin macros de compilación. |
+| `health.rs`, `runtime.rs` | Ciclo de vida | Bucle de sondeo, estado `player_profile` y apagado ordenado. |
+
+Pruebas estructurales (`tests/architecture.rs`) verifican que `application`, `domain` y `transport` no dependan de SQL y que ninguna fuente referencie el schema `match`.
+
+### Configuración
+
+| Variable | Defecto | Uso |
+| --- | --- | --- |
+| `SERVICE_ADDR` | `0.0.0.0:50051` | Dirección gRPC. |
+| `INSTANCE_ID` | `rust-local` | Identidad de la réplica en logs. |
+| `DATABASE_URL` | sin valor | Conexión PostgreSQL. Nunca se imprime (`Debug`/`Display` redactados). |
+| `DB_POOL_MAX_CONNECTIONS` / `DB_POOL_MIN_CONNECTIONS` | `10` / `0` | Límites del pool de negocio por instancia. |
+| `DB_POOL_ACQUIRE_TIMEOUT_MS` | `3000` | Espera máxima por una conexión. |
+| `HEALTH_PROBE_INTERVAL_MS` / `HEALTH_PROBE_TIMEOUT_MS` | `2000` / `1000` | Frecuencia y límite de cada sondeo. |
+| `SHUTDOWN_DRAIN_TIMEOUT_MS` | `8000` | Tiempo máximo para que terminen las RPC en curso. |
+
+Un valor numérico inválido detiene el arranque. Un `DATABASE_URL` ausente o inválido **no**: el servicio arranca y permanece `NOT_SERVING` con el motivo en logs, sin la URL. El servicio no ejecuta migraciones; E42 se aplica con `database/scripts/migrate.sh`. El driver no incluye TLS: los URLs con `sslmode=require` fallan hasta que un requisito concreto lo justifique.
+
+### Ciclo de vida
+
+1. `player_profile` (y el nombre vacío) arrancan en `NOT_SERVING`.
+2. Un bucle de fondo usa un pool aislado de una conexión, distinto del pool de negocio, y comprueba `SELECT 1`, la versión `0001` en `public.schema_migrations` y las nueve tablas `player.*`. Pasa a `SERVING` solo si todo cumple, vuelve a `NOT_SERVING` ante cualquier fallo o timeout y se recupera solo; por eso una réplica levantada antes de migrar se vuelve `SERVING` después de `migrate.sh` sin reiniciar.
+3. Ante SIGTERM o SIGINT: se publica `NOT_SERVING` (los sondeos posteriores se ignoran), se dejan de aceptar conexiones nuevas, las RPC en curso terminan dentro de `SHUTDOWN_DRAIN_TIMEOUT_MS` y por último se cierran los pools.
+
+Los logs son JSON (`tracing`); `service=player-profile-service` e `instance_id` viajan en el span raíz (`span.service`, `span.instance_id`) y ninguna línea incluye credenciales.
+
+### Pendiente para F52
+
+- SQL real de los adaptadores y transacciones atómicas/idempotentes.
+- Casos de uso, invariantes de dominio y mapeo de resultados/rechazos del contrato.
+- Publicación del catálogo con versión activa.
+- Deadlines/correlación por operación y métricas de deduplicación/settlement.
+
 ## Límites de D29
 
 D29 **no** congela:

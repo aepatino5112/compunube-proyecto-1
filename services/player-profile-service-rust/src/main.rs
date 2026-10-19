@@ -1,29 +1,33 @@
-use std::{env, net::SocketAddr};
-
-use tonic::transport::Server;
-use tonic_health::ServingStatus;
+use player_profile_service::{config::Config, logging, runtime};
+use tracing::Instrument;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr: SocketAddr = env::var("SERVICE_ADDR")
-        .unwrap_or_else(|_| "0.0.0.0:50051".to_string())
-        .parse()?;
+async fn main() {
+    logging::init();
 
-    let instance_id = env::var("INSTANCE_ID").unwrap_or_else(|_| "rust-local".to_string());
+    let config = match Config::from_env() {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::error!(%error, "invalid configuration");
+            std::process::exit(2);
+        }
+    };
 
-    let (mut reporter, health_service) = tonic_health::server::health_reporter();
-    reporter
-        .set_service_status("player_profile", ServingStatus::Serving)
-        .await;
+    let span = logging::root_span(&config.instance_id);
+    let result = async {
+        tracing::info!(
+            listen_addr = %config.service_addr,
+            database_configured = config.database.url.is_some(),
+            pool_max_connections = config.database.pool.max_connections,
+            "starting player/profile service"
+        );
+        runtime::run(config).await
+    }
+    .instrument(span.clone())
+    .await;
 
-    println!("player/profile service {instance_id} listening on {addr}");
-
-    Server::builder()
-        .add_service(health_service)
-        .serve_with_shutdown(addr, async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
-        .await?;
-
-    Ok(())
+    if let Err(error) = result {
+        span.in_scope(|| tracing::error!(%error, "service terminated with an error"));
+        std::process::exit(1);
+    }
 }
