@@ -92,7 +92,8 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	verifier := playerprofile.ProfileVerifier{Port: resilientProfile, Pool: profilePool}
 	roomManager := rooms.NewManager(runtime, verifier, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer, Recorder: recorder})
 	if store != nil {
-		coordinator, err := settlement.New(ctx, store, resilientProfile, settlementPool, roomManager, async.Durable(), cfg.SettlementConcurrency, logger)
+		prober := playerprofile.RecoveryProber{Port: resilientProfile, Pool: profilePool}
+		coordinator, err := settlement.New(ctx, store, resilientProfile, prober, settlementPool, roomManager, async.Durable(), cfg.SettlementConcurrency, logger)
 		if err != nil {
 			return err
 		}

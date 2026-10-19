@@ -102,6 +102,11 @@ type publisher struct {
 	room, race string
 	ch         chan struct{}
 }
+type probeFunc func(context.Context, string) error
+
+func (f probeFunc) Probe(ctx context.Context, playerID string) error { return f(ctx, playerID) }
+
+var healthyProbe = probeFunc(func(context.Context, string) error { return nil })
 
 func (p *publisher) ConfirmSettlement(_ context.Context, room, race string) error {
 	p.mu.Lock()
@@ -196,7 +201,10 @@ func TestTransientDeadlineAndPermanentFailure(t *testing.T) {
 		err   error
 		want  string
 		state string
-	}{{"unavailable", &playerprofile.Fault{Kind: playerprofile.Unavailable, Code: "UNAVAILABLE"}, "UNAVAILABLE", "pending"}, {"deadline", context.DeadlineExceeded, "DEADLINE_EXCEEDED", "pending"}, {"conflict", &playerprofile.Fault{Kind: playerprofile.Business, Code: "CONFLICT"}, "CONFLICT", "failed"}} {
+	}{{"unavailable", &playerprofile.Fault{Kind: playerprofile.Unavailable, Code: "UNAVAILABLE"}, "UNAVAILABLE", "pending"},
+		{"deadline", context.DeadlineExceeded, "DEADLINE_EXCEEDED", "pending"},
+		{"system", &playerprofile.Fault{Kind: playerprofile.System, Code: "INTERNAL"}, "INTERNAL", "pending"},
+		{"conflict", &playerprofile.Fault{Kind: playerprofile.Business, Code: "CONFLICT"}, "CONFLICT", "failed"}} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := newStore()
 			d := delivery("a", "finished", 2)
@@ -240,7 +248,7 @@ func TestNewCoordinatorRecoversPendingAfterRestart(t *testing.T) {
 	failing := &playerprofile.Fake{SettleRaceFn: func(context.Context, playerprofile.SettlementCommand) (playerprofile.SettlementResult, error) {
 		return playerprofile.SettlementResult{}, &playerprofile.Fault{Kind: playerprofile.Unavailable, Code: "UNAVAILABLE"}
 	}}
-	first, err := New(root, store, failing, pool, nil, nil, 1, logger)
+	first, err := New(root, store, failing, healthyProbe, pool, nil, nil, 1, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +267,7 @@ func TestNewCoordinatorRecoversPendingAfterRestart(t *testing.T) {
 	succeeding := &playerprofile.Fake{SettleRaceFn: func(context.Context, playerprofile.SettlementCommand) (playerprofile.SettlementResult, error) {
 		return playerprofile.SettlementResult{Replayed: true}, nil
 	}}
-	second, err := New(root, store, succeeding, pool, pub, nil, 1, logger)
+	second, err := New(root, store, succeeding, healthyProbe, pool, pub, nil, 1, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
