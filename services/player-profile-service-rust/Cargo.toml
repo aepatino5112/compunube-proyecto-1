@@ -22,4 +22,4 @@ protoc-bin-vendored = "3"
 tonic-build = "0.12"
 
 [dev-dependencies]
-tokio = { version = "1.40", features = ["test-util"] }
+tokio = { version = "1.40", features = ["test-util", "io-util"] }

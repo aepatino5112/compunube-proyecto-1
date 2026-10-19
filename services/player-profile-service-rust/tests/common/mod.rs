@@ -284,3 +284,71 @@ pub async fn start_instance(url: &str) -> (Instance, PgPool) {
         pool,
     )
 }
+
+// ---- a TCP proxy to simulate losing and regaining the database -------------
+
+use std::{net::SocketAddr, str::FromStr};
+use tokio::{net::TcpStream, sync::watch};
+
+/// Forwards connections to PostgreSQL. `block()` drops every live connection
+/// and refuses new ones (as if the database vanished); `allow()` restores it.
+pub struct Proxy {
+    pub addr: SocketAddr,
+    blocked: watch::Sender<bool>,
+}
+
+impl Proxy {
+    pub async fn start(upstream: String) -> Proxy {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (blocked, _) = watch::channel(false);
+        let signal = blocked.clone();
+        tokio::spawn(async move {
+            while let Ok((mut inbound, _)) = listener.accept().await {
+                let mut state = signal.subscribe();
+                let upstream = upstream.clone();
+                tokio::spawn(async move {
+                    if *state.borrow() {
+                        return;
+                    }
+                    let Ok(mut outbound) = TcpStream::connect(&upstream).await else {
+                        return;
+                    };
+                    tokio::select! {
+                        _ = tokio::io::copy_bidirectional(&mut inbound, &mut outbound) => {}
+                        _ = async {
+                            while state.changed().await.is_ok() {
+                                if *state.borrow() {
+                                    break;
+                                }
+                            }
+                        } => {}
+                    }
+                });
+            }
+        });
+        Proxy { addr, blocked }
+    }
+
+    pub fn block(&self) {
+        // `send` would drop the value when no connection is subscribed.
+        self.blocked.send_replace(true);
+    }
+
+    pub fn allow(&self) {
+        self.blocked.send_replace(false);
+    }
+}
+
+/// `host:port` of the database named by the test URL.
+pub fn upstream_of(url: &str) -> String {
+    let options = sqlx::postgres::PgConnectOptions::from_str(url).unwrap();
+    format!("{}:{}", options.get_host(), options.get_port())
+}
+
+pub fn options_through(url: &str, proxy: &Proxy) -> sqlx::postgres::PgConnectOptions {
+    sqlx::postgres::PgConnectOptions::from_str(url)
+        .unwrap()
+        .host("127.0.0.1")
+        .port(proxy.addr.port())
+}

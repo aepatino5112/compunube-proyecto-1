@@ -2,7 +2,7 @@
 //! and never mutates anything:
 //!
 //! 1. `SELECT 1` proves the application credentials can run a query;
-//! 2. `public.schema_migrations` must contain the required version;
+//! 2. `public.schema_migrations` must contain the required version (`0002`);
 //! 3. every `player.*` table the service owns must exist.
 //!
 //! Failure reasons are fixed texts plus a SQLSTATE; driver messages are never
@@ -14,8 +14,11 @@ use sqlx::{pool::PoolConnection, PgPool, Postgres};
 use super::error::describe_sqlx_error;
 use crate::health::{ProbeFailure, ReadinessProbe};
 
-/// Migration version that creates the `player` schema (database/migrations).
-pub const REQUIRED_MIGRATION: &str = "0001";
+/// Latest migration the service needs (database/migrations): `0002` publishes
+/// the `online-v1` catalog, the characters and the rejection storage the
+/// economy relies on. It can only be applied after `0001`, which creates the
+/// `player` schema, so one version proves both.
+pub const REQUIRED_MIGRATION: &str = "0002";
 
 /// Tables of schema `player` defined by E41.
 pub const REQUIRED_PLAYER_TABLES: [&str; 9] = [
@@ -32,11 +35,22 @@ pub const REQUIRED_PLAYER_TABLES: [&str; 9] = [
 
 pub struct PostgresReadinessProbe {
     pool: PgPool,
+    required_migration: String,
 }
 
 impl PostgresReadinessProbe {
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self::with_required_migration(pool, REQUIRED_MIGRATION)
+    }
+
+    /// Probe that demands a specific migration version. Production code uses
+    /// [`PostgresReadinessProbe::new`]; this exists so tests can prove that a
+    /// missing migration keeps the instance `NOT_SERVING`.
+    pub fn with_required_migration(pool: PgPool, version: impl Into<String>) -> Self {
+        Self {
+            pool,
+            required_migration: version.into(),
+        }
     }
 }
 
@@ -64,7 +78,10 @@ fn query_failure(context: &str, error: &sqlx::Error) -> ProbeFailure {
     ProbeFailure::new(format!("{context}: {}", describe_sqlx_error(error)))
 }
 
-async fn run_checks(conn: &mut PoolConnection<Postgres>) -> Result<(), ProbeFailure> {
+async fn run_checks(
+    conn: &mut PoolConnection<Postgres>,
+    required_migration: &str,
+) -> Result<(), ProbeFailure> {
     sqlx::query("SELECT 1")
         .execute(&mut **conn)
         .await
@@ -73,13 +90,13 @@ async fn run_checks(conn: &mut PoolConnection<Postgres>) -> Result<(), ProbeFail
     let migrated: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM public.schema_migrations WHERE version = $1)",
     )
-    .bind(REQUIRED_MIGRATION)
+    .bind(required_migration)
     .fetch_one(&mut **conn)
     .await
     .map_err(|e| query_failure("schema migration check failed", &e))?;
     if !migrated {
         return Err(ProbeFailure::new(format!(
-            "migration {REQUIRED_MIGRATION} has not been applied"
+            "migration {required_migration} has not been applied"
         )));
     }
 
@@ -115,13 +132,18 @@ impl ReadinessProbe for PostgresReadinessProbe {
                 describe_sqlx_error(&error)
             ))
         })?;
-        run_checks(&mut conn).await
+        run_checks(&mut conn, &self.required_migration).await
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn readiness_requires_the_economy_migration() {
+        assert_eq!(REQUIRED_MIGRATION, "0002");
+    }
 
     #[test]
     fn required_tables_match_the_e41_player_schema() {

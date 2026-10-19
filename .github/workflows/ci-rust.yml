@@ -19,6 +19,22 @@ jobs:
     defaults:
       run:
         working-directory: services/player-profile-service-rust
+    # Real PostgreSQL for the DB-backed tests (migrated below). The credentials
+    # are throwaway values for this ephemeral service container only.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: compunube
+          POSTGRES_PASSWORD: compunube_ci
+          POSTGRES_DB: compunube
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U compunube -d compunube"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -29,5 +45,16 @@ jobs:
         run: cargo fmt --check
       - name: Clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: Migrate PostgreSQL (bootstrap schemas and database/migrations)
+        working-directory: .
+        env:
+          DATABASE_URL: postgresql://compunube:compunube_ci@localhost:5432/compunube
+        run: |
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f database/init/00-bootstrap.sql
+          sh database/scripts/migrate.sh
       - name: Test
+        env:
+          PLAYER_TEST_DATABASE_URL: postgresql://compunube:compunube_ci@localhost:5432/compunube
+          # A missing database must fail the job, never skip the DB tests.
+          PLAYER_TEST_REQUIRE_DB: "1"
         run: cargo test --locked
