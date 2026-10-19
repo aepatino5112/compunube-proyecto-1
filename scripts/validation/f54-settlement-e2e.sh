@@ -72,7 +72,7 @@ cleanup() {
   if [ "$FAILED" -gt 0 ] || [ "$code" -ne 0 ]; then
     for f in "${FAILURES[@]:-}"; do [ -n "$f" ] && log "  - $f"; done
     log "RESULT: FAIL"
-    exit 1
+    exit "$([ "$code" -ne 0 ] && echo "$code" || echo 1)"
   fi
   log "RESULT: PASS"
 }
@@ -230,7 +230,10 @@ expect "last_error_code of G is UNAVAILABLE" "UNAVAILABLE" "$(sql -c "SELECT las
 expect "no player.settlements row exists yet for G" "0" "$(settlements_rows "$RACE_OUT" "$G")"
 # Quiesce Envoy's counter (in-flight attempts finished) before measuring the breaker.
 prev=-1; cur=$(envoy_rq_total)
-while [ "$prev" != "$cur" ]; do sleep 0.4; prev=$cur; cur=$(envoy_rq_total); done
+for _ in $(seq 1 75); do
+  [ "$prev" = "$cur" ] && break
+  sleep 0.4; prev=$cur; cur=$(envoy_rq_total)
+done
 rq_before=$cur
 not503=0; slowreads=0
 for _ in 1 2 3 4 5 6 7 8 9 10; do
