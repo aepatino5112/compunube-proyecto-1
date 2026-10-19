@@ -17,6 +17,7 @@ const MAX_HEAD_BYTES: usize = 8 * 1024;
 const HEAD_TIMEOUT: Duration = Duration::from_secs(5);
 /// How long connections already being served may finish after the stop signal.
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(2);
+const ACCEPT_ERROR_BACKOFF: Duration = Duration::from_millis(100);
 
 /// Serves `GET /metrics` on `listener` until `stop` resolves. Connections are
 /// answered one request each (`Connection: close`); Prometheus reconnects on
@@ -34,6 +35,8 @@ pub async fn serve<S: Future<Output = ()>>(listener: TcpListener, metrics: Arc<M
                 Err(error) => {
                     // Typically EMFILE: log and keep serving instead of exiting.
                     tracing::warn!(%error, "metrics listener failed to accept a connection");
+                    // Back off so a persistent failure cannot spin the loop and flood the log.
+                    tokio::time::sleep(ACCEPT_ERROR_BACKOFF).await;
                 }
             },
             Some(_) = connections.join_next(), if !connections.is_empty() => {}
