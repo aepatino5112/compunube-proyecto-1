@@ -10,17 +10,27 @@ pub fn map_sqlx_error(error: &Error) -> RepositoryError {
         Error::Io(_) | Error::Tls(_) | Error::PoolClosed | Error::WorkerCrashed => {
             RepositoryError::Unavailable
         }
-        Error::Database(db) => match db.code().as_deref() {
-            // too_many_connections
-            Some("53300") => RepositoryError::PoolExhausted,
-            // connection_exception class, admin_shutdown / crash_shutdown /
-            // cannot_connect_now
-            Some(code) if code.starts_with("08") || matches!(code, "57P01" | "57P02" | "57P03") => {
-                RepositoryError::Unavailable
-            }
-            _ => RepositoryError::Unexpected(describe_sqlx_error(error)),
-        },
+        Error::Database(db) => classify_sqlstate(db.code().as_deref())
+            .unwrap_or_else(|| RepositoryError::Unexpected(describe_sqlx_error(error))),
         other => RepositoryError::Unexpected(describe_sqlx_error(other)),
+    }
+}
+
+/// SQLSTATE classes that mean "try again later" rather than "bug".
+fn classify_sqlstate(code: Option<&str>) -> Option<RepositoryError> {
+    match code? {
+        // too_many_connections
+        "53300" => Some(RepositoryError::PoolExhausted),
+        // connection_exception class, admin_shutdown / crash_shutdown /
+        // cannot_connect_now, and the retryable transaction aborts
+        // serialization_failure / deadlock_detected (the request is
+        // idempotent, so the caller may retry).
+        code if code.starts_with("08")
+            || matches!(code, "57P01" | "57P02" | "57P03" | "40001" | "40P01") =>
+        {
+            Some(RepositoryError::Unavailable)
+        }
+        _ => None,
     }
 }
 
@@ -57,6 +67,26 @@ mod tests {
             map_sqlx_error(&Error::PoolClosed),
             RepositoryError::Unavailable
         );
+    }
+
+    #[test]
+    fn sqlstates_are_classified_by_retryability() {
+        assert_eq!(
+            classify_sqlstate(Some("53300")),
+            Some(RepositoryError::PoolExhausted)
+        );
+        for code in ["08006", "57P01", "40001", "40P01"] {
+            assert_eq!(
+                classify_sqlstate(Some(code)),
+                Some(RepositoryError::Unavailable),
+                "{code}"
+            );
+        }
+        // constraint violations are bugs, not retryable conditions
+        for code in ["23505", "23514", "23503"] {
+            assert_eq!(classify_sqlstate(Some(code)), None, "{code}");
+        }
+        assert_eq!(classify_sqlstate(None), None);
     }
 
     #[test]

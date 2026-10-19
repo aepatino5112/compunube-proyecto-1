@@ -2,11 +2,17 @@ use std::sync::Arc;
 
 use tonic::{Request, Response, Status};
 
-use super::error::status_from;
+use super::{
+    error::status_from,
+    mapping::{
+        catalog_to_pb, decode_material, decode_outcome, mutation_response, profile_to_pb,
+        settlement_response,
+    },
+};
 use crate::{
     application::{
-        ExchangeMaterialsCommand, GetCatalogCommand, GetProfileCommand, ItemCommand,
-        PlayerProfileApp, SetAppearanceCommand, SettleRaceCommand,
+        ApplicationError, ExchangeMaterialsCommand, GetCatalogCommand, GetProfileCommand,
+        ItemCommand, MutationResult, PlayerProfileApp, SetAppearanceCommand, SettleRaceCommand,
     },
     pb::{
         player_profile_service_server::{PlayerProfileService, PlayerProfileServiceServer},
@@ -64,17 +70,13 @@ impl From<EquipItemRequest> for ItemCommand {
     }
 }
 
-/// Success is `Infallible` until F52, so the `Ok` arm cannot be reached; this
-/// keeps the handlers exhaustive without inventing responses.
-// `Status` is the error type mandated by the generated tonic trait.
 #[allow(clippy::result_large_err)]
-fn respond<T>(
-    result: Result<std::convert::Infallible, crate::application::ApplicationError>,
-) -> Result<Response<T>, Status> {
-    match result {
-        Ok(never) => match never {},
-        Err(error) => Err(status_from(&error)),
-    }
+fn respond_mutation(
+    result: Result<MutationResult, ApplicationError>,
+) -> Result<Response<ProfileMutationResponse>, Status> {
+    result
+        .map(|result| Response::new(mutation_response(result)))
+        .map_err(|error| status_from(&error))
 }
 
 #[tonic::async_trait]
@@ -86,7 +88,15 @@ impl PlayerProfileService for PlayerProfileGrpc {
         let command = GetProfileCommand {
             player_id: request.into_inner().player_id,
         };
-        respond(self.app.get_profile(command).await)
+        self.app
+            .get_profile(command)
+            .await
+            .map(|profile| {
+                Response::new(GetProfileResponse {
+                    profile: Some(profile_to_pb(&profile)),
+                })
+            })
+            .map_err(|error| status_from(&error))
     }
 
     async fn get_catalog(
@@ -96,21 +106,25 @@ impl PlayerProfileService for PlayerProfileGrpc {
         let command = GetCatalogCommand {
             catalog_version: request.into_inner().catalog_version,
         };
-        respond(self.app.get_catalog(command).await)
+        self.app
+            .get_catalog(command)
+            .await
+            .map(|catalog| Response::new(catalog_to_pb(&catalog)))
+            .map_err(|error| status_from(&error))
     }
 
     async fn buy_item(
         &self,
         request: Request<BuyItemRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        respond(self.app.buy_item(request.into_inner().into()).await)
+        respond_mutation(self.app.buy_item(request.into_inner().into()).await)
     }
 
     async fn craft_item(
         &self,
         request: Request<CraftItemRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        respond(self.app.craft_item(request.into_inner().into()).await)
+        respond_mutation(self.app.craft_item(request.into_inner().into()).await)
     }
 
     async fn exchange_materials(
@@ -118,21 +132,22 @@ impl PlayerProfileService for PlayerProfileGrpc {
         request: Request<ExchangeMaterialsRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
         let r = request.into_inner();
+        let material = decode_material(r.material).map_err(|error| status_from(&error))?;
         let command = ExchangeMaterialsCommand {
             player_id: r.player_id,
             request_id: r.request_id,
             catalog_version: r.catalog_version,
-            material: r.material,
+            material,
             amount: r.amount,
         };
-        respond(self.app.exchange_materials(command).await)
+        respond_mutation(self.app.exchange_materials(command).await)
     }
 
     async fn equip_item(
         &self,
         request: Request<EquipItemRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        respond(self.app.equip_item(request.into_inner().into()).await)
+        respond_mutation(self.app.equip_item(request.into_inner().into()).await)
     }
 
     async fn set_appearance(
@@ -147,7 +162,7 @@ impl PlayerProfileService for PlayerProfileGrpc {
             skin_id: r.skin_id,
             hair_color_id: r.hair_color_id,
         };
-        respond(self.app.set_appearance(command).await)
+        respond_mutation(self.app.set_appearance(command).await)
     }
 
     async fn settle_race(
@@ -155,13 +170,18 @@ impl PlayerProfileService for PlayerProfileGrpc {
         request: Request<SettleRaceRequest>,
     ) -> Result<Response<SettleRaceResponse>, Status> {
         let r = request.into_inner();
+        let outcome = decode_outcome(r.outcome).map_err(|error| status_from(&error))?;
         let command = SettleRaceCommand {
             race_id: r.race_id,
             player_id: r.player_id,
-            outcome: r.outcome,
+            outcome,
             credited_plastic: r.credited_plastic,
             credited_metal: r.credited_metal,
         };
-        respond(self.app.settle_race(command).await)
+        self.app
+            .settle_race(command)
+            .await
+            .map(|result| Response::new(settlement_response(result)))
+            .map_err(|error| status_from(&error))
     }
 }

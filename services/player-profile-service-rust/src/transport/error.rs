@@ -12,12 +12,6 @@ use crate::application::ApplicationError;
 
 pub fn status_from(error: &ApplicationError) -> Status {
     match error {
-        // Transitional (F47): E43 has no code for "not built yet"; UNIMPLEMENTED
-        // is the standard gRPC answer and is removed together with the seams.
-        ApplicationError::NotImplemented(operation) => Status::new(
-            Code::Unimplemented,
-            format!("{operation} is not implemented yet"),
-        ),
         ApplicationError::InvalidArgument(message) => {
             Status::new(Code::InvalidArgument, message.clone())
         }
@@ -57,10 +51,6 @@ mod tests {
             (ApplicationError::ResourceExhausted, Code::ResourceExhausted),
             (ApplicationError::Unavailable, Code::Unavailable),
             (ApplicationError::Internal("x".into()), Code::Internal),
-            (
-                ApplicationError::NotImplemented("BuyItem"),
-                Code::Unimplemented,
-            ),
         ];
         for (error, code) in cases {
             assert_eq!(status_from(&error).code(), code, "{error}");

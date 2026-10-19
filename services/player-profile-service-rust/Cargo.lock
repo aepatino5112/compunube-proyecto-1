@@ -955,6 +955,7 @@ dependencies = [
  "prost",
  "protoc-bin-vendored",
  "serde_json",
+ "sha2",
  "sqlx",
  "tokio",
  "tokio-stream",

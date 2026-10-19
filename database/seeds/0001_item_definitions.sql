@@ -1,4 +1,4 @@
--- IDs/types verified in apps/web/dist/economy.js. No online catalog version or prices are inferred.
+-- IDs/types verified in apps/web/dist/economy.js. The online catalog and the 4 characters are published by migration 0002, not by this seed.
 BEGIN;
 INSERT INTO player.item_definitions (item_id, item_type) VALUES
   ('coral','board'), ('manglar','board'), ('sol','board'),

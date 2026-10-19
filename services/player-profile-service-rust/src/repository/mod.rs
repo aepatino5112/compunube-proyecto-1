@@ -1,5 +1,10 @@
 //! Repository ports (D29). The application layer depends only on these traits;
 //! every SQL statement lives in [`postgres`].
+//!
+//! Money-moving use cases run inside one [`EconomyTransaction`]:
+//! `begin` -> `lock_profile` -> idempotency lookup -> validate (domain) ->
+//! `apply_effect` -> `record_operation` -> `commit`. Dropping a transaction
+//! without committing rolls everything back.
 
 pub mod postgres;
 
@@ -7,14 +12,14 @@ use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
 
-use crate::domain::{CatalogVersion, EconomicOperationRecord, PlayerProfile, SettlementRecord};
+use crate::domain::{
+    settlement::Credit, Catalog, EconomicOperationRecord, Effect, ProfileState, SettlementRecord,
+};
 
 /// Storage failure categories. Details stay server-side; they never reach the
 /// gRPC status (see `transport::error`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RepositoryError {
-    /// Port exists but its adapter is delivered by F52.
-    NotImplemented(&'static str),
     /// Storage is not reachable or not configured.
     Unavailable,
     /// Connection pool or database capacity is saturated.
@@ -29,7 +34,6 @@ pub enum RepositoryError {
 impl fmt::Display for RepositoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotImplemented(what) => write!(f, "{what} is not implemented"),
             Self::Unavailable => f.write_str("storage unavailable"),
             Self::PoolExhausted => f.write_str("storage capacity exhausted"),
             Self::Timeout => f.write_str("storage timeout"),
@@ -40,42 +44,84 @@ impl fmt::Display for RepositoryError {
 
 impl std::error::Error for RepositoryError {}
 
-#[async_trait]
-pub trait PlayerProfileRepository: Send + Sync {
-    async fn find_profile(&self, player_id: &str)
-        -> Result<Option<PlayerProfile>, RepositoryError>;
+/// Row lock taken on the profile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LockMode {
+    /// `FOR UPDATE`: serializes every mutation of the same player, across
+    /// replicas.
+    Update,
+    /// `FOR SHARE`: a consistent read that does not block other readers but
+    /// waits for an in-flight mutation.
+    Share,
 }
 
-#[async_trait]
-pub trait InventoryRepository: Send + Sync {
-    async fn list_owned_item_ids(&self, player_id: &str) -> Result<Vec<String>, RepositoryError>;
-}
-
+/// Read access to published catalogs outside a transaction.
 #[async_trait]
 pub trait CatalogRepository: Send + Sync {
-    /// `None` selects the active catalog version.
-    async fn find_catalog_version(
-        &self,
-        catalog_version: Option<&str>,
-    ) -> Result<Option<CatalogVersion>, RepositoryError>;
+    /// `None` selects the active version. Only published versions are visible.
+    async fn find_catalog(&self, version: Option<&str>)
+        -> Result<Option<Catalog>, RepositoryError>;
 }
 
 #[async_trait]
-pub trait EconomicOperationRepository: Send + Sync {
+pub trait TransactionManager: Send + Sync {
+    async fn begin(&self) -> Result<Box<dyn EconomyTransaction>, RepositoryError>;
+}
+
+/// One database transaction over the `player` schema.
+#[async_trait]
+pub trait EconomyTransaction: Send {
+    /// Locks the player's profile and returns its full state, provisioning the
+    /// profile first when it does not exist (E7). Concurrent provisioning of
+    /// the same player is safe.
+    async fn lock_profile(
+        &mut self,
+        player_id: &str,
+        mode: LockMode,
+    ) -> Result<ProfileState, RepositoryError>;
+
     async fn find_operation(
-        &self,
+        &mut self,
         player_id: &str,
         request_id: &str,
     ) -> Result<Option<EconomicOperationRecord>, RepositoryError>;
-}
 
-#[async_trait]
-pub trait SettlementRepository: Send + Sync {
     async fn find_settlement(
-        &self,
+        &mut self,
         race_id: &str,
         player_id: &str,
     ) -> Result<Option<SettlementRecord>, RepositoryError>;
+
+    /// A published catalog version, or `None` when unknown or unpublished.
+    async fn find_catalog(&mut self, version: &str) -> Result<Option<Catalog>, RepositoryError>;
+
+    /// Applies an accepted mutation and advances the revision by one; returns
+    /// the new revision.
+    async fn apply_effect(
+        &mut self,
+        player_id: &str,
+        effect: &Effect,
+    ) -> Result<u64, RepositoryError>;
+
+    /// Adds settled materials and advances the revision by one; returns the
+    /// new revision.
+    async fn credit_materials(
+        &mut self,
+        player_id: &str,
+        credit: Credit,
+    ) -> Result<u64, RepositoryError>;
+
+    async fn record_operation(
+        &mut self,
+        operation: &EconomicOperationRecord,
+    ) -> Result<(), RepositoryError>;
+
+    async fn record_settlement(
+        &mut self,
+        settlement: &SettlementRecord,
+    ) -> Result<(), RepositoryError>;
+
+    async fn commit(self: Box<Self>) -> Result<(), RepositoryError>;
 }
 
 /// A resource released at the end of the shutdown sequence (e.g. DB pools).
@@ -87,11 +133,8 @@ pub trait Closeable: Send + Sync {
 /// The set of ports handed to the application layer.
 #[derive(Clone)]
 pub struct Repositories {
-    pub profiles: Arc<dyn PlayerProfileRepository>,
-    pub inventory: Arc<dyn InventoryRepository>,
     pub catalog: Arc<dyn CatalogRepository>,
-    pub operations: Arc<dyn EconomicOperationRepository>,
-    pub settlements: Arc<dyn SettlementRepository>,
+    pub transactions: Arc<dyn TransactionManager>,
 }
 
 impl Repositories {
@@ -101,11 +144,8 @@ impl Repositories {
     pub fn unavailable() -> Self {
         let unavailable = Arc::new(Unavailable);
         Self {
-            profiles: unavailable.clone(),
-            inventory: unavailable.clone(),
             catalog: unavailable.clone(),
-            operations: unavailable.clone(),
-            settlements: unavailable,
+            transactions: unavailable,
         }
     }
 }
@@ -113,47 +153,15 @@ impl Repositories {
 struct Unavailable;
 
 #[async_trait]
-impl PlayerProfileRepository for Unavailable {
-    async fn find_profile(&self, _: &str) -> Result<Option<PlayerProfile>, RepositoryError> {
-        Err(RepositoryError::Unavailable)
-    }
-}
-
-#[async_trait]
-impl InventoryRepository for Unavailable {
-    async fn list_owned_item_ids(&self, _: &str) -> Result<Vec<String>, RepositoryError> {
-        Err(RepositoryError::Unavailable)
-    }
-}
-
-#[async_trait]
 impl CatalogRepository for Unavailable {
-    async fn find_catalog_version(
-        &self,
-        _: Option<&str>,
-    ) -> Result<Option<CatalogVersion>, RepositoryError> {
+    async fn find_catalog(&self, _: Option<&str>) -> Result<Option<Catalog>, RepositoryError> {
         Err(RepositoryError::Unavailable)
     }
 }
 
 #[async_trait]
-impl EconomicOperationRepository for Unavailable {
-    async fn find_operation(
-        &self,
-        _: &str,
-        _: &str,
-    ) -> Result<Option<EconomicOperationRecord>, RepositoryError> {
-        Err(RepositoryError::Unavailable)
-    }
-}
-
-#[async_trait]
-impl SettlementRepository for Unavailable {
-    async fn find_settlement(
-        &self,
-        _: &str,
-        _: &str,
-    ) -> Result<Option<SettlementRecord>, RepositoryError> {
+impl TransactionManager for Unavailable {
+    async fn begin(&self) -> Result<Box<dyn EconomyTransaction>, RepositoryError> {
         Err(RepositoryError::Unavailable)
     }
 }
@@ -165,16 +173,12 @@ mod tests {
     #[tokio::test]
     async fn unavailable_ports_fail_closed() {
         let repos = Repositories::unavailable();
-        assert_eq!(
-            repos.profiles.find_profile("p").await,
+        assert!(matches!(
+            repos.transactions.begin().await,
             Err(RepositoryError::Unavailable)
-        );
+        ));
         assert_eq!(
-            repos.settlements.find_settlement("r", "p").await,
-            Err(RepositoryError::Unavailable)
-        );
-        assert_eq!(
-            repos.catalog.find_catalog_version(None).await,
+            repos.catalog.find_catalog(None).await,
             Err(RepositoryError::Unavailable)
         );
     }

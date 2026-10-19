@@ -227,20 +227,71 @@ D29 se considera implementable si el siguiente comportamiento puede demostrarse 
 
 La topología física y los puertos finales pertenecen a D31; esta validación puede realizarse primero en el entorno local/Compose.
 
-## Estado de implementación (F47)
+## Estado de implementación (F47 + F52)
 
-F47 convierte el scaffold en la base modular del servicio. **No implementa reglas de economía ni de perfil**: esas pertenecen a F52. Las ocho RPC de `compunube.player.v1` existen como *seams* transitorios que responden `UNIMPLEMENTED`; el `Ok` de los casos de uso es `Infallible` hasta que F52 defina resultados reales.
+F47 dejó la base modular del servicio; **F52 implementa las ocho RPC de `compunube.player.v1`** (`GetProfile`, `GetCatalog`, `BuyItem`, `CraftItem`, `ExchangeMaterials`, `EquipItem`, `SetAppearance`, `SettleRace`) sobre `player.*`. Los *seams* `UNIMPLEMENTED` y el `Infallible` de F47 ya no existen.
 
 | Módulo (`services/player-profile-service-rust/src`) | Capa D29 | Contenido actual |
 | --- | --- | --- |
-| `transport/` | Transporte/adaptadores | Servicio Tonic generado desde `proto/player_profile.proto` en `build.rs` (sin stubs versionados) y mapeo de errores E43. Sin reglas de negocio. |
-| `application/` | Aplicación | Un caso de uso por RPC; depende solo de los puertos de repositorio. |
-| `domain/` | Dominio | Registros persistentes de E41; los invariantes económicos llegan con F52. |
-| `repository/` | Puertos | `PlayerProfileRepository`, `InventoryRepository`, `CatalogRepository`, `EconomicOperationRepository`, `SettlementRepository`. |
-| `repository/postgres/` | Adaptador PostgreSQL | Pools `sqlx` perezosos, sondeo de readiness y esqueleto de adaptadores. **Único lugar con SQL**; solo `player.*` más lectura de `public.schema_migrations`; nunca `match.*`. Consultas en tiempo de ejecución, sin macros de compilación. |
+| `transport/` | Transporte/adaptadores | Servicio Tonic generado desde `proto/player_profile.proto` (`build.rs`, sin stubs versionados). `mapping.rs`: traducción pura mensaje <-> tipos de aplicación y decodificación de enums (`UNSPECIFIED`/desconocido -> `INVALID_ARGUMENT`). `error.rs`: tabla de estados E43. Sin reglas de negocio. |
+| `application/` | Aplicación | Un caso de uso por RPC. Valida la forma de la petición y orquesta una transacción por operación a través de los puertos; los rechazos de negocio son resultados (`MutationOutcome`, `SettlementOutcome`), no errores. |
+| `domain/` | Dominio | Reglas puras y sin I/O: catálogo (`catalog`), economía (`economy`: compra, craft, canje, equipar, apariencia), apariencia (`appearance`), huellas (`fingerprint`), liquidación (`settlement`), aprovisionamiento (`provisioning`) y validación estructural (`validation`). |
+| `repository/` | Puertos | `CatalogRepository`, `TransactionManager` y `EconomyTransaction` (bloqueo de perfil, búsqueda de operación/liquidación, catálogo, aplicar efecto, registrar, `commit`). Descartar la transacción sin `commit` hace rollback. |
+| `repository/postgres/` | Adaptador PostgreSQL | Pools `sqlx` perezosos, sondeo de readiness y todo el SQL. **Único lugar con SQL**; solo `player.*` más lectura de `public.schema_migrations`; nunca `match.*`. Consultas en tiempo de ejecución, sin macros de compilación. |
 | `health.rs`, `runtime.rs` | Ciclo de vida | Bucle de sondeo, estado `player_profile` y apagado ordenado. |
 
 Pruebas estructurales (`tests/architecture.rs`) verifican que `application`, `domain` y `transport` no dependan de SQL y que ninguna fuente referencie el schema `match`.
+
+### Reglas de economía (catálogo `online-v1`)
+
+Los valores salen de `apps/web/dist/economy.js` y `appearance.js` y los publica la migración `0002` (ver [E41](postgresql-schema.md) y [`database/README.md`](../../database/README.md)); no se inventa ninguno.
+
+- **Perfil inicial (aprovisionamiento perezoso):** cualquier RPC salvo `GetCatalog` crea el perfil en una transacción si no existe: monedas/plástico/metal en 0, `profile_revision = 1`, 12 objetos base (`coral`, `costero`, `red-base`, los 5 peinados y los 4 personajes, `acquisition_type = 'base'`), 5 ranuras equipadas (`coral`, `costero`, `red-base`, `swept`, `nico`) y apariencia `medium`/`brown`. El aprovisionamiento concurrente es idempotente (`ON CONFLICT DO NOTHING` + relectura).
+- **Compra:** solo si el catálogo da precio y no hay receta; **craft:** solo objetos con receta (las redes). Nada queda negativo (dominio + `CHECK`).
+- **Canje:** 4 monedas por plástico y 6 por metal. No tiene tabla: son constantes del dominio ligadas a `online-v1`. Cantidad 0, `>= 1e9` o material `UNSPECIFIED` -> `INVALID_ARGUMENT`.
+- **Equipar:** solo objetos poseídos y en la ranura de su propio tipo; equipar un personaje fija además su peinado y apariencia (como `economy.js`). Equipar lo ya equipado se aplica.
+- **Apariencia:** 5 tonos de piel y 6 colores de cabello (constantes). Un valor fuera de la lista -> `INVALID_APPEARANCE`.
+- **Orden de rechazo:** `INVALID_CATALOG_VERSION` -> `INVALID_ITEM` -> `ALREADY_OWNED`/`NOT_OWNED` -> `INVALID_ACTION` -> `INSUFFICIENT_COINS`/`INSUFFICIENT_MATERIALS`. Una versión de catálogo sin publicar, desconocida o vacía es `INVALID_CATALOG_VERSION`.
+- **Revisión:** `+1` en cada mutación aplicada (también equipar/apariencia sin cambio efectivo) y en cada liquidación con crédito > 0; rechazos, replays y liquidaciones de crédito 0 no la mueven.
+- **Catálogo:** `GetCatalog` vacío devuelve la versión activa (`online-v1`); una versión inexistente o sin publicar es `NOT_FOUND`. Los objetos salen en un orden determinista (tipo, precio, receta, id) y `metadata` ordenada por clave.
+
+### Transacciones e idempotencia
+
+Cada mutación y cada liquidación es una única transacción:
+
+1. `BEGIN`;
+2. `SELECT ... FOR UPDATE` del perfil (aprovisionándolo si hace falta): serializa a **todas** las mutaciones del mismo jugador, también entre réplicas;
+3. búsqueda de la operación `(player_id, request_id)` (o la liquidación `(race_id, player_id)`) **bajo ese bloqueo**, de modo que dos réplicas con el mismo identificador se serializan y la segunda encuentra el registro de la primera;
+4. validación con reglas de dominio contra una versión de catálogo;
+5. aplicar efecto, incrementar la revisión y registrar el resultado (`economic_operations` / `settlements`);
+6. `COMMIT`.
+
+Duplicados:
+
+| Caso | Resultado |
+| --- | --- |
+| mismo `request_id`, mismo payload | `replayed = true`, sin efecto adicional; el perfil devuelto es el actual (no se guarda una foto por operación). |
+| mismo `request_id`, payload distinto (la huella incluye la operación, la versión de catálogo y los campos) | rechazo `IDEMPOTENCY_CONFLICT`; el registro original no se toca ni se guarda nada nuevo. |
+| petición rechazada y repetida | el mismo rechazo con `replayed = true` aunque el estado haya cambiado (`economic_operations.rejection_code`, migración `0002`). |
+| liquidación repetida | `replayed = true`; datos distintos para el mismo `(race_id, player_id)` -> `CONFLICT`. |
+| liquidación no `finished` con crédito > 0 | `INVALID_SETTLEMENT` (no se guarda; la clave puede reutilizarse con datos válidos). `disqualified`/`left`/`dnf` con crédito 0 se registran sin tocar saldos ni revisión. |
+
+La huella es SHA-256 hexadecimal de líneas canónicas `campo=<longitud>:<valor>` (el prefijo de longitud impide colisiones por fronteras entre campos). Las constraints (`PK`, `CHECK >= 0`, FK de equipamiento) siguen siendo la última defensa.
+
+Errores de sistema: `INVALID_ARGUMENT` (ids vacíos, de más de 128 bytes o con caracteres de control, enums `UNSPECIFIED`, cantidades fuera de rango), `NOT_FOUND` (versión de catálogo inexistente en `GetCatalog`), `UNAVAILABLE`/`RESOURCE_EXHAUSTED`/`DEADLINE_EXCEEDED`/`INTERNAL` según el fallo de PostgreSQL (incluye `serialization_failure`/`deadlock_detected` como reintentables) sin filtrar SQL.
+
+### Pruebas con PostgreSQL
+
+Las pruebas de base de datos (`tests/db_*.rs`, `economy_*.rs`, `grpc_economy.rs`, `two_instances.rs`) usan `PLAYER_TEST_DATABASE_URL`, que debe apuntar a una base migrada con `database/scripts/migrate.sh` (usan ids únicos por prueba y no dependen del orden). Sin la variable se omiten con un aviso visible; con `PLAYER_TEST_REQUIRE_DB=1` su ausencia falla (CI lo fija). En local:
+
+```bash
+POSTGRES_PORT=55433 docker compose -p compunube-f52-test up -d postgres --wait
+DATABASE_URL=postgresql://compunube:compunube_dev@127.0.0.1:55433/compunube sh database/scripts/migrate.sh
+PLAYER_TEST_DATABASE_URL=postgresql://compunube:compunube_dev@127.0.0.1:55433/compunube cargo test --locked
+docker compose -p compunube-f52-test down -v
+```
+
+`ci-rust.yml` levanta un servicio PostgreSQL, aplica `database/init/00-bootstrap.sql` y las migraciones y ejecuta `cargo test --locked` con esa base. Cubren, entre otras cosas: perfil inicial, catálogo, las cinco mutaciones y la liquidación, replay/conflicto/rechazo repetido, concurrencia sobre el mismo perfil, dos instancias con pools distintos, reinicio y salud al perder y recuperar la base.
 
 ### Configuración
 
@@ -259,17 +310,15 @@ Un valor numérico inválido detiene el arranque. Un `DATABASE_URL` ausente o in
 ### Ciclo de vida
 
 1. `player_profile` (y el nombre vacío) arrancan en `NOT_SERVING`.
-2. Un bucle de fondo usa un pool aislado de una conexión, distinto del pool de negocio, y comprueba `SELECT 1`, la versión `0001` en `public.schema_migrations` y las nueve tablas `player.*`. Pasa a `SERVING` solo si todo cumple, vuelve a `NOT_SERVING` ante cualquier fallo o timeout y se recupera solo; por eso una réplica levantada antes de migrar se vuelve `SERVING` después de `migrate.sh` sin reiniciar.
+2. Un bucle de fondo usa un pool aislado de una conexión, distinto del pool de negocio, y comprueba `SELECT 1`, la versión `0002` en `public.schema_migrations` (publica el catálogo `online-v1` y el almacenamiento de rechazos; requiere `0001`) y las nueve tablas `player.*`. Pasa a `SERVING` solo si todo cumple, vuelve a `NOT_SERVING` ante cualquier fallo o timeout y se recupera solo; por eso una réplica levantada antes de migrar se vuelve `SERVING` después de `migrate.sh` sin reiniciar.
 3. Ante SIGTERM o SIGINT: se publica `NOT_SERVING` (los sondeos posteriores se ignoran), se dejan de aceptar conexiones nuevas, las RPC en curso terminan dentro de `SHUTDOWN_DRAIN_TIMEOUT_MS` y por último se cierran los pools.
 
 Los logs son JSON (`tracing`); `service=player-profile-service` e `instance_id` viajan en el span raíz (`span.service`, `span.instance_id`) y ninguna línea incluye credenciales.
 
-### Pendiente para F52
+### Pendiente
 
-- SQL real de los adaptadores y transacciones atómicas/idempotentes.
-- Casos de uso, invariantes de dominio y mapeo de resultados/rechazos del contrato.
-- Publicación del catálogo con versión activa.
-- Deadlines/correlación por operación y métricas de deduplicación/settlement.
+- Deadlines/correlación propagados por operación y métricas de deduplicación/settlement (hoy cada resolución se registra como línea de log con `operation`, `player_id`, `request_id`/`race_id`, resultado y `replayed`).
+- Credenciales LOGIN separadas por rol runtime (H62) y TLS hacia PostgreSQL cuando haya un requisito concreto.
 
 ## Límites de D29
 
