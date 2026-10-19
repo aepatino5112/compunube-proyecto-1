@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/inputmailbox"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/matchstore"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/race"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomruntime"
 )
@@ -111,6 +112,7 @@ type Manager struct {
 	runtime               *roomruntime.Manager
 	verifier              Verifier
 	inputSlots, jumpEdges int
+	recorder              interface{ Offer(matchstore.Record) }
 }
 type inputGateway struct {
 	raceID  string
@@ -122,7 +124,10 @@ type entry struct {
 	handle *roomruntime.Handle
 }
 
-type Options struct{ InputSlots, JumpEdges int }
+type Options struct {
+	InputSlots, JumpEdges int
+	Recorder              interface{ Offer(matchstore.Record) }
+}
 
 func NewManager(runtime *roomruntime.Manager, verifier Verifier, options ...Options) *Manager {
 	opts := Options{InputSlots: 4, JumpEdges: 4}
@@ -132,7 +137,7 @@ func NewManager(runtime *roomruntime.Manager, verifier Verifier, options ...Opti
 	if opts.InputSlots <= 0 || opts.JumpEdges <= 0 {
 		panic("invalid room input options")
 	}
-	return &Manager{rooms: map[string]*entry{}, runtime: runtime, verifier: verifier, inputSlots: opts.InputSlots, jumpEdges: opts.JumpEdges}
+	return &Manager{rooms: map[string]*entry{}, runtime: runtime, verifier: verifier, inputSlots: opts.InputSlots, jumpEdges: opts.JumpEdges, recorder: opts.Recorder}
 }
 func validMap(id string) bool           { return id == "maracaibo" || id == "orinoco" }
 func courseVersion(mapID string) string { return mapID + "-surf-mvp-1" }
@@ -152,11 +157,21 @@ func (m *Manager) Create(ctx context.Context, mapID, playerID string) (Membershi
 	if err != nil {
 		return Membership{}, err
 	}
-	r := &room{id: id, mapID: mapID, state: Lobby, members: map[string]*Member{}, sinks: map[string]Sink{}, inputSlots: m.inputSlots, jumpEdges: m.jumpEdges}
+	createdAt := time.Now()
+	r := &room{id: id, mapID: mapID, state: Lobby, members: map[string]*Member{}, sinks: map[string]Sink{}, inputSlots: m.inputSlots, jumpEdges: m.jumpEdges, recorder: m.recorder, createdAt: createdAt}
 	m.mu.Lock()
 	h, err := m.runtime.Start(id, r)
 	if err == nil {
-		r.close = func() { h.Cancel(); m.mu.Lock(); delete(m.rooms, id); m.mu.Unlock() }
+		r.close = func() {
+			if r.recorder != nil {
+				now := time.Now()
+				r.recorder.Offer(matchstore.Record{RoomID: r.id, MapID: r.mapID, CreatedAt: r.createdAt, ClosedAt: &now})
+			}
+			h.Cancel()
+			m.mu.Lock()
+			delete(m.rooms, id)
+			m.mu.Unlock()
+		}
 		m.rooms[id] = &entry{r, h}
 	}
 	m.mu.Unlock()
@@ -169,6 +184,9 @@ func (m *Manager) Create(ctx context.Context, mapID, playerID string) (Membershi
 		delete(m.rooms, id)
 		m.mu.Unlock()
 		return Membership{}, err
+	}
+	if m.recorder != nil {
+		m.recorder.Offer(matchstore.Record{RoomID: id, MapID: mapID, CreatedAt: createdAt})
 	}
 	return Membership{id, mapID, Lobby, playerID}, nil
 }
@@ -301,6 +319,8 @@ type room struct {
 	race                  *race.Race
 	gateway               atomic.Pointer[inputGateway]
 	inputSlots, jumpEdges int
+	recorder              interface{ Offer(matchstore.Record) }
+	createdAt             time.Time
 }
 type join struct{ playerID string }
 type leave struct{ playerID string }
@@ -515,6 +535,7 @@ func (r *room) HandleTick(_ context.Context, t roomruntime.Tick) {
 			p.ParticipantState = "racing"
 		}
 		r.gateway.Store(&inputGateway{raceID: id, roster: admitted, mailbox: inputmailbox.New(r.inputSlots, r.jumpEdges)})
+		r.recordRace()
 		r.publish()
 		start := engine.StartMessage()
 		for _, sink := range r.sinks {
@@ -555,6 +576,7 @@ func (r *room) HandleTick(_ context.Context, t roomruntime.Tick) {
 			}
 		}
 		if result != nil {
+			r.recordRace()
 			r.gateway.Store(nil)
 			r.state = Results
 			r.publish()
@@ -576,6 +598,25 @@ func (r *room) HandleTick(_ context.Context, t roomruntime.Tick) {
 			}
 		}
 	}
+}
+func (r *room) recordRace() {
+	if r.recorder == nil || r.race == nil {
+		return
+	}
+	record := matchstore.Record{RoomID: r.id, MapID: r.mapID, CreatedAt: r.createdAt, RaceID: r.race.ID, RulesVersion: r.race.RulesVersion, CourseVersion: r.race.Course.CourseVersion, StartedAt: r.race.StartedAt}
+	if r.race.Result != nil {
+		result := r.race.Result.Copy()
+		record.Result = &result
+		for _, p := range result.Participants {
+			if p.FinishTimeMs != nil {
+				at := r.race.StartedAt.Add(time.Duration(*p.FinishTimeMs) * time.Millisecond)
+				if record.FirstFinishedAt == nil || at.Before(*record.FirstFinishedAt) {
+					record.FirstFinishedAt = &at
+				}
+			}
+		}
+	}
+	r.recorder.Offer(record)
 }
 func (r *room) maybeCountdown(now time.Time) {
 	if len(r.members) < 2 {

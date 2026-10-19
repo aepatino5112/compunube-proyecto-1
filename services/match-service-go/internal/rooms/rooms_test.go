@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/inputmailbox"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/matchstore"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/race"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomruntime"
 )
@@ -203,6 +205,80 @@ func TestInvalidMapAndFailClosedPreparation(t *testing.T) {
 	}
 	if err := closed.Ready(context.Background(), v.RoomID, "x", true, 1, "reusable"); err == nil {
 		t.Fatal("ready without profile verification")
+	}
+}
+
+type recordSink struct {
+	mu      sync.Mutex
+	records []matchstore.Record
+}
+
+func (s *recordSink) Offer(r matchstore.Record) {
+	s.mu.Lock()
+	s.records = append(s.records, matchstore.CopyRecord(r))
+	s.mu.Unlock()
+}
+func (s *recordSink) All() []matchstore.Record {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]matchstore.Record(nil), s.records...)
+}
+func TestRacePersistenceHandoff(t *testing.T) {
+	clock := &testClock{created: make(chan *testTicker, 1)}
+	rt, err := roomruntime.NewManager(context.Background(), roomruntime.Options{TickInterval: 50 * time.Millisecond, QueueCapacity: 32, Clock: clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	sink := &recordSink{}
+	m := NewManager(rt, fakeVerifier{}, Options{InputSlots: 4, JumpEdges: 4, Recorder: sink})
+	ctx := context.Background()
+	membership, err := m.Create(ctx, "maracaibo", "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticker := <-clock.created
+	if _, err = m.Join(ctx, membership.RoomID, "b"); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"a", "b"} {
+		if err = m.Ready(ctx, membership.RoomID, id, true, 1, "reusable"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	state, err := m.Snapshot(ctx, membership.RoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.UnixMilli(*state.CountdownEndsAtMs)
+	ticker.ch <- start
+	for i := 1; i <= 1600; i++ {
+		ticker.ch <- start.Add(time.Duration(i) * 50 * time.Millisecond)
+	}
+	state, err = m.Snapshot(ctx, membership.RoomID)
+	if err != nil || state.State != Results {
+		t.Fatalf("race did not finish: %+v %v", state, err)
+	}
+	created, started, ended := false, false, false
+	for _, record := range sink.All() {
+		if record.RoomID != membership.RoomID {
+			t.Fatal("wrong room recorded")
+		}
+		if record.RaceID == "" {
+			created = true
+		}
+		if record.RaceID != "" && record.Result == nil {
+			started = true
+		}
+		if record.Result != nil {
+			ended = true
+			if err := matchstore.Validate(record); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if !created || !started || !ended {
+		t.Fatalf("missing persistence handoff: room=%v start=%v result=%v", created, started, ended)
 	}
 }
 
