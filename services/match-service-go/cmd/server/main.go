@@ -12,6 +12,7 @@ import (
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/config"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/identity"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/matchstore"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/playerprofile"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomruntime"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/rooms"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomshttp"
@@ -51,6 +52,11 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		return err
 	}
 	defer profilePool.Close()
+	profileClient, err := playerprofile.NewGRPC(cfg.PlayerProfileGRPCAddr)
+	if err != nil {
+		return err
+	}
+	defer profileClient.Close()
 	settlementPool, err := workpool.New(ctx, cfg.SettlementConcurrency, cfg.SettlementQueueCapacity, cfg.SettlementJobTimeout)
 	if err != nil {
 		return err
@@ -71,6 +77,7 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	}
 	identities := identity.NewRegistry()
 	sessions := sessionhttp.New(identities)
-	roomAPI := roomshttp.New(rooms.NewManager(runtime, rooms.UnavailableVerifier{}, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer, Recorder: recorder}), identities, sessions, cfg)
+	verifier := playerprofile.ProfileVerifier{Port: profileClient, Pool: profilePool}
+	roomAPI := roomshttp.New(rooms.NewManager(runtime, verifier, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer, Recorder: recorder}), identities, sessions, cfg)
 	return server.New(cfg, logger, func(mux *http.ServeMux) { sessions.Register(mux); roomAPI.Register(mux) }).Run(ctx)
 }
