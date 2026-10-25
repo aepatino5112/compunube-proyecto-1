@@ -4,6 +4,8 @@ The Rust container now carries a small [Go probe](../../services/match-service-g
 
 The J84 `db-migrate` one-shot service closes the startup cycle: PostgreSQL healthy → migrations and runtime LOGIN provisioning complete → Rust can become `SERVING` → Envoy → Go. Compose waits for `db-migrate` to exit successfully before starting either Rust replica, so `docker compose up --wait` no longer needs a TCP-open placeholder or a fixed sleep before migrations.
 
+J78 measured a separate Envoy startup cadence gap: in a cluster without routed traffic, its default health interval is 60 s. The first J85 CI runs confirmed that even a hard-killed Rust host could remain marked `healthy` for the harness's 120 s one-host window. J85 sets `no_traffic_interval` and `no_traffic_healthy_interval` to the existing 3 s active interval, so Envoy continues active gRPC health checks when traffic is quiet. This changes probe cadence, not retry or load-balancing policy. See the [Envoy HealthCheck API](https://www.envoyproxy.io/docs/envoy/v1.31.0/api-v3/config/core/v3/health_check.proto) for the no-traffic interval semantics.
+
 Run the isolated [J85 validation harness](../../scripts/validation/j85-compose-readiness.py) with Python 3 and Docker Compose. It generates ephemeral credentials if none are set, builds validation images, uses distinct host ports, and always tears down containers, network and volumes. It ends with `RESULT: PASS/FAIL` and matching exit status.
 
 ```bash
