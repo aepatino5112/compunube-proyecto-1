@@ -17,6 +17,23 @@ func testResilient(t *testing.T, f *Fake, clock func() time.Time) *ResilientPort
 	return p
 }
 
+func TestObserveDoesNotAdvanceCircuit(t *testing.T) {
+	now := time.Now()
+	p := testResilient(t, &Fake{}, func() time.Time { return now })
+	p.mu.Lock()
+	p.stats.State = Open
+	p.stats.OpenUntil = now
+	p.mu.Unlock()
+	if got := p.Observe().State; got != HalfOpen {
+		t.Fatalf("effective state: %s", got)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stats.State != Open || p.generation != 0 {
+		t.Fatalf("observation changed circuit: %+v", p.stats)
+	}
+}
+
 func TestCircuitTransitionsAndProbe(t *testing.T) {
 	now := time.Now()
 	var mu sync.Mutex

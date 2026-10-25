@@ -24,6 +24,10 @@ type Delivery struct {
 	JumpSeq  *uint64
 }
 type Stats struct{ Accepted, Coalesced, Rejected, JumpRejected uint64 }
+type Observer interface {
+	InputDropped(string)
+	InputCoalesced()
+}
 type slot struct {
 	lastSeq, lastJump uint64
 	seen              bool
@@ -35,13 +39,18 @@ type Mailbox struct {
 	slots                  map[string]*slot
 	capacity, jumpCapacity int
 	stats                  Stats
+	observer               Observer
 }
 
-func New(capacity, jumpCapacity int) *Mailbox {
+func New(capacity, jumpCapacity int, observers ...Observer) *Mailbox {
 	if capacity <= 0 || jumpCapacity <= 0 {
 		panic("invalid mailbox capacity")
 	}
-	return &Mailbox{slots: map[string]*slot{}, capacity: capacity, jumpCapacity: jumpCapacity}
+	m := &Mailbox{slots: map[string]*slot{}, capacity: capacity, jumpCapacity: jumpCapacity}
+	if len(observers) > 0 {
+		m.observer = observers[0]
+	}
+	return m
 }
 func (m *Mailbox) Offer(playerID string, in Input) error {
 	m.mu.Lock()
@@ -50,6 +59,9 @@ func (m *Mailbox) Offer(playerID string, in Input) error {
 	if s == nil {
 		if len(m.slots) >= m.capacity {
 			m.stats.Rejected++
+			if m.observer != nil {
+				m.observer.InputDropped("mailbox_full")
+			}
 			return ErrFull
 		}
 		s = &slot{}
@@ -57,10 +69,16 @@ func (m *Mailbox) Offer(playerID string, in Input) error {
 	}
 	if (s.seen && in.Seq <= s.lastSeq) || in.JumpSeq < s.lastJump {
 		m.stats.Rejected++
+		if m.observer != nil {
+			m.observer.InputDropped("sequence")
+		}
 		return ErrSequence
 	}
 	if in.JumpSeq > s.lastJump && len(s.jumps) >= m.jumpCapacity {
 		m.stats.JumpRejected++
+		if m.observer != nil {
+			m.observer.InputDropped("jump_full")
+		}
 		return ErrJumpFull
 	}
 	if in.JumpSeq > s.lastJump {
@@ -69,6 +87,9 @@ func (m *Mailbox) Offer(playerID string, in Input) error {
 	}
 	if s.latest != nil {
 		m.stats.Coalesced++
+		if m.observer != nil {
+			m.observer.InputCoalesced()
+		}
 	}
 	copy := in
 	s.latest = &copy

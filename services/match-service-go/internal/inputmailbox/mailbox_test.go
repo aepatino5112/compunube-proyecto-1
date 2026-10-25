@@ -5,8 +5,17 @@ import (
 	"testing"
 )
 
+type observedInputs struct {
+	drops     map[string]int
+	coalesced int
+}
+
+func (o *observedInputs) InputDropped(reason string) { o.drops[reason]++ }
+func (o *observedInputs) InputCoalesced()            { o.coalesced++ }
+
 func TestLatestInputAndJumpEdges(t *testing.T) {
-	m := New(1, 2)
+	observer := &observedInputs{drops: map[string]int{}}
+	m := New(1, 2, observer)
 	for _, in := range []Input{{Seq: 0, JumpSeq: 1, Steer: 1}, {Seq: 1, JumpSeq: 1, Steer: 0}, {Seq: 2, JumpSeq: 2, Steer: -1}} {
 		if err := m.Offer("p", in); err != nil {
 			t.Fatal(err)
@@ -42,5 +51,8 @@ func TestLatestInputAndJumpEdges(t *testing.T) {
 	s := m.Stats()
 	if s.Coalesced != 2 || s.JumpRejected != 1 {
 		t.Fatalf("stats: %+v", s)
+	}
+	if observer.coalesced != 2 || observer.drops["jump_full"] != 1 || observer.drops["mailbox_full"] != 1 || observer.drops["sequence"] != 2 {
+		t.Fatalf("observer: %+v", observer)
 	}
 }

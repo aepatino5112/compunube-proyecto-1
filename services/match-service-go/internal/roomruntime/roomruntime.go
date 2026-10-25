@@ -65,6 +65,7 @@ type Manager struct {
 	closed             bool
 	wg                 sync.WaitGroup
 	admitted, rejected uint64
+	queueRejected      atomic.Uint64
 }
 
 func NewManager(parent context.Context, opts Options) (*Manager, error) {
@@ -122,6 +123,14 @@ func (m *Manager) AdmissionStats() (admitted, rejected uint64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.admitted, m.rejected
+}
+func (m *Manager) QueueStats() (depth int, rejected uint64) {
+	m.mu.RLock()
+	for _, h := range m.rooms {
+		depth += len(h.commands)
+	}
+	m.mu.RUnlock()
+	return depth, m.queueRejected.Load()
 }
 
 // Close stops admission, cancels every loop and waits for all loop goroutines.
@@ -191,6 +200,7 @@ func (h *Handle) Submit(ctx context.Context, command any) (any, error) {
 	case h.commands <- req:
 	default:
 		h.queueFull.Add(1)
+		h.manager.queueRejected.Add(1)
 		return nil, ErrQueueFull
 	}
 	select {

@@ -1,5 +1,26 @@
 # Go Match Service
 
+## Métricas operativas (J86)
+
+`GET /metrics` expone texto Prometheus en el listener HTTP de Go. Conserva `match_service_up`. H68 puede configurar un target con `metrics_path: /metrics` y la dirección interna de Go en Compose. El scrape lee solo memoria local: no llama a PostgreSQL ni a Rust, no envía comandos al RoomLoop y no altera el Circuit Breaker. Los contadores se reinician al reiniciar el proceso.
+
+| Familia | Tipo | Labels fijos | Significado |
+| --- | --- | --- | --- |
+| `compunube_match_rooms_active`, `compunube_match_connections_active` | gauge | ninguno | Salas y WebSockets activos |
+| `compunube_match_admission_total` | counter | `kind=room,connection` | Admisiones |
+| `compunube_match_admission_rejected_total` | counter | `kind=room,connection`, `reason=limit` | Rechazos por capacidad |
+| `compunube_match_inputs_dropped_total` | counter | `reason=rate_limited,mailbox_full,jump_full,sequence` | Entradas descartadas |
+| `compunube_match_inputs_coalesced_total` | counter | ninguno | Entradas continuas reemplazadas antes de un tick |
+| `compunube_match_room_queue_depth`, `compunube_match_record_queue_depth` | gauge | ninguno | Comandos de salas y registros pendientes |
+| `compunube_match_room_queue_rejected_total` | counter | ninguno | Cola de comandos llena |
+| `compunube_match_workpool_in_flight`, `compunube_match_workpool_queue_depth` | gauge | `pool=profile,settlement` | Trabajos activos y en cola |
+| `compunube_match_workpool_rejected_total` | counter | `pool=profile,settlement` | Saturación de pool |
+| `compunube_player_profile_circuit_state` | gauge | `state=closed,open,half_open` | Estado one-hot del circuito |
+| `compunube_player_profile_fast_rejects_total`, `compunube_player_profile_read_retries_total` | counter | ninguno | Rechazos rápidos y retries de lecturas |
+| `compunube_settlement_attempts_total` | counter | `outcome=confirmed,retry,failed,canceled,pending` | Resultado de cada fila reclamada; `pending` indica que no se pudo confirmar el resultado durable |
+
+Ninguna serie usa IDs, tokens, mensajes de error o URLs como label. Las métricas de cola son fotografías y pueden variar entre scrapes.
+
 `cmd/server/main.go` carga configuración, prepara logging y señales y ejecuta `internal/server`. El servidor registra `/healthz`, `/readyz`, `/metrics`, las rutas de sesión, crear/entrar sala de E45 y `/v1/realtime` de E43.
 
 | Variable | Default/base local | Uso actual |

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/matchstore"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/metrics"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/playerprofile"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/rooms"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/workpool"
@@ -42,14 +43,18 @@ type Coordinator struct {
 	pubMu       sync.Mutex
 	pubPending  map[string]string
 	lease, poll time.Duration
+	metrics     *metrics.Registry
 }
 
-func New(parent context.Context, store Store, port playerprofile.Port, prober RecoveryProber, pool *workpool.Pool, publish Publisher, wake <-chan struct{}, workers int, logger *slog.Logger) (*Coordinator, error) {
+func New(parent context.Context, store Store, port playerprofile.Port, prober RecoveryProber, pool *workpool.Pool, publish Publisher, wake <-chan struct{}, workers int, logger *slog.Logger, registries ...*metrics.Registry) (*Coordinator, error) {
 	if parent == nil || store == nil || port == nil || prober == nil || pool == nil || workers < 1 || logger == nil {
 		return nil, errors.New("invalid settlement coordinator options")
 	}
 	ctx, cancel := context.WithCancel(parent)
 	c := &Coordinator{store: store, port: port, prober: prober, pool: pool, publish: publish, logger: logger, ctx: ctx, cancel: cancel, wake: wake, lease: 10 * time.Second, poll: 500 * time.Millisecond}
+	if len(registries) > 0 {
+		c.metrics = registries[0]
+	}
 	c.wg.Add(workers)
 	for i := 0; i < workers; i++ {
 		go c.worker()
@@ -86,8 +91,15 @@ func (c *Coordinator) worker() {
 	}
 }
 func (c *Coordinator) process(d matchstore.Delivery) {
+	outcome := "pending"
+	defer func() {
+		if c.metrics != nil {
+			c.metrics.SettlementAttempt(outcome)
+		}
+	}()
 	if d.RaceID == "" || d.PlayerID == "" || d.RoomID == "" || d.CreditedPlastic < 0 || d.CreditedMetal < 0 || d.Outcome != "finished" && (d.CreditedPlastic != 0 || d.CreditedMetal != 0) {
 		c.fail(d, "INVALID_DURABLE_RESULT")
+		outcome = "failed"
 		return
 	}
 	cmd := playerprofile.SettlementCommand{RaceID: d.RaceID, PlayerID: d.PlayerID, Outcome: d.Outcome, CreditedPlastic: uint64(d.CreditedPlastic), CreditedMetal: uint64(d.CreditedMetal)}
@@ -96,10 +108,12 @@ func (c *Coordinator) process(d matchstore.Delivery) {
 		select {
 		case err = <-done:
 		case <-c.ctx.Done():
+			outcome = "canceled"
 			return
 		}
 	}
 	if c.ctx.Err() != nil {
+		outcome = "canceled"
 		return
 	}
 	if err == nil {
@@ -110,6 +124,7 @@ func (c *Coordinator) process(d matchstore.Delivery) {
 			c.logger.Warn("settlement confirmation not durable yet", "race_id", d.RaceID, "player_id", d.PlayerID, "error", saveErr)
 			return
 		}
+		outcome = "confirmed"
 		if all {
 			c.queuePublish(d.RoomID, d.RaceID)
 			c.flushPublish()
@@ -118,27 +133,34 @@ func (c *Coordinator) process(d matchstore.Delivery) {
 	}
 	if errors.Is(err, workpool.ErrSaturated) {
 		c.retry(d, "LOCAL_SATURATED")
+		outcome = "retry"
 		return
 	}
 	if errors.Is(err, context.Canceled) {
+		outcome = "canceled"
 		return
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		c.retryTransient(d, "DEADLINE_EXCEEDED")
+		outcome = "retry"
 		return
 	}
 	var fault *playerprofile.Fault
 	if !errors.As(err, &fault) {
 		c.fail(d, "UNCLASSIFIED")
+		outcome = "failed"
 		return
 	}
 	switch fault.Kind {
 	case playerprofile.Unavailable, playerprofile.ResourceExhausted, playerprofile.Deadline, playerprofile.System:
 		c.retryTransient(d, fault.Code)
+		outcome = "retry"
 	case playerprofile.Canceled:
+		outcome = "canceled"
 		return
 	default:
 		c.fail(d, fault.Code)
+		outcome = "failed"
 	}
 }
 func (c *Coordinator) retryTransient(d matchstore.Delivery, code string) {
