@@ -10,4 +10,4 @@ The first CI run exposed two gaps: Rust readiness reads `public.schema_migration
 
 ## Execution record
 
-Pending CI Integration run on the J84 PR. Local Docker Desktop WSL integration is disabled in this environment.
+The [CI Integration run for PR #62](https://github.com/aepatino5112/compunube-proyecto-1/actions/runs/40222944405) passed on 2026-10-25: migration/restore smoke, runtime own-schema and cross-schema access smoke, both Rust replicas, Envoy gRPC health, and the J83 public HTTP economy harness (`RESULT: PASS`). Its logs show the four generated credentials masked as `***`. Go, Rust, Contracts, Infrastructure and Web checks also passed. Local Docker Desktop WSL integration is disabled in this environment.
