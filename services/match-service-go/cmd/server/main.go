@@ -12,6 +12,7 @@ import (
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/config"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/identity"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/matchstore"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/metrics"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/playerprofile"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/profilehttp"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomruntime"
@@ -41,6 +42,7 @@ func main() {
 func run(cfg config.Config, logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	measure := metrics.New()
 	runtime, err := roomruntime.NewManager(ctx, roomruntime.Options{
 		TickInterval: 50 * time.Millisecond, QueueCapacity: cfg.RoomCommandQueueCapacity,
 		MaxRooms: cfg.MaxActiveRooms, MaxCommandsPerTick: cfg.RoomMaxCommandsPerTick,
@@ -90,16 +92,41 @@ func run(cfg config.Config, logger *slog.Logger) error {
 	identities := identity.NewRegistry()
 	sessions := sessionhttp.New(identities)
 	verifier := playerprofile.ProfileVerifier{Port: resilientProfile, Pool: profilePool}
-	roomManager := rooms.NewManager(runtime, verifier, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer, Recorder: recorder})
+	roomManager := rooms.NewManager(runtime, verifier, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer, Recorder: recorder, InputObserver: measure})
 	if store != nil {
 		prober := playerprofile.RecoveryProber{Port: resilientProfile, Pool: profilePool}
-		coordinator, err := settlement.New(ctx, store, resilientProfile, prober, settlementPool, roomManager, async.Durable(), cfg.SettlementConcurrency, logger)
+		coordinator, err := settlement.New(ctx, store, resilientProfile, prober, settlementPool, roomManager, async.Durable(), cfg.SettlementConcurrency, logger, measure)
 		if err != nil {
 			return err
 		}
 		defer coordinator.Close()
 	}
-	roomAPI := roomshttp.New(roomManager, identities, sessions, cfg)
+	roomAPI := roomshttp.New(roomManager, identities, sessions, cfg, measure)
 	profileAPI := profilehttp.New(sessions, resilientProfile, profilePool)
-	return server.New(cfg, logger, func(mux *http.ServeMux) { sessions.Register(mux); roomAPI.Register(mux); profileAPI.Register(mux) }).Run(ctx)
+	measure.SetSnapshot(func() metrics.Snapshot {
+		roomsAdmitted, roomsRejected := runtime.AdmissionStats()
+		roomQueue, roomQueueRejected := runtime.QueueStats()
+		connections, connectionsAdmitted, connectionsRejected := roomAPI.ConnectionStats()
+		profile := profilePool.Stats()
+		settle := settlementPool.Stats()
+		circuit := resilientProfile.Observe()
+		state := string(circuit.State)
+		if circuit.State == playerprofile.HalfOpen {
+			state = "half_open"
+		}
+		s := metrics.Snapshot{
+			Rooms: runtime.Count(), Connections: connections, RoomQueue: roomQueue,
+			RoomsAdmitted: roomsAdmitted, RoomsRejected: roomsRejected,
+			ConnectionsAdmitted: connectionsAdmitted, ConnectionsRejected: connectionsRejected,
+			RoomQueueRejected: roomQueueRejected,
+			ProfilePool:       metrics.Pool{Active: profile.Active, Queued: profile.Queued, Rejected: profile.Rejected},
+			SettlementPool:    metrics.Pool{Active: settle.Active, Queued: settle.Queued, Rejected: settle.Rejected},
+			CircuitState:      state, FastRejects: circuit.FastRejects, ReadRetries: circuit.Retries,
+		}
+		if async != nil {
+			s.RecordQueue = async.Pending()
+		}
+		return s
+	})
+	return server.New(cfg, logger, func(mux *http.ServeMux) { sessions.Register(mux); roomAPI.Register(mux); profileAPI.Register(mux) }, measure).Run(ctx)
 }

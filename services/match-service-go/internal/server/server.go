@@ -24,11 +24,11 @@ type Server struct {
 	http   *http.Server
 }
 
-func New(cfg config.Config, logger *slog.Logger, register RouteRegistrar) *Server {
+func New(cfg config.Config, logger *slog.Logger, register RouteRegistrar, registries ...*metrics.Registry) *Server {
 	mux := http.NewServeMux()
 	state := &health.State{}
 	state.Register(mux)
-	metrics.Register(mux)
+	metrics.Register(mux, registries...)
 	if register != nil {
 		register(mux)
 	}

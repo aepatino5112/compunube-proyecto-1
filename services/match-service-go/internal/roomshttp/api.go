@@ -13,6 +13,7 @@ import (
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/config"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/identity"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/inputmailbox"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/metrics"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/outbox"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/ratelimit"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/rooms"
@@ -28,10 +29,15 @@ type API struct {
 	mu                 sync.Mutex
 	connections        int
 	admitted, rejected uint64
+	metrics            *metrics.Registry
 }
 
-func New(r *rooms.Manager, i *identity.Registry, s *sessionhttp.API, cfg config.Config) *API {
-	return &API{rooms: r, identities: i, sessions: s, cfg: cfg}
+func New(r *rooms.Manager, i *identity.Registry, s *sessionhttp.API, cfg config.Config, registries ...*metrics.Registry) *API {
+	a := &API{rooms: r, identities: i, sessions: s, cfg: cfg}
+	if len(registries) > 0 {
+		a.metrics = registries[0]
+	}
+	return a
 }
 func (a *API) admit() bool {
 	a.mu.Lock()
@@ -289,6 +295,9 @@ func (a *API) realtime(w http.ResponseWriter, r *http.Request) {
 			}
 			now := time.Now()
 			if !rate.Allow(now) {
+				if a.metrics != nil {
+					a.metrics.InputDropped("rate_limited")
+				}
 				if now.Sub(lastRateError) >= 100*time.Millisecond {
 					out.Send(errorMessage("RATE_LIMITED", msg.Type))
 					lastRateError = now

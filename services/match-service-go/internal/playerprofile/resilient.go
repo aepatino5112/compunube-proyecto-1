@@ -80,6 +80,17 @@ func (p *ResilientPort) Stats() ResilienceStats {
 	return p.stats
 }
 
+// Observe reports the effective state without changing circuit behavior on a scrape.
+func (p *ResilientPort) Observe() ResilienceStats {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	s := p.stats
+	if s.State == Open && !p.opts.Clock().Before(s.OpenUntil) {
+		s.State = HalfOpen
+	}
+	return s
+}
+
 func (p *ResilientPort) advanceLocked() {
 	if p.stats.State == Open && !p.opts.Clock().Before(p.stats.OpenUntil) {
 		p.stats.State = HalfOpen

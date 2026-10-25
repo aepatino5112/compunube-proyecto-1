@@ -112,6 +112,7 @@ type Manager struct {
 	runtime               *roomruntime.Manager
 	verifier              Verifier
 	inputSlots, jumpEdges int
+	inputObserver         inputmailbox.Observer
 	recorder              interface{ Offer(matchstore.Record) }
 }
 type inputGateway struct {
@@ -127,6 +128,7 @@ type entry struct {
 type Options struct {
 	InputSlots, JumpEdges int
 	Recorder              interface{ Offer(matchstore.Record) }
+	InputObserver         inputmailbox.Observer
 }
 
 func NewManager(runtime *roomruntime.Manager, verifier Verifier, options ...Options) *Manager {
@@ -137,7 +139,7 @@ func NewManager(runtime *roomruntime.Manager, verifier Verifier, options ...Opti
 	if opts.InputSlots <= 0 || opts.JumpEdges <= 0 {
 		panic("invalid room input options")
 	}
-	return &Manager{rooms: map[string]*entry{}, runtime: runtime, verifier: verifier, inputSlots: opts.InputSlots, jumpEdges: opts.JumpEdges, recorder: opts.Recorder}
+	return &Manager{rooms: map[string]*entry{}, runtime: runtime, verifier: verifier, inputSlots: opts.InputSlots, jumpEdges: opts.JumpEdges, recorder: opts.Recorder, inputObserver: opts.InputObserver}
 }
 func validMap(id string) bool           { return id == "maracaibo" || id == "orinoco" }
 func courseVersion(mapID string) string { return mapID + "-surf-mvp-1" }
@@ -158,7 +160,7 @@ func (m *Manager) Create(ctx context.Context, mapID, playerID string) (Membershi
 		return Membership{}, err
 	}
 	createdAt := time.Now()
-	r := &room{id: id, mapID: mapID, state: Lobby, members: map[string]*Member{}, sinks: map[string]Sink{}, inputSlots: m.inputSlots, jumpEdges: m.jumpEdges, recorder: m.recorder, createdAt: createdAt}
+	r := &room{id: id, mapID: mapID, state: Lobby, members: map[string]*Member{}, sinks: map[string]Sink{}, inputSlots: m.inputSlots, jumpEdges: m.jumpEdges, recorder: m.recorder, inputObserver: m.inputObserver, createdAt: createdAt}
 	m.mu.Lock()
 	h, err := m.runtime.Start(id, r)
 	if err == nil {
@@ -330,6 +332,7 @@ type room struct {
 	race                  *race.Race
 	gateway               atomic.Pointer[inputGateway]
 	inputSlots, jumpEdges int
+	inputObserver         inputmailbox.Observer
 	recorder              interface{ Offer(matchstore.Record) }
 	createdAt             time.Time
 }
@@ -564,7 +567,7 @@ func (r *room) HandleTick(_ context.Context, t roomruntime.Tick) {
 		for _, p := range r.members {
 			p.ParticipantState = "racing"
 		}
-		r.gateway.Store(&inputGateway{raceID: id, roster: admitted, mailbox: inputmailbox.New(r.inputSlots, r.jumpEdges)})
+		r.gateway.Store(&inputGateway{raceID: id, roster: admitted, mailbox: inputmailbox.New(r.inputSlots, r.jumpEdges, r.inputObserver)})
 		r.recordRace()
 		r.publish()
 		start := engine.StartMessage()
