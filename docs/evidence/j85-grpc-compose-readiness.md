@@ -10,7 +10,7 @@ Run the isolated [J85 validation harness](../../scripts/validation/j85-compose-r
 python3 scripts/validation/j85-compose-readiness.py
 ```
 
-The harness checks clean `up --wait`, two healthy Rust containers and two Envoy hosts. It stops PostgreSQL and waits for both Rust containers to become `unhealthy` while the processes remain running and Envoy reaches zero hosts; then it restores PostgreSQL and waits for both to recover. Renaming a required `player` table in the isolated database proves an incomplete schema also makes them unhealthy; the harness restores it. It stops rust-1 to confirm Envoy retains one healthy host, then starts and restarts rust-1, confirming two hosts and Docker health again. Polls have bounded deadlines; no fixed startup delay is used.
+The harness checks clean `up --wait`, two healthy Rust containers and two Envoy hosts. It stops PostgreSQL and waits for both Rust containers to become `unhealthy` while the processes remain running and Envoy reaches zero hosts; then it restores PostgreSQL and waits for both to recover. Renaming a required `player` table in the isolated database proves an incomplete schema also makes them unhealthy; the harness restores it. It kills rust-1 with the J78 SIGKILL strategy to confirm Envoy retains one healthy host, then starts and restarts rust-1, confirming two hosts and Docker health again. Polls have bounded deadlines; no fixed startup delay is used.
 
 ## Execution record
 

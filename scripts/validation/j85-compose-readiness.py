@@ -80,6 +80,12 @@ def hosts():
     return len(re.findall(r"player_profile_cluster::.*::health_flags::healthy", data))
 
 
+def host_flags():
+    with urlopen(ADMIN + "/clusters", timeout=3) as response:
+        data = response.read().decode()
+    return [line for line in data.splitlines() if "player_profile_cluster::" in line and "::health_flags::" in line]
+
+
 def sql(statement):
     return dc("exec", "-T", "postgres", "sh", "-c",
               'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -X -At -v ON_ERROR_STOP=1',
@@ -130,8 +136,16 @@ def main():
              lambda: all(health(service) == "healthy" for service in RUST))
     wait_for("Envoy restores both hosts after schema restore", 120, lambda: hosts() == 2)
 
-    dc("stop", RUST[0], timeout=60)
-    wait_for("Envoy retains only rust-2", 90, lambda: hosts() == 1)
+    # J78 established SIGKILL as the reproducible single-replica failure.
+    # Disable Docker auto-restart until this harness explicitly starts it.
+    rust1 = dc("ps", "-q", RUST[0])
+    run("docker", "update", "--restart=no", rust1, timeout=15)
+    run("docker", "kill", rust1, timeout=15)
+    seen = set()
+    try:
+        wait_for("Envoy retains only rust-2", 120, lambda: seen.add(hosts()) or 1 in seen)
+    except AssertionError as error:
+        raise AssertionError(f"{error}; observed host counts={sorted(seen)}; flags={host_flags()}") from error
     check(health(RUST[1]) == "healthy", "rust-2 remains healthy with rust-1 stopped")
     dc("start", RUST[0], timeout=60)
     wait_for("rust-1 recovers after start", 90, lambda: health(RUST[0]) == "healthy")
