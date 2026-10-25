@@ -79,7 +79,7 @@ Smoke test del stack:
 
 1. prepara `.env`;
 2. valida Compose;
-3. ejecuta `docker compose build` para construir explícitamente las imágenes del stack;
+3. genera contraseñas efímeras independientes para PostgreSQL administrador, Go, Rust y postgres-exporter, y ejecuta `docker compose build` para construir explícitamente las imágenes del stack;
 4. ejecuta `docker compose up -d --no-build --wait`;
 5. comprueba que PostgreSQL creó los schemas `match` y `player`;
 6. comprueba que las dos réplicas Rust están saludables y usan la misma imagen;
@@ -143,7 +143,7 @@ La tarea **H65 · Automatizar calidad para habilitar Fast Deployment** formaliza
 
 El comando `make quality` ejecuta el conjunto local de calidad de Go, Rust, Web, contratos e infraestructura. Requiere las toolchains documentadas (Go, Rust, Node.js 24, `protoc`, Docker y Make).
 
-E42 añade migraciones versionadas y un smoke de permisos/backup/restauración a `CI Integration`. El bootstrap de schemas de Compose permanece para volúmenes nuevos; la aplicación versionada se ejecuta por el runner E42. Las credenciales runtime separadas siguen pendientes de H62.
+E42 añade migraciones versionadas y un smoke de permisos/backup/restauración a `CI Integration`. J84 ejecuta las migraciones y el provisioning de LOGIN con un servicio administrativo one-shot de Compose antes de iniciar Go/Rust; CI comprueba aislamiento real de ambos usuarios y no usa contraseñas runtime fijas.
 
 Los checks separados de GitHub mantienen errores fáciles de localizar: un fallo de Go, Rust, Web, Contracts o Infrastructure aparece en su job correspondiente. No se reemplazan por un único job monolítico.
 

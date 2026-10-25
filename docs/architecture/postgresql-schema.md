@@ -331,7 +331,7 @@ Las tablas no deben ser propiedad directa de los roles runtime si eso les permit
 
 ### Estado actual del repositorio
 
-`database/init/00-bootstrap.sql` ya crea `match` y `player`, pero el `compose.yml` actual entrega el mismo `DATABASE_URL`/usuario de PostgreSQL a Go y Rust. Eso es **bootstrap de desarrollo**, no enforcement material de NFR-DAT-001. E41 registra la brecha; E42/H62 deberán introducir credenciales separadas y validarlas.
+J84 materializó el aislamiento runtime: `compunube_match_runtime` y `compunube_player_runtime` son LOGIN diferentes, miembros únicamente del grupo de permisos de su schema. `db-migrate` usa una identidad administrativa separada para migraciones y provisioning; postgres-exporter tiene `compunube_monitor_runtime`. CI prueba operaciones propias positivas y SELECT/INSERT/UPDATE/DELETE cruzados negativos con las credenciales reales.
 
 ## Matriz de acceso
 

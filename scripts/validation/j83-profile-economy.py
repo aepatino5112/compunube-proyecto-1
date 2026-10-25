@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import subprocess
 import sys
 import time
@@ -31,6 +32,9 @@ PORTS = {
 ENV = os.environ.copy()
 for key, value in PORTS.items():
     ENV.setdefault(key, value)
+for key in ("POSTGRES_PASSWORD", "MATCH_DB_PASSWORD", "PLAYER_DB_PASSWORD", "MONITOR_DB_PASSWORD"):
+    if not ENV.get(key):
+        ENV[key] = secrets.token_hex(24)
 GO = f"http://127.0.0.1:{ENV['GO_HTTP_PORT']}"
 ADMIN = f"http://127.0.0.1:{ENV['ENVOY_ADMIN_PORT']}"
 DC = ["docker", "compose", "-p", PROJECT, "-f", "compose.yml", "-f", "scripts/validation/compose.validation.yml"]
@@ -140,13 +144,6 @@ def main():
     if ENV.get("J83_SKIP_BUILD") != "1":
         dc("build", "player-profile-rust-1", "match-service-go", quiet=True, timeout=900)
     dc("up", "-d", "--no-build", "--wait", "--wait-timeout", "120", "postgres", quiet=True, timeout=180)
-    dc(
-        "exec", "-T", "postgres", "sh", "-c",
-        'export PGPASSWORD="$POSTGRES_PASSWORD"; '
-        'export DATABASE_URL="postgresql://$POSTGRES_USER@127.0.0.1:5432/$POSTGRES_DB"; '
-        'sh /opt/compunube-database/scripts/migrate.sh',
-        quiet=True, timeout=90,
-    )
     dc("up", "-d", "--no-build", "--wait", "--wait-timeout", "180",
        "player-profile-rust-1", "player-profile-rust-2", "envoy", "match-service-go",
        quiet=True, timeout=240)
