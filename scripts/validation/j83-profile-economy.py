@@ -158,7 +158,8 @@ def main():
     check(status == 201 and bool(session.get("playerId")) and bool(session.get("token")),
           "POST /v1/sessions creates a bearer session")
     player, token = session["playerId"], session["token"]
-    check(bool(re.fullmatch(r"[A-Za-z0-9-]{1,128}", player)), "server-issued playerId is SQL fixture safe")
+    # identity.randomID uses unpadded base64url, whose alphabet includes '_'.
+    check(bool(re.fullmatch(r"[A-Za-z0-9_-]{1,128}", player)), "server-issued playerId is SQL fixture safe")
     profile = public_profile(token)
     check(profile["playerId"] == player and db_profile(player) == (0, 0, 0, 1),
           "Rust provisioned the session player in player.profiles")
