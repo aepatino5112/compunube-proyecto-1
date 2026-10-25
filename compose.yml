@@ -50,7 +50,7 @@ services:
       db-migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "nc", "-z", "127.0.0.1", "50051"]
+      test: ["CMD", "/usr/local/bin/player-profile-healthcheck"]
       interval: 5s
       timeout: 2s
       retries: 10
@@ -69,7 +69,7 @@ services:
       db-migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "nc", "-z", "127.0.0.1", "50051"]
+      test: ["CMD", "/usr/local/bin/player-profile-healthcheck"]
       interval: 5s
       timeout: 2s
       retries: 10

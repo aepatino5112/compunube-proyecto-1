@@ -23,11 +23,17 @@ COPY services/player-profile-service-rust/src ./src
 RUN touch src/lib.rs src/main.rs \
     && cargo build --locked --release
 
+FROM golang:1.24-alpine AS healthcheck
+WORKDIR /src
+COPY services/match-service-go/go.mod services/match-service-go/go.sum ./
+RUN go mod download
+COPY services/match-service-go/cmd/player-profile-healthcheck ./cmd/player-profile-healthcheck
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/player-profile-healthcheck ./cmd/player-profile-healthcheck
+
 FROM debian:bookworm-slim
 
-# netcat-openbsd: the compose healthcheck is a TCP probe (`nc -z`). The binary
-# links no TLS library (sqlx is built without a TLS feature), so no CA bundle is
-# installed; add ca-certificates only together with a TLS feature.
+# J78's validation harness still reads the internal metrics socket with nc;
+# Docker's health decision is made exclusively by the gRPC probe below.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
@@ -36,6 +42,7 @@ RUN useradd --system --no-create-home --shell /usr/sbin/nologin app
 USER app
 
 COPY --from=build /src/services/player-profile-service-rust/target/release/player-profile-service /usr/local/bin/player-profile-service
+COPY --from=healthcheck /out/player-profile-healthcheck /usr/local/bin/player-profile-healthcheck
 
 EXPOSE 50051 9100
 ENTRYPOINT ["/usr/local/bin/player-profile-service"]

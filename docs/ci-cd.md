@@ -143,7 +143,7 @@ La tarea **H65 · Automatizar calidad para habilitar Fast Deployment** formaliza
 
 El comando `make quality` ejecuta el conjunto local de calidad de Go, Rust, Web, contratos e infraestructura. Requiere las toolchains documentadas (Go, Rust, Node.js 24, `protoc`, Docker y Make).
 
-E42 añade migraciones versionadas y un smoke de permisos/backup/restauración a `CI Integration`. J84 ejecuta las migraciones y el provisioning de LOGIN con un servicio administrativo one-shot de Compose antes de iniciar Go/Rust; CI comprueba aislamiento real de ambos usuarios y no usa contraseñas runtime fijas.
+E42 añade migraciones versionadas y un smoke de permisos/backup/restauración a `CI Integration`. J84 ejecuta las migraciones y el provisioning de LOGIN con un servicio administrativo one-shot de Compose antes de iniciar Go/Rust; CI comprueba aislamiento real de ambos usuarios y no usa contraseñas runtime fijas. J85 verifica que el healthcheck de Compose consulta gRPC Health `player_profile` y que Docker y Envoy reaccionan a la caída y recuperación de PostgreSQL y del schema.
 
 Los checks separados de GitHub mantienen errores fáciles de localizar: un fallo de Go, Rust, Web, Contracts o Infrastructure aparece en su job correspondiente. No se reemplazan por un único job monolítico.
 
