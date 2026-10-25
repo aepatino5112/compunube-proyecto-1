@@ -21,6 +21,9 @@ SELECT format('ALTER ROLE compunube_monitor_runtime LOGIN INHERIT NOSUPERUSER NO
 GRANT compunube_match_app TO compunube_match_runtime;
 GRANT compunube_player_app TO compunube_player_runtime;
 GRANT pg_monitor TO compunube_monitor_runtime;
+-- Rust readiness verifies the applied schema version. This is the only
+-- administrative table it can read; it cannot write migration history.
+GRANT SELECT ON public.schema_migrations TO compunube_player_app;
 DO $$ BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_auth_members m JOIN pg_roles member ON member.oid=m.member

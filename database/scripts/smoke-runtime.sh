@@ -10,6 +10,10 @@ query() {
 }
 query compunube_match_runtime "$MATCH_DB_PASSWORD" 'SELECT count(*) FROM match.rooms' >/dev/null
 query compunube_player_runtime "$PLAYER_DB_PASSWORD" 'SELECT count(*) FROM player.profiles' >/dev/null
+query compunube_player_runtime "$PLAYER_DB_PASSWORD" 'SELECT count(*) FROM public.schema_migrations' >/dev/null
+if query compunube_match_runtime "$MATCH_DB_PASSWORD" 'SELECT count(*) FROM public.schema_migrations' >/dev/null 2>&1; then
+  echo 'match runtime unexpectedly read migration history' >&2; exit 1
+fi
 for operation in SELECT INSERT UPDATE DELETE; do
   case "$operation" in
     SELECT) match_sql='SELECT * FROM player.profiles LIMIT 1'; player_sql='SELECT * FROM match.rooms LIMIT 1' ;;

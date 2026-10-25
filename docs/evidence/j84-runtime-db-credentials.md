@@ -6,6 +6,8 @@ The [runtime smoke](../../database/scripts/smoke-runtime.sh) authenticates with 
 
 Credentials are supplied by `POSTGRES_PASSWORD`, `MATCH_DB_PASSWORD`, `PLAYER_DB_PASSWORD` and `MONITOR_DB_PASSWORD` from the environment or a Git ignored `.env`; CI generates fresh random values per run. No password literal is stored in SQL, Dockerfiles or Compose. See [database/README.md](../../database/README.md) for rotation steps.
 
+The first CI run exposed two gaps: Rust readiness reads `public.schema_migrations`, so the player permission group needs read-only access to that one administrative table; and GitHub Actions displayed generated CI passwords in the run environment header. The grant is now explicit and tested; CI registers all ephemeral passwords with `::add-mask::` before exporting them. The first run's passwords belonged only to its deleted isolated CI stack and were not committed.
+
 ## Execution record
 
 Pending CI Integration run on the J84 PR. Local Docker Desktop WSL integration is disabled in this environment.

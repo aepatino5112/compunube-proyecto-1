@@ -21,7 +21,9 @@ jobs:
       - name: Generate ephemeral database credentials
         run: |
           for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD; do
-            printf '%s=%s\n' "$key" "$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+            value=$(openssl rand -hex 24)
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
           done
       - name: Validate local quality targets
         run: make -n quality >/dev/null
