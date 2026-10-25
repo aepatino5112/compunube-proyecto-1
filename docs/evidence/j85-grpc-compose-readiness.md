@@ -1,0 +1,17 @@
+# J85 — Compose readiness follows real Rust gRPC Health
+
+The Rust container now carries a small [Go probe](../../services/match-service-go/cmd/player-profile-healthcheck/main.go) built from the repository's existing gRPC dependency. Docker runs this probe against `127.0.0.1:50051`, service name `player_profile`, with a two-second deadline. Exit status zero requires `SERVING`; `NOT_SERVING`, transport failures and timeouts return nonzero. Envoy already checks the same gRPC service. No Rust application code or E43 contract changed.
+
+The J84 `db-migrate` one-shot service closes the startup cycle: PostgreSQL healthy → migrations and runtime LOGIN provisioning complete → Rust can become `SERVING` → Envoy → Go. Compose waits for `db-migrate` to exit successfully before starting either Rust replica, so `docker compose up --wait` no longer needs a TCP-open placeholder or a fixed sleep before migrations.
+
+Run the isolated [J85 validation harness](../../scripts/validation/j85-compose-readiness.py) with Python 3 and Docker Compose. It generates ephemeral credentials if none are set, builds validation images, uses distinct host ports, and always tears down containers, network and volumes. It ends with `RESULT: PASS/FAIL` and matching exit status.
+
+```bash
+python3 scripts/validation/j85-compose-readiness.py
+```
+
+The harness checks clean `up --wait`, two healthy Rust containers and two Envoy hosts. It stops PostgreSQL and waits for both Rust containers to become `unhealthy` while the processes remain running and Envoy reaches zero hosts; then it restores PostgreSQL and waits for both to recover. Renaming a required `player` table in the isolated database proves an incomplete schema also makes them unhealthy; the harness restores it. It stops rust-1 to confirm Envoy retains one healthy host, then starts and restarts rust-1, confirming two hosts and Docker health again. Polls have bounded deadlines; no fixed startup delay is used.
+
+## Execution record
+
+Pending CI Integration execution on the J85 PR. Local Docker Desktop WSL integration is disabled in this environment.

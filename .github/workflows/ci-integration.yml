@@ -11,6 +11,7 @@ on:
       - "database/**"
       - "proto/**"
       - "scripts/validation/j83-profile-economy.py"
+      - "scripts/validation/j85-compose-readiness.py"
       - ".github/workflows/ci-integration.yml"
   push:
     branches: [main]
@@ -22,6 +23,7 @@ on:
       - "database/**"
       - "proto/**"
       - "scripts/validation/j83-profile-economy.py"
+      - "scripts/validation/j85-compose-readiness.py"
       - ".github/workflows/ci-integration.yml"
 
 permissions:
@@ -87,8 +89,8 @@ jobs:
 
       - name: Verify gRPC health through Envoy
         run: |
-          # Rust reports NOT_SERVING until the E42 migration is applied (previous step),
-          # then needs one probe interval plus one Envoy health check to be reincorporated.
+          # db-migrate completes before Rust starts; Envoy needs its first
+          # active gRPC health round before hosts enter rotation.
           for attempt in $(seq 1 30); do
             healthy=$(curl --fail --silent --show-error http://127.0.0.1:9901/clusters | grep -Ec 'player_profile_cluster::.*::health_flags::healthy' || true)
             if [ "$healthy" -eq 2 ]; then
@@ -112,6 +114,11 @@ jobs:
 
       - name: Validate public profile and economy path (J83)
         run: python3 scripts/validation/j83-profile-economy.py
+
+      - name: Validate gRPC Compose readiness and recovery (J85)
+        env:
+          J85_SKIP_BUILD: "1"
+        run: python3 scripts/validation/j85-compose-readiness.py
 
       - name: Logs on failure
         if: failure()
