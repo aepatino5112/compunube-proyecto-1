@@ -16,4 +16,4 @@ The harness checks clean `up --wait`, two healthy Rust containers and two Envoy 
 
 ## Execution record
 
-Pending CI Integration execution on the J85 PR. Local Docker Desktop WSL integration is disabled in this environment.
+The [CI Integration run for PR #63](https://github.com/aepatino5112/compunube-proyecto-1/actions/runs/40226406863) passed on 2026-10-25: `RESULT: PASS`, six explicit checks, 146.7 s for the isolated J85 harness. Clean `up --wait` reached two Rust `healthy` containers. With PostgreSQL down, both became `unhealthy` while still running and Envoy reached zero hosts in 48.0 s; restoring PostgreSQL returned both and Envoy to healthy/two hosts in 5.4 s. Removing a required `player` table produced unhealthy/zero hosts; restoring it recovered both. A hard-killed rust-1 left one healthy Envoy host in 7.0 s; start and restart returned rust-1 to healthy in 5.2 s each. These timings describe this run, not an SLA. The J83 public API harness and all six PR checks also passed. Local Docker Desktop WSL integration is disabled in this environment.
