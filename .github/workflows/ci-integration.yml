@@ -10,6 +10,7 @@ on:
       - "infra/**"
       - "database/**"
       - "proto/**"
+      - "scripts/validation/j83-profile-economy.py"
       - ".github/workflows/ci-integration.yml"
   push:
     branches: [main]
@@ -20,6 +21,7 @@ on:
       - "infra/**"
       - "database/**"
       - "proto/**"
+      - "scripts/validation/j83-profile-economy.py"
       - ".github/workflows/ci-integration.yml"
 
 permissions:
@@ -32,7 +34,7 @@ concurrency:
 jobs:
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -99,6 +101,9 @@ jobs:
 
       - name: Show stack
         run: docker compose ps
+
+      - name: Validate public profile and economy path (J83)
+        run: python3 scripts/validation/j83-profile-economy.py
 
       - name: Logs on failure
         if: failure()
