@@ -27,4 +27,4 @@ Equipment and appearance advance the revision further. An attempt to buy `sol` w
 
 ## Execution record
 
-Local execution in the current WSL environment is unavailable because Docker Desktop WSL integration is disabled. The CI Integration job is the execution gate; its `Validate public profile and economy path (J83)` step records check results, settlement confirmation time, outage detection time and `RESULT: PASS/FAIL` in the PR logs. No local runtime result is claimed here.
+Local execution in the current WSL environment is unavailable because Docker Desktop WSL integration is disabled. The [CI Integration run for PR #61](https://github.com/aepatino5112/compunube-proyecto-1/actions/runs/40221448893) executed the harness on 2026-10-25 at head `00eb15e`: **53 checks passed, 0 failed, `RESULT: PASS`**. The fixture reached confirmed settlement in 0.2 s; stopping both Rust replicas led to `PROFILE_UNAVAILABLE` checks after 58.7 s while Go health/readiness stayed 200. The complete isolated run took 80.1 s and its teardown removed the project. These timings describe this CI run, not a latency target.
