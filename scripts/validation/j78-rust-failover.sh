@@ -41,6 +41,13 @@ set -uo pipefail
 
 cd "$(dirname "$0")/../.." || exit 2
 
+for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD; do
+  if [ -z "${!key:-}" ]; then
+    printf -v "$key" '%s' "$(openssl rand -hex 24)"
+    export "$key"
+  fi
+done
+
 PROJECT="${J78_PROJECT:-compunube-j78}"
 export POSTGRES_PORT="${J78_POSTGRES_PORT:-55478}"
 export GO_HTTP_PORT="${J78_GO_HTTP_PORT:-58078}"

@@ -18,6 +18,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Generate ephemeral database credentials
+        run: |
+          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD; do
+            printf '%s=%s\n' "$key" "$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          done
       - name: Validate local quality targets
         run: make -n quality >/dev/null
       - name: Validate Compose

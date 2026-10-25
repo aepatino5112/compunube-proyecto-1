@@ -6,7 +6,9 @@ La instancia comparte hardware, pero `match` pertenece a Go y `player` a Rust. [
 
 `database/init/00-bootstrap.sql` conserva el bootstrap de schemas de Compose en volúmenes nuevos. La migración inicial es `migrations/0001_schema.up.sql`, aplicada de forma atómica por `0001_apply.sql`: toma un advisory lock de transacción, consulta la versión y registra `0001` en la misma transacción. Una segunda ejecución no vuelve a crear objetos. `scripts/migrate.sh` recorre los archivos `*_apply.sql` en orden; futuras versiones añaden un par `NNNN_apply.sql`/`NNNN_*.up.sql` y mantienen las migraciones ya aplicadas inmutables.
 
-Se necesita una cuenta de despliegue con DDL/creación de roles (el `POSTGRES_USER` inicial de Compose sirve en desarrollo). Los roles `compunube_migrator`, `compunube_match_app` y `compunube_player_app` son **NOLOGIN**: las tablas pertenecen al migrator, mientras cada rol runtime obtiene USAGE/DML solo en su schema. H62 creará/configurará credenciales LOGIN separadas para los procesos; Compose todavía entrega la credencial compartida de bootstrap. Esto permite probar grants ahora sin afirmar que el aislamiento runtime ya está activado en Compose.
+Se necesita una cuenta de despliegue con DDL/creación de roles (el `POSTGRES_USER` inicial de Compose sirve en desarrollo). Los roles `compunube_migrator`, `compunube_match_app` y `compunube_player_app` son **NOLOGIN**: las tablas pertenecen al migrator. J84 añade tres LOGIN separados: `compunube_match_runtime` hereda solo `compunube_match_app`, `compunube_player_runtime` hereda solo `compunube_player_app`, y `compunube_monitor_runtime` hereda `pg_monitor` para postgres-exporter. El proceso administrativo `db-migrate` aplica las migraciones y provisiona/rota los LOGIN de modo idempotente antes de arrancar las aplicaciones. Go, Rust y exporter no reciben la cuenta administrativa.
+
+Las contraseñas se entregan solo por entorno: `POSTGRES_PASSWORD`, `MATCH_DB_PASSWORD`, `PLAYER_DB_PASSWORD`, `MONITOR_DB_PASSWORD`. `compose.yml` las exige; `.env.example` deja los campos vacíos. Genere valores distintos, URL-safe (por ejemplo, `openssl rand -hex 24`), en un `.env` local ignorado por Git o mediante el gestor de secretos del despliegue. Para rotarlas, cambie los valores en el entorno y vuelva a ejecutar `docker compose up -d --force-recreate db-migrate`, seguido de la recreación de Go, ambas Rust y postgres-exporter. El bootstrap actualiza los passwords; la renovación no toca migraciones históricas ni datos. En producción el principal de migración debe ser una identidad administrativa separada, con el mismo alcance DDL/creación de roles, nunca la identidad runtime.
 
 Con clientes PostgreSQL 17 instalados y `DATABASE_URL` de despliegue en el entorno:
 
@@ -18,8 +20,8 @@ sh database/scripts/seed.sh
 En Compose, sin instalar clientes en el host:
 
 ```bash
-docker compose up -d postgres --wait
-docker compose exec -T postgres sh -c 'export PGPASSWORD="$POSTGRES_PASSWORD"; export DATABASE_URL="postgresql://$POSTGRES_USER@127.0.0.1:5432/$POSTGRES_DB"; sh /opt/compunube-database/scripts/migrate.sh; sh /opt/compunube-database/scripts/seed.sh'
+docker compose up -d db-migrate --wait
+docker compose exec -T postgres sh -c 'export PGPASSWORD="$POSTGRES_PASSWORD"; export DATABASE_URL="postgresql://$POSTGRES_USER@127.0.0.1:5432/$POSTGRES_DB"; sh /opt/compunube-database/scripts/seed.sh'
 ```
 
 El seed añade las **18 referencias de objeto** verificadas en [`apps/web/dist/economy.js`](../apps/web/dist/economy.js) (no crea perfiles, balances ni inventarios). Repetirlo no duplica filas. Los 4 personajes y el catálogo online no dependen del seed: los registra la migración `0002`.
@@ -47,10 +49,11 @@ La migración inicial crea toda la estructura; su `down` destruiría datos y no 
 
 ## Verificación
 
-`scripts/smoke.sh` corre dentro del contenedor PostgreSQL de Compose: crea esquema limpio, reaplica migración, comprueba 13 tablas, 22 referencias, el catálogo `online-v1` (22 entradas) y la columna `rejection_code`, prueba balance negativo y DML cruzado con `SET ROLE`, agrega una fila fixture solo en la base efímera, hace backup, restaura en otra base efímera y compara el dato. CI Integration lo ejecuta y limpia el volumen al terminar. Para reproducirlo localmente use un proyecto Compose aislado; **el smoke inserta un fixture** y no debe ejecutarse contra datos persistentes reales.
+`scripts/smoke.sh` corre dentro del contenedor PostgreSQL de Compose: crea esquema limpio, reaplica migración, comprueba 13 tablas, 22 referencias, el catálogo `online-v1` (22 entradas) y la columna `rejection_code`, prueba balance negativo y DML cruzado con `SET ROLE`, agrega una fila fixture solo en la base efímera, hace backup, restaura en otra base efímera y compara el dato. `scripts/smoke-runtime.sh` usa los LOGIN reales y prueba SELECT/INSERT/UPDATE/DELETE positivos en el schema propio y rechazados en el ajeno. CI Integration ejecuta ambos y limpia el volumen al terminar. Para reproducirlo localmente use un proyecto Compose aislado; **el smoke E42 inserta un fixture** y no debe ejecutarse contra datos persistentes reales.
 
 ```bash
-docker compose -p compunube-e42-test up -d postgres --wait
+docker compose -p compunube-e42-test up -d --wait
 docker compose -p compunube-e42-test exec -T postgres sh /opt/compunube-database/scripts/smoke.sh
+docker compose -p compunube-e42-test run --rm --no-deps db-migrate sh /opt/compunube-database/scripts/smoke-runtime.sh
 docker compose -p compunube-e42-test down -v
 ```

@@ -5,7 +5,7 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-compunube}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compunube_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-compunube}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -20,6 +20,23 @@ services:
       retries: 10
     restart: unless-stopped
 
+  db-migrate:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-compunube}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-compunube}
+      MATCH_DB_PASSWORD: ${MATCH_DB_PASSWORD:?set MATCH_DB_PASSWORD}
+      PLAYER_DB_PASSWORD: ${PLAYER_DB_PASSWORD:?set PLAYER_DB_PASSWORD}
+      MONITOR_DB_PASSWORD: ${MONITOR_DB_PASSWORD:?set MONITOR_DB_PASSWORD}
+    volumes:
+      - ./database:/opt/compunube-database:ro
+    command: ["sh", "/opt/compunube-database/scripts/bootstrap-runtime.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   player-profile-rust-1:
     image: compunube-player-profile-service:dev
     build:
@@ -28,10 +45,10 @@ services:
     environment:
       SERVICE_ADDR: 0.0.0.0:50051
       INSTANCE_ID: rust-1
-      DATABASE_URL: postgres://${POSTGRES_USER:-compunube}:${POSTGRES_PASSWORD:-compunube_dev}@postgres:5432/${POSTGRES_DB:-compunube}
+      DATABASE_URL: postgres://compunube_player_runtime:${PLAYER_DB_PASSWORD:?set PLAYER_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-compunube}
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "nc", "-z", "127.0.0.1", "50051"]
       interval: 5s
@@ -47,10 +64,10 @@ services:
     environment:
       SERVICE_ADDR: 0.0.0.0:50051
       INSTANCE_ID: rust-2
-      DATABASE_URL: postgres://${POSTGRES_USER:-compunube}:${POSTGRES_PASSWORD:-compunube_dev}@postgres:5432/${POSTGRES_DB:-compunube}
+      DATABASE_URL: postgres://compunube_player_runtime:${PLAYER_DB_PASSWORD:?set PLAYER_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-compunube}
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "nc", "-z", "127.0.0.1", "50051"]
       interval: 5s
@@ -80,12 +97,12 @@ services:
     environment:
       HTTP_ADDR: 0.0.0.0:8080
       PLAYER_PROFILE_GRPC_ADDR: envoy:50051
-      DATABASE_URL: postgres://${POSTGRES_USER:-compunube}:${POSTGRES_PASSWORD:-compunube_dev}@postgres:5432/${POSTGRES_DB:-compunube}
+      DATABASE_URL: postgres://compunube_match_runtime:${MATCH_DB_PASSWORD:?set MATCH_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-compunube}
     ports:
       - "${GO_HTTP_PORT:-8080}:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
       envoy:
         condition: service_started
     healthcheck:
@@ -98,10 +115,10 @@ services:
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.16.0
     environment:
-      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-compunube}:${POSTGRES_PASSWORD:-compunube_dev}@postgres:5432/${POSTGRES_DB:-compunube}?sslmode=disable
+      DATA_SOURCE_NAME: postgresql://compunube_monitor_runtime:${MONITOR_DB_PASSWORD:?set MONITOR_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-compunube}?sslmode=disable
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   prometheus:
