@@ -147,6 +147,8 @@ E42 añade migraciones versionadas y un smoke de permisos/backup/restauración a
 
 H68 añade validación de la configuración y reglas Prometheus con `promtool check config` en CI Infrastructure. CI Integration ejecuta [h68-prometheus.py](../scripts/validation/h68-prometheus.py) después de J85: comprueba targets Go, ambas Rust, Envoy y postgres-exporter, consultas y alertas, y caída/recuperación de rust-1 y PostgreSQL en un proyecto Compose aislado.
 
+G57 compila en CI Web los módulos TypeScript de `apps/web/src/net` y comprueba que `dist/net` versionado coincide con la compilación. CI Integration ejecuta `npm run test:integration` en `apps/web`: el adaptador compilado del navegador, a través de `server.mjs`, crea la sesión con cookie, lee perfil y catálogo, confirma equipamiento y apariencia, recibe rechazos de negocio sin cambios, comprueba replay y `IDEMPOTENCY_CONFLICT` con el mismo `requestId`, y verifica que Go rechaza mutaciones con cookie sin `Origin` o con otro origen.
+
 Los checks separados de GitHub mantienen errores fáciles de localizar: un fallo de Go, Rust, Web, Contracts o Infrastructure aparece en su job correspondiente. No se reemplazan por un único job monolítico.
 
 ## Ejecución local equivalente
