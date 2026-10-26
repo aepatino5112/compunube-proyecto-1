@@ -2,7 +2,7 @@
 
 Conecta cada requisito ([RF](../requirements/functional-requirements.md), [NFR](../requirements/non-functional-requirements.md)) con componente, prueba, comando, entorno, resultado **observado** y evidencia. Trello sigue siendo la fuente operativa de tarjetas; aquí solo se registra qué prueba demuestra qué y con qué resultado real.
 
-**Estado:** actualizada el 26 de octubre de 2026. **Leyenda de resultado:**
+**Estado:** actualizada el 26 de octubre de 2026 con `main` en `6e84e9a`. **Leyenda de resultado:**
 
 - **PASS-CI**: ejecutada en GitHub Actions y aprobada (se cita el PR o la ejecución).
 - **PASS-local**: ejecutada fuera de CI y documentada en `docs/evidence/`.
@@ -33,7 +33,7 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 | RF-002 perfil y catálogo online separados | Go `profilehttp` → Rust; web `online-profile`, `src/net/profile.ts` | `integration/profile.test.js`; `tests/go-profile-adapter.test.js`; J83 | E-INT, E-WEB | PASS-CI | #71 (run 40267035798) |
 | RF-003 `localStorage` nunca acredita online | web `online-profile.js` | `tests/online-profile.test.js`, `go-profile-adapter.test.js` | E-WEB | PASS-CI | #71 |
 | RF-004 cosméticos válidos sin efecto en carrera | Rust economía; web | `economy_mutations.rs`; G57 integración (equipar, apariencia) | E-RS, E-INT | PASS-CI | #71 |
-| RF-005 elección de Reducir por participación | Go rooms; lobby web; cliente Python | lobby G56 (Playwright), G58/I72 (`--reduce`), resultado con `reduceChoice` | E-INT | PEND (navegador) / PASS-CI (Python) | #72, #70 |
+| RF-005 elección de Reducir por participación | Go rooms; lobby web; cliente Python | lobby G56 (Playwright), G58/I72 (`--reduce`), resultado con `reduceChoice` | E-INT | PASS-CI | #72, #70, `docs/evidence/web-online-g56-g61.md` |
 | RF-006 `ready` tras perfil verificado | Go rooms + verificador | `TestInvalidMapAndFailClosedPreparation`; `integration/realtime.test.js` (revisión obsoleta rechazada) | E-GO, E-INT | PASS-CI | #72 (run 40267496997, prueba Node) |
 | RF-007 mapa fijo por sala | Go rooms | `TestLifecycleAndCapacity`, `TestVersionedCoursesAndWireShape` | E-GO | PASS-CI | main |
 | RF-008 joins en LOBBY hasta 4 | Go rooms | `TestLifecycleAndCapacity`; I72 (3 salas de 4) | E-GO, E-INT | PASS-CI | #77 (run 40270374298) |
@@ -48,12 +48,12 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 | RF-022 métricas de agua (contribución/total) | web | sin prueba específica identificada en online | — | NO CUBIERTO | — |
 | RF-023 objetos de DQ/left/DNF no acreditados | Go race | `TestNonFinishersNeverCreditCollectedMaterials`; G58/I72 | E-GO, E-INT | PASS-CI | main, #70 |
 | RF-024 perder foco no pausa | web `game.js` | `tests/network-game-bridge.test.js` | E-WEB | PASS-CI | main |
-| RF-025 reentrada 15 s | Go race/rooms; web; Python | `TestRaceInputGatewayAndReentrySequences`, `TestCreateAndRebind`; I73 (corte de socket, reentrada en 0,5 s); `integration/realtime.test.js` (G61) | E-GO, E-INT | PASS-CI (Go, Python I73) / PEND (web G61) | #78 (run 40270377884), #73 |
+| RF-025 reentrada 15 s | Go race/rooms; web; Python | `TestRaceInputGatewayAndReentrySequences`, `TestCreateAndRebind`; I73 (reentrada en 0,5 s); G61 (reconexión y recarga reanudada en 15 ms) | E-GO, E-INT | PASS-CI | #78, #73 (run 40273545998) |
 | RF-026 `left` inmediato | Go rooms | `TestAllRacingMembersLeaveClosesRoom`; G59 integración; I72 (salida a los 10 s → `left`, sin crédito) | E-GO, E-INT | PASS-CI | #77, #72 (prueba Node) |
 | RF-027 estados terminales distintos | Go race | `TestTerminalDisplayOrderHasNoRank` | E-GO | PASS-CI | main |
 | RF-028 cierre global / DNF a 45 s | Go race | `TestReentryFinishDeadlineRankingAndImmutableResult` | E-GO | PASS-CI | main |
 | RF-029 puesto solo para `finished` | Go race | `TestSimultaneousFinishRanksByPlayerID`, `TestFinishTimePrecedesPlayerID`; G58/I72 | E-GO, E-INT | PASS-CI | #70 |
-| RF-030 resultado vs settlement pendiente | web G56; Python | resultado con acreditación pendiente/confirmada; G59 integración (`race.ended` confirmado notificado una vez) | E-WEB, E-INT | PASS-CI (Node) / PEND (navegador) | #72 |
+| RF-030 resultado vs settlement pendiente | web G56; Python | tarjeta de resultado pendiente → confirmada (Playwright); `race.ended` confirmado notificado una vez | E-WEB, E-INT | PASS-CI | #72 (run 40273539990) |
 | RF-031 crédito una sola vez | Go settlement + Rust | `TestSuccessReplayAndGlobalConfirmation`, `economy_settlement.rs`; F54; G58/I72/I73 (`player.settlements` = crédito de Go, perfiles acreditados una vez, también tras caída de Rust/Go/PostgreSQL) | E-GO, E-RS, E-INT | PASS-CI; F54 PASS-local | #70, #77, #78 |
 | RF-032 canje | Rust | `economy_mutations.rs`; G58 (replay del CLI con el mismo `requestId`) | E-RS, E-INT | PASS-CI | #70 |
 | RF-033 fabricación | Rust | `economy_mutations.rs`; G57 (rechazo sin materiales) | E-RS, E-INT | PASS-CI | #71 |
@@ -62,7 +62,7 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 | RF-036 compatibilidad de protocolo | Go realtime; clientes | `TestRealtimeHandshakeAndRoomState`; G58 (subprotocolo rechazado); web (`INCOMPATIBLE_VERSION`) | E-GO, E-INT, E-WEB | PASS-CI | #70, #72 |
 | RF-037 `rulesVersion`/`courseVersion` | Go race; web | `TestVersionedCoursesAndWireShape`; `tests/go-realtime-adapter.test.js` con el manifiesto real de Go | E-GO, E-WEB | PASS-CI | #72 |
 | RF-038 `catalogVersion` | Rust; web/Python | `economy_mutations.rs`; adaptador (`INVALID_CATALOG_VERSION`, cuerpo fijo por `requestId`) | E-RS, E-WEB | PASS-CI | #71 |
-| RF-039 web y Python en la misma frontera | clientes | G58; G59 (dos clientes web); E2E navegadores + Python en la misma sala | E-INT | PASS-CI (G58, Node) / PEND (E2E) | #70, #72 |
+| RF-039 web y Python en la misma frontera | clientes | G58; G59 (dos clientes web); E2E dos navegadores + Python en la misma sala | E-INT | PASS-CI | #70, #72 (run 40273539990) |
 | RF-040 sin verdad del cliente | Go | `TestStrictBodiesAndErrorMapping`, decodificación estricta E43; los clientes solo envían intenciones | E-GO | PASS-CI | main |
 
 ## Requisitos no funcionales
@@ -77,7 +77,7 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 | NFR-AVL-001 caída de Rust | H68, H69 (una y ambas réplicas, Circuit Breaker abre y cierra), I73 (carrera activa sin Rust); J78 | E-INT | PASS-CI (H68/H69); J78 PASS-local | #67, `docs/evidence/h69-grafana.md`, `j78-rust-failover.md` |
 | NFR-AVL-002 disponibilidad observada | H68/H69 (Prometheus, alertas, Grafana) | E-INT | PASS-CI | #67 |
 | NFR-RES-001..004 deadline, retry, circuito, degradado | `TestCircuitTransitionsAndProbe`, `TestReadRetrySameContextAndMutationNoRetry`, `TestAuthAndOpenCircuit`; H69; adaptador web 503 | E-GO, E-INT, E-WEB | PASS-CI | main, #67, #71 |
-| NFR-REC-001/002 reconexión y reentrada | Go reentry tests; I73; G61 (web) | E-GO, E-INT | PASS-CI (Go, I73) / PEND (web) | #78, #73 |
+| NFR-REC-001/002 reconexión y reentrada | Go reentry tests; I73; G61 (web) | E-GO, E-INT | PASS-CI | #78, #73 |
 | NFR-REC-003 restauración durable | `TestNewCoordinatorRecoversPendingAfterRestart`, `TestPostgresConcurrentClaimAndRestart`; I73 (reinicio de Go con settlement pendiente; caída de PostgreSQL) | E-GO, E-INT | PASS-CI | #76, #78 |
 | NFR-DAT-001 ownership y transacción | J84 (denegación cruzada), E42 smoke, `db_schema.rs` | E-INT, E-RS | PASS-CI | CI Integration de main |
 | NFR-DAT-002 settlement idempotente | `TestSuccessReplayAndGlobalConfirmation`, `economy_settlement.rs`, F54 | E-GO, E-RS | PASS-CI; F54 PASS-local | `docs/evidence/f54-settlement-e2e.md` |
