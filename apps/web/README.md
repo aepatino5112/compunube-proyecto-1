@@ -14,11 +14,25 @@ npm test
 npm start
 ```
 
-Abrir http://127.0.0.1:4173/. El servidor incluido sólo sirve archivos estáticos y escucha en loopback. No necesita Docker ni credenciales para la demo local. Los recursos del juego también están incluidos, por lo que `npm start` funciona sin instalar dependencias; `npm ci` prepara las pruebas.
+Abrir http://127.0.0.1:4173/. El servidor incluido sirve los archivos estáticos y escucha en loopback (`COMPUNUBE_WEB_HOST`/`COMPUNUBE_WEB_PORT` lo cambian). No necesita Docker ni credenciales para la demo local. Los recursos del juego también están incluidos, por lo que `npm start` funciona sin instalar dependencias; `npm ci` prepara la compilación TypeScript y las pruebas.
+
+### Modo online contra Go
+
+Con el stack levantado (`docker compose up -d --build --wait` en la raíz), arrancar el cliente con el origen público de Go:
+
+```sh
+COMPUNUBE_GO_URL=http://127.0.0.1:8080 npm start
+```
+
+`server.mjs` reenvía `/v1` (HTTP y la actualización WebSocket de `/v1/realtime`) a Go conservando el `Host` de la página. Así el navegador queda en un único origen: Go emite la cookie de sesión `HttpOnly; Secure; SameSite=Strict` y comprueba `Origin` en mutaciones y en el WebSocket. Sin `COMPUNUBE_GO_URL`, `/v1` responde `503 SERVICE_UNAVAILABLE` y el modo local sigue funcionando. Los navegadores aceptan la cookie `Secure` en `http://127.0.0.1`/`localhost`; desde otro equipo por `http://<IP>` la rechazan, por lo que el acceso en el laboratorio necesita HTTPS (pendiente de H66/D31).
+
+### TypeScript
+
+Los módulos nuevos de integración online están en `src/net/*.ts` y se compilan con `npm run build` (TypeScript fijado en `package-lock.json`, modo `strict`) a `dist/net/`, que se versiona para que `npm start` no requiera compilar. Los tipos realtime se importan del contrato normativo [`contracts/realtime/v1.ts`](../../contracts/realtime/v1.ts) mediante `tsconfig.contracts.json`, sin copiarlo; los DTO HTTP de `src/net/e45.ts` reflejan [`openapi.yaml`](../../contracts/http/openapi.yaml). CI Web compila y falla si `dist/net` no coincide con `src/net`.
 
 `dist/` contiene los módulos y assets publicados directamente, no un directorio generado que deba borrarse. `art/` conserva fuentes y scripts de Blender; no se necesita Blender para jugar. `tests/` contiene pruebas y evidencias históricas. Los módulos Three.js y el auxiliar PNG de pruebas conservan sus licencias incluidas.
 
-La simulación y el guardado del navegador son exclusivamente la demo local contra IA. Online se reciben estados confirmados, se envían intenciones y se espera confirmación de economía. `dist/backend-config.js` mantiene ambos adaptadores en `null`; este PR no implementa autenticación, transporte real, settlement ni segunda interfaz.
+La simulación y el guardado del navegador son exclusivamente la demo local contra IA. Online se reciben estados confirmados, se envían intenciones y se espera confirmación de economía. `dist/backend-config.js` conecta `profileAdapter` a la API pública de Go (G57: sesión, perfil, catálogo, compra, fabricación, canje, equipamiento y apariencia); `backendAdapter` (salas y realtime) se conecta en G59.
 
 Las guías de [salas/carrera](docs/backend/FRONT_ADAPTER.md), [perfil/economía](docs/backend/PROFILE_ADAPTER.md) y [fixtures](docs/backend/fixtures/current-front.json) describen lo que espera este cliente. Sus DTOs TypeScript son propuestas de la frontera pública, **no** reemplazan el contrato interno Go↔Rust de [proto/](../../proto/) ni congelan E43. La integración respetará [ARCHITECTURE.md](../../ARCHITECTURE.md): cliente → Go; Go → Envoy/gRPC → Rust. Los proveedores del cliente deben usar la frontera pública acordada con Go, sin acceder a PostgreSQL o al gRPC interno desde el navegador.
 

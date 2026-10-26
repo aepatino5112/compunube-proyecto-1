@@ -16,6 +16,10 @@ on:
       - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
       - "apps/client-secondary/**"
+      - "apps/web/src/**"
+      - "apps/web/dist/net/**"
+      - "apps/web/integration/**"
+      - "apps/web/server.mjs"
       - ".github/workflows/ci-integration.yml"
   push:
     branches: [main]
@@ -32,6 +36,10 @@ on:
       - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
       - "apps/client-secondary/**"
+      - "apps/web/src/**"
+      - "apps/web/dist/net/**"
+      - "apps/web/integration/**"
+      - "apps/web/server.mjs"
       - ".github/workflows/ci-integration.yml"
 
 permissions:
@@ -130,6 +138,19 @@ jobs:
         env:
           G58_SKIP_BUILD: "1"
         run: python3 scripts/validation/g58-python-client.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Validate web profile and economy against Go (G57)
+        working-directory: apps/web
+        env:
+          COMPUNUBE_GO_URL: http://127.0.0.1:8080
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run test:integration
 
       - name: Validate gRPC Compose readiness and recovery (J85)
         env:

@@ -156,6 +156,8 @@ H69 provisiona desde Git el datasource y el dashboard operacional de Grafana. CI
 
 G58 añade [g58-python-client.py](../scripts/validation/g58-python-client.py) a CI Integration: en un proyecto Compose aislado, dos clientes Python juegan una carrera real contra Go solo con HTTP E45 y WebSocket E43, y se verifican resultado, propiedad única de recogidas, settlement confirmado, perfil acreditado una vez y el replay del CLI con el mismo `requestId`.
 
+G57 compila en CI Web los módulos TypeScript de `apps/web/src/net` y comprueba que `dist/net` versionado coincide con la compilación. CI Integration ejecuta `npm run test:integration` en `apps/web`: el adaptador compilado del navegador, a través de `server.mjs`, crea la sesión con cookie, lee perfil y catálogo, confirma equipamiento y apariencia, recibe rechazos de negocio sin cambios, comprueba replay y `IDEMPOTENCY_CONFLICT` con el mismo `requestId`, y verifica que Go rechaza mutaciones con cookie sin `Origin` o con otro origen.
+
 Los checks separados de GitHub mantienen errores fáciles de localizar: un fallo de Go, Rust, Web, Contracts o Infrastructure aparece en su job correspondiente. No se reemplazan por un único job monolítico.
 
 ## Ejecución local equivalente
