@@ -2,17 +2,13 @@ package matchstore
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 	"time"
 )
 
 func TestPostgresConcurrentClaimAndRestart(t *testing.T) {
-	url := os.Getenv("MATCHSTORE_TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("set MATCHSTORE_TEST_DATABASE_URL for migrated isolated PostgreSQL")
-	}
+	url := testDatabaseURL(t)
 	ctx := context.Background()
 	store, err := Open(ctx, url, 4)
 	if err != nil {
@@ -124,10 +120,7 @@ func TestPostgresConcurrentClaimAndRestart(t *testing.T) {
 }
 
 func TestPostgresPermanentFailureIsNotReclaimed(t *testing.T) {
-	url := os.Getenv("MATCHSTORE_TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("set MATCHSTORE_TEST_DATABASE_URL for migrated isolated PostgreSQL")
-	}
+	url := testDatabaseURL(t)
 	ctx := context.Background()
 	store, err := Open(ctx, url, 4)
 	if err != nil {
@@ -182,10 +175,7 @@ func TestPostgresPermanentFailureIsNotReclaimed(t *testing.T) {
 }
 
 func TestPostgresConcurrentConfirmPublishesOnce(t *testing.T) {
-	url := os.Getenv("MATCHSTORE_TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("set MATCHSTORE_TEST_DATABASE_URL for migrated isolated PostgreSQL")
-	}
+	url := testDatabaseURL(t)
 	ctx := context.Background()
 	store, err := Open(ctx, url, 4)
 	if err != nil {

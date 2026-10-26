@@ -34,6 +34,12 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile TypeScript (strict)
+        run: npm run build
+      - name: Verify committed dist/net matches src/net
+        run: |
+          git status --porcelain -- dist/net
+          test -z "$(git status --porcelain -- dist/net)"
       - name: Check JavaScript syntax
         run: npm run check
       - name: Run frontend regression tests

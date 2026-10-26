@@ -7,9 +7,12 @@ const ITEMS = new Map(CATALOG.map(item => [item.id, item]));
 const EQUIPMENT = ['board', 'outfit', 'net', 'hair', 'character'];
 const APPEARANCE = {skin: new Set(SKIN_TONES.map(value => value.id)),
   hairColor: new Set(HAIR_COLORS.map(value => value.id))};
-const COUNTERS = ['coins', 'plastic', 'metal', 'totalCleaned', 'races'];
+const COUNTERS = ['coins', 'plastic', 'metal'];
+// Local-only history counters; the online service (E45) does not report them.
+const OPTIONAL_COUNTERS = ['totalCleaned', 'races'];
 const BUSINESS_ERRORS = new Set(['INVALID_ACTION', 'INVALID_ITEM', 'INSUFFICIENT_COINS',
-  'INSUFFICIENT_MATERIALS', 'NOT_OWNED', 'ALREADY_OWNED', 'INVALID_APPEARANCE', 'SESSION_REQUIRED']);
+  'INSUFFICIENT_MATERIALS', 'NOT_OWNED', 'ALREADY_OWNED', 'INVALID_APPEARANCE', 'SESSION_REQUIRED',
+  'INVALID_REQUEST', 'IDEMPOTENCY_CONFLICT', 'INVALID_CATALOG_VERSION', 'PROFILE_REQUIRED']);
 const MESSAGES = {
   NOT_CONFIGURED: 'El perfil online todavía no tiene conectado el backend.',
   INVALID_ACTION: 'Elige una acción válida para tu perfil online.',
@@ -20,6 +23,10 @@ const MESSAGES = {
   ALREADY_OWNED: 'Ese objeto ya pertenece a tu perfil online.',
   INVALID_APPEARANCE: 'El servidor no reconoce esa apariencia.',
   SESSION_REQUIRED: 'El servidor necesita una sesión válida para continuar.',
+  INVALID_REQUEST: 'El servidor no aceptó esa solicitud. Actualiza el perfil antes de continuar.',
+  IDEMPOTENCY_CONFLICT: 'Esa operación ya se registró con otros datos. Actualiza el perfil antes de continuar.',
+  INVALID_CATALOG_VERSION: 'El catálogo cambió. Actualiza el perfil y vuelve a elegir.',
+  PROFILE_UNAVAILABLE: 'El perfil y la economía online no están disponibles ahora. Tu última confirmación se conserva.',
   PROFILE_REQUIRED: 'Carga tu perfil online antes de usarlo.',
   ACTION_PENDING: 'Espera la confirmación de la operación online pendiente.',
   LOAD_FAILED: 'No pudimos cargar el perfil online. Puedes volver a intentarlo.',
@@ -42,12 +49,13 @@ function freeze(value) {
 }
 function profileDTO(value) {
   if (!record(value) || value.version !== 1 || COUNTERS.some(key => !count(value[key])) ||
+      OPTIONAL_COUNTERS.some(key => value[key] !== null && !count(value[key])) ||
       !Array.isArray(value.owned) || value.owned.length > ITEMS.size ||
       value.owned.some(key => !ITEMS.has(key)) || new Set(value.owned).size !== value.owned.length ||
       !record(value.equipped) || !record(value.appearance)) return null;
   if (EQUIPMENT.some(type => ITEMS.get(value.equipped[type])?.type !== type || !value.owned.includes(value.equipped[type])) ||
       Object.entries(APPEARANCE).some(([key, choices]) => !choices.has(value.appearance[key]))) return null;
-  return {version: 1, ...Object.fromEntries(COUNTERS.map(key => [key, value[key]])), owned: [...value.owned],
+  return {version: 1, ...Object.fromEntries([...COUNTERS, ...OPTIONAL_COUNTERS].map(key => [key, value[key]])), owned: [...value.owned],
     equipped: Object.fromEntries(EQUIPMENT.map(key => [key, value.equipped[key]])),
     appearance: Object.fromEntries(Object.keys(APPEARANCE).map(key => [key, value.appearance[key]]))};
 }
@@ -144,9 +152,10 @@ export function createOnlineProfileStore({adapter = null, requestIdFactory = sec
       }
       update({...confirmedData(data), status: 'ready', error: null});
       return true;
-    } catch {
+    } catch (error) {
       if (disposed || token !== generation) return false;
-      update({status: 'error', error: errorDTO('LOAD_FAILED', true)});
+      const code = ['PROFILE_UNAVAILABLE', 'SESSION_REQUIRED'].includes(error?.code) ? error.code : 'LOAD_FAILED';
+      update({status: 'error', error: errorDTO(code, true)});
       return false;
     } finally { if (token === generation) controller = null; }
   }
@@ -171,7 +180,7 @@ export function createOnlineProfileStore({adapter = null, requestIdFactory = sec
       if (BUSINESS_ERRORS.has(error?.code) && (error.requestId === undefined || error.requestId === operation.requestId)) {
         operationRevision = null;
         update({status: 'ready', operation: null, error: errorDTO(error.code)});
-      } else update({status: 'uncertain', error: errorDTO('ACTION_UNCERTAIN', true)});
+      } else update({status: 'uncertain', error: errorDTO(error?.code === 'PROFILE_UNAVAILABLE' ? 'PROFILE_UNAVAILABLE' : 'ACTION_UNCERTAIN', true)});
       return false;
     } finally { if (token === generation) controller = null; }
   }
