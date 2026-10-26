@@ -124,12 +124,12 @@ cargo test
 
 ```bash
 npm ci
-npm run build   # TypeScript de src/net → dist/net (versionado) y manifiestos → dist/courses
+npm run build   # TypeScript de src → dist (versionado), manifiestos → dist/courses, Swagger → dist/api-docs
 npm run check
 npm test
 ```
 
-Los módulos nuevos de integración se escriben en TypeScript en `src/net`; no editar `dist/net` a mano.
+Los módulos nuevos de integración se escriben en TypeScript en `src/net`; no editar a mano los `.js` generados en `dist` (lobby, panel, cliente de sala, perfil online y `dist/net`).
 
 ### Cliente Python (`apps/client-secondary`)
 

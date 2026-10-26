@@ -53,6 +53,6 @@ Este ADR no implementa G58, no elige un framework gráfico Python, no migra todo
 
 Esta sección registra el cumplimiento sin cambiar la decisión:
 
-- **TypeScript:** el cliente web contiene código de aplicación TypeScript en `apps/web/src/net` (HTTP E45, perfil/economía, WebSocket E43, traducción a la presentación y reentrada), compilado en modo estricto con la versión fijada en `package-lock.json`. CI Web compila y falla si la salida versionada `dist/net` no coincide; los tipos realtime se importan del contrato `contracts/realtime/v1.ts`. Three.js y el resto del juego siguen en JavaScript.
+- **TypeScript:** la interfaz online del cliente web (lobby de salas, panel «Mi progreso», cliente de sala y almacén del perfil online, en `apps/web/src/*.ts`) y la integración en `apps/web/src/net` (HTTP E45, perfil/economía, WebSocket E43, traducción a la presentación y reentrada), compilado en modo estricto con la versión fijada en `package-lock.json`. CI Web compila y falla si la salida versionada en `dist` no coincide con las fuentes; los tipos realtime se importan del contrato `contracts/realtime/v1.ts`. Three.js y el resto del juego siguen en JavaScript.
 - **Python:** `apps/client-secondary` es un cliente funcional (G58) que juega carreras reales contra Go en CI Integration y comparte sala con el cliente web en el E2E de navegador.
 
