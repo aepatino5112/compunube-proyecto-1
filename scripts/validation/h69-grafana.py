@@ -52,6 +52,12 @@ def go(method, path, token=None, body=None):
         return error.code, json.load(error)
 
 
+def envoy_hosts():
+    with urlopen("http://127.0.0.1:" + h68.ENV["ENVOY_ADMIN_PORT"] + "/clusters", timeout=5) as response:
+        lines = response.read().decode().splitlines()
+    return "\n".join(line for line in lines if "::health_flags::" in line or "::hostname::" in line)
+
+
 def rust_up():
     return h68.scalar('sum(up{job="player-profile-rust"})')
 
@@ -152,10 +158,17 @@ def main():
     h68.wait_for("Go Circuit Breaker closes after recovery", 30,
                  lambda: circuit("closed") == 1 and circuit("open") == 0)
     h68.check(True, "Go Circuit Breaker recovered to closed")
-    h68.wait_for("dashboard shows both Rust replicas and Envoy hosts restored", 60,
+    h68.wait_for("dashboard shows both Rust replicas restored", 30,
                  lambda: panel("Rust replicas unavailable") == 0 and
-                 panel("Player/Profile unavailable") == 0 and
-                 panel("Envoy healthy Rust hosts") == 2)
+                 panel("Player/Profile unavailable") == 0)
+    try:
+        # STRICT_DNS may re-resolve restarted containers to new addresses; each
+        # new host needs a passing active gRPC health check before it counts.
+        h68.wait_for("dashboard shows both Envoy Rust hosts healthy", 90,
+                     lambda: panel("Envoy healthy Rust hosts") == 2)
+    except AssertionError:
+        print(envoy_hosts(), file=sys.stderr, flush=True)
+        raise
     h68.wait_for("both Rust down alert resolves", 35,
                  lambda: not h68.alert_firing("CompunubeBothRustDown"))
 
