@@ -49,13 +49,25 @@ def print_profile(profile: dict):
     print(f"  Objetos: {len(profile['ownedItemIds'])}")
 
 
+CHARACTER_NAMES = {"nico": "Nico", "luna": "Luna", "amara": "Amara", "samuel": "Samuel"}
+
+
+def member_name(member: dict) -> str:
+    """Go publishes the opaque playerId (or nothing before ready) as displayName."""
+    name = (member.get("displayName") or "").strip()
+    if name and name != member["playerId"]:
+        return name
+    character = CHARACTER_NAMES.get(member.get("equipment", {}).get("characterId", ""))
+    return f"{character or 'Surfista'} ({member['playerId'][:6]})"
+
+
 def print_room(room: dict, self_id: str):
     print(f"Sala {room['roomId']} · {room['mapId']} · {room['state']}")
     for member in room["members"]:
         marks = ["tú"] if member["playerId"] == self_id else []
         if not member["connected"]:
             marks.append("desconectado")
-        print(f"  - {member['displayName']}: {member['participantState']}"
+        print(f"  - {member_name(member)}: {member['participantState']}"
               + (f" ({', '.join(marks)})" if marks else ""))
 
 
