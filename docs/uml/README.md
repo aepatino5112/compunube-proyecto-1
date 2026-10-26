@@ -34,6 +34,10 @@ Los mensajes y estados siguen E43/E45, `proto/player_profile.proto` y el código
 
 **Discrepancia detectada:** D35 muestra `RESULTS → LOBBY` (repetir), y Go implementa `rooms.Manager.Repeat`, pero ningún endpoint HTTP ni mensaje E43 lo invoca: hoy la sala permanece en `RESULTS` hasta que sus miembros salen. Los diagramas D34 describen el comportamiento implementado.
 
+## D33 · Despliegue
+
+[Fuente](deployment.puml) y [SVG](deployment.svg): topología validada en CI (un host Compose) con imágenes, puertos y protocolos de `compose.yml`. La distribución física se completará con A05/[D31](../deployment/d31-topology.md).
+
 ## Regenerar el SVG
 
 Se usó **PlantUML 1.2026.9** en contenedor, fijado por digest. Desde la raíz del repositorio:
