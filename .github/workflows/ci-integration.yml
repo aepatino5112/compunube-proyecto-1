@@ -16,6 +16,7 @@ on:
       - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
       - "scripts/validation/i72-e2e-concurrency.py"
+      - "scripts/validation/i73-resilience.py"
       - "apps/client-secondary/**"
       - "apps/web/src/**"
       - "apps/web/dist/net/**"
@@ -37,6 +38,7 @@ on:
       - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
       - "scripts/validation/i72-e2e-concurrency.py"
+      - "scripts/validation/i73-resilience.py"
       - "apps/client-secondary/**"
       - "apps/web/src/**"
       - "apps/web/dist/net/**"
@@ -158,6 +160,11 @@ jobs:
         env:
           I72_SKIP_BUILD: "1"
         run: python3 scripts/validation/i72-e2e-concurrency.py
+
+      - name: Resilience and failover with real clients (I73)
+        env:
+          I73_SKIP_BUILD: "1"
+        run: python3 scripts/validation/i73-resilience.py
 
       - name: Validate gRPC Compose readiness and recovery (J85)
         env:
