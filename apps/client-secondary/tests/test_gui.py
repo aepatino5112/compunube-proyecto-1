@@ -129,7 +129,7 @@ def test_window_renders_profile_catalog_room_and_race():
         pump(root, window)
         assert "Monedas 10" in window.profile_label.cget("text")
         assert window.catalog_list.size() == 2
-        assert str(window.ready_button["state"]) == "disabled"
+        assert window.ready_button.instate(["disabled"]) and not window.create_button.instate(["disabled"])
 
         window.on_item("buy")
         pump(root, window)
@@ -149,7 +149,7 @@ def test_window_renders_profile_catalog_room_and_race():
         window.refresh()
         root.update()
         assert "Sala room-9" in window.room_label.cget("text")
-        assert str(window.create_button["state"]) == "disabled"
+        assert window.create_button.instate(["disabled"]) and not window.ready_button.instate(["disabled"])
         assert len(window.canvas.find_withtag("player")) == 4  # two ovals and two labels
         assert window.canvas.find_withtag("obstacle") and window.canvas.find_withtag("plastic")
         assert "puesto 1" in window.hud.get()

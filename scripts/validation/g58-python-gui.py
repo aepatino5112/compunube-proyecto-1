@@ -90,8 +90,8 @@ def main():
         check("Operación confirmada" in window.status.get(), "Equipar button confirmed by Go with a requestId")
         check(controller.profile["profileRevision"] > before["profileRevision"], "profile revision advanced once")
 
-        window.ready_button.invoke()
-        check("Primero crea una sala" in window.status.get(), "Listo is refused locally without a room")
+        check(window.ready_button.instate(["disabled"]) and window.leave_button.instate(["disabled"]),
+              "Listo and Salir are disabled without a room")
         window.map_id.set("maracaibo")
         window.create_button.invoke()
         pump_until(root, "room created", 20, lambda: controller.game is not None and window.room_code.get())
@@ -104,6 +104,8 @@ def main():
         pump_until(root, "guest joined", 30, lambda: controller.game.view.room is not None
                    and len(controller.game.view.room["members"]) == 2)
         check("Sala " + room_id in window.room_label.cget("text"), "room panel lists the room from room.state")
+        check(window.create_button.instate(["disabled"]) and window.join_button.instate(["disabled"]),
+              "create/join are disabled while in a room")
 
         window.ready_button.invoke()
         pump_until(root, "refused without reduce", 5, lambda: "hidratarte" in window.status.get())
@@ -156,7 +158,7 @@ def main():
 
         window.leave_button.invoke()
         pump_until(root, "left the room", 10, lambda: window.room_label.cget("text") == "Sin sala.")
-        check(str(window.create_button["state"]) != "disabled", "after leaving the room can be created again")
+        check(not window.create_button.instate(["disabled"]), "after leaving the room can be created again")
     finally:
         controller.close()
         root.destroy()
