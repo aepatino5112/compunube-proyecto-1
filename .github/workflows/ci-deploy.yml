@@ -1,0 +1,66 @@
+name: CI Deploy
+
+# H66: exercises scripts/deploy on a clean runner before any lab attempt:
+# deploy revision A, deploy revision B (with a database backup), roll back to A.
+on:
+  pull_request:
+    paths:
+      - "scripts/deploy/**"
+      - "compose.yml"
+      - ".env.example"
+      - "services/*/Dockerfile"
+      - ".github/workflows/ci-deploy.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/deploy/**"
+      - "compose.yml"
+      - "services/*/Dockerfile"
+      - ".github/workflows/ci-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write an untracked env file with ephemeral secrets
+        run: |
+          cp .env.example .env
+          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD GRAFANA_ADMIN_PASSWORD; do
+            value=$(openssl rand -hex 24)
+            echo "::add-mask::$value"
+            sed -i "s/^${key}=.*/${key}=${value}/" .env
+          done
+          git check-ignore -q .env
+      - name: Refuses to deploy without secrets
+        run: |
+          cp .env .env.bad && sed -i 's/^GRAFANA_ADMIN_PASSWORD=.*/GRAFANA_ADMIN_PASSWORD=/' .env.bad
+          if COMPUNUBE_ENV_FILE=.env.bad scripts/deploy/deploy.sh; then echo "deploy accepted an empty secret" >&2; exit 1; fi
+          rm .env.bad
+      - name: Deploy revision A
+        run: COMPUNUBE_REVISION=ci-a scripts/deploy/deploy.sh
+      - name: Deploy revision B (backs up PostgreSQL first)
+        run: |
+          COMPUNUBE_REVISION=ci-b scripts/deploy/deploy.sh
+          ls -l .deploy/backups
+          test "$(ls .deploy/backups | wc -l)" -ge 1
+      - name: Roll back to revision A without rebuilding
+        run: |
+          scripts/deploy/rollback.sh
+          cat .deploy/history
+          tail -n 1 .deploy/history | grep -q " ci-a rollback-from-ci-b"
+      - name: Logs on failure
+        if: failure()
+        run: docker compose --env-file .env logs --no-color --tail 100
+      - name: Cleanup
+        if: always()
+        run: docker compose --env-file .env down -v --remove-orphans
