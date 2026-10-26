@@ -128,14 +128,10 @@ services:
       - --storage.tsdb.path=/prometheus
     volumes:
       - ./infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/monitoring/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
-    depends_on:
-      match-service-go:
-        condition: service_healthy
-      envoy:
-        condition: service_started
     restart: unless-stopped
 
   grafana:
