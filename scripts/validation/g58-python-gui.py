@@ -86,7 +86,9 @@ def main():
         target = "luna" if before["equipment"]["characterId"] != "luna" else "nico"
         window.catalog_list.selection_set(rows.index(target))
         window.item_buttons["equip"].invoke()
-        pump_until(root, "equip confirmed", 20, lambda: controller.profile["equipment"]["characterId"] == target)
+        pump_until(root, "equip confirmed in the window", 20,
+                   lambda: "Operación confirmada" in window.status.get() or "Go respondió" in window.status.get())
+        check(controller.profile["equipment"]["characterId"] == target, f"profile now equips {target}")
         check("Operación confirmada" in window.status.get(), "Equipar button confirmed by Go with a requestId")
         check(controller.profile["profileRevision"] > before["profileRevision"], "profile revision advanced once")
 
@@ -101,14 +103,15 @@ def main():
         outcome, errors = {}, []
         guest = threading.Thread(target=guest_plays, args=(room_id, outcome, errors), daemon=True)
         guest.start()
-        pump_until(root, "guest joined", 30, lambda: controller.game.view.room is not None
-                   and len(controller.game.view.room["members"]) == 2)
-        check("Sala " + room_id in window.room_label.cget("text"), "room panel lists the room from room.state")
+        pump_until(root, "guest shown in the room panel", 30,
+                   lambda: window.room_label.cget("text").startswith(f"Sala {room_id}")
+                   and len(window.room_label.cget("text").splitlines()) == 3)
+        check(True, "room panel lists the room and both members from room.state")
         check(window.create_button.instate(["disabled"]) and window.join_button.instate(["disabled"]),
               "create/join are disabled while in a room")
 
         window.ready_button.invoke()
-        pump_until(root, "refused without reduce", 5, lambda: "hidratarte" in window.status.get())
+        pump_until(root, "Listo refused without the Reduce choice", 5, lambda: "hidratarte" in window.status.get())
         check(True, "Listo requires the Reduce choice")
         window.reduce.set("reusable")
         window.autopilot.set(True)
@@ -138,7 +141,11 @@ def main():
             result = controller.game.view.result
             return next(p for p in result["participants"] if p["playerId"] == controller.player_id)
 
-        pump_until(root, "settlement confirmed", 90, lambda: own()["settlementState"] == "confirmed")
+        def own_line():
+            return next((line for line in window.result_label.cget("text").splitlines() if " Tú: " in line), "")
+
+        pump_until(root, "settled own result shown", 90,
+                   lambda: own()["settlementState"] == "confirmed" and own_line().endswith("(acreditado)"))
         result_text = window.result_label.cget("text")
         print("  window result:\n    " + result_text.replace("\n", "\n    "), flush=True)
         check(" Tú: " in result_text and "acreditado" in result_text, "result panel shows the settled own result")
@@ -148,8 +155,8 @@ def main():
         check(outcome["result"]["raceId"] == controller.game.view.result["raceId"],
               "window and guest received the same authoritative result")
         credited = own()["credited"]
-        pump_until(root, "profile credited", 30,
-                   lambda: controller.profile["plastic"] == before["plastic"] + credited["plastic"])
+        expected = f"Plástico {before['plastic'] + credited['plastic']} · Chatarra {before['metal'] + credited['metal']}"
+        pump_until(root, "profile panel credited", 30, lambda: expected in window.profile_label.cget("text"))
         after = controller.profile
         check(after["plastic"] == before["plastic"] + credited["plastic"]
               and after["metal"] == before["metal"] + credited["metal"],
