@@ -16,6 +16,7 @@ on:
       - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
       - "scripts/validation/g58-python-gui.py"
+      - "scripts/deploy/web-tls-cert.sh"
       - "scripts/validation/i72-e2e-concurrency.py"
       - "scripts/validation/i73-resilience.py"
       - "apps/client-secondary/**"
@@ -42,6 +43,7 @@ on:
       - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
       - "scripts/validation/g58-python-gui.py"
+      - "scripts/deploy/web-tls-cert.sh"
       - "scripts/validation/i72-e2e-concurrency.py"
       - "scripts/validation/i73-resilience.py"
       - "apps/client-secondary/**"
@@ -75,6 +77,8 @@ jobs:
             echo "::add-mask::$value"
             printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
           done
+          # H66: the HTTPS web server used by the HTTPS integration and browser tests.
+          echo "PUBLIC_ORIGINS=https://127.0.0.1:4443" >> "$GITHUB_ENV"
 
       - name: Validate Compose
         run: docker compose config
@@ -175,10 +179,11 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
 
-      - name: Validate web profile, economy and realtime against Go (G57/G59/G61)
+      - name: Validate web profile, economy, realtime and HTTPS against Go (G57/G59/G61/H66)
         working-directory: apps/web
         env:
           COMPUNUBE_GO_URL: http://127.0.0.1:8080
+          COMPUNUBE_HTTPS_ORIGIN: https://127.0.0.1:4443
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run test:integration
@@ -187,10 +192,11 @@ jobs:
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
 
-      - name: Race with two browsers and the Python client against Go (G56/G59)
+      - name: Race with two browsers and the Python client against Go (G56/G59); browser over HTTPS (H66)
         working-directory: apps/web
         env:
           COMPUNUBE_GO_URL: http://127.0.0.1:8080
+          COMPUNUBE_HTTPS_ORIGIN: https://127.0.0.1:4443
         run: npm run test:e2e
 
       - name: Upload browser E2E evidence

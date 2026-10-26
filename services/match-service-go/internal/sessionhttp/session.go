@@ -14,9 +14,34 @@ const cookieName = "compunube_session"
 
 type contextKey struct{}
 
-type API struct{ registry *identity.Registry }
+type API struct {
+	registry      *identity.Registry
+	publicOrigins map[string]struct{}
+}
 
-func New(registry *identity.Registry) *API { return &API{registry: registry} }
+// New builds the session API. publicOrigins are exact https origins of a TLS
+// proxy in front of Go (PUBLIC_ORIGINS), accepted besides the direct origin.
+func New(registry *identity.Registry, publicOrigins ...string) *API {
+	a := &API{registry: registry, publicOrigins: make(map[string]struct{}, len(publicOrigins))}
+	for _, origin := range publicOrigins {
+		a.publicOrigins[origin] = struct{}{}
+	}
+	return a
+}
+
+// originAllowed accepts the direct origin or one configured public origin.
+// Only the browser-set Origin header is read; forwarded headers are ignored.
+func (a *API) originAllowed(r *http.Request) bool {
+	if SameOrigin(r) {
+		return true
+	}
+	origins := r.Header.Values("Origin")
+	if len(origins) != 1 {
+		return false
+	}
+	_, ok := a.publicOrigins[origins[0]]
+	return ok
+}
 
 func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/sessions", a.create)
@@ -58,7 +83,7 @@ func (a *API) current(w http.ResponseWriter, r *http.Request) {
 func (a *API) Require(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, cookieOnly, ok := a.authenticate(r)
-		if !ok || (cookieOnly && unsafeMethod(r.Method) && !SameOrigin(r)) {
+		if !ok || (cookieOnly && unsafeMethod(r.Method) && !a.originAllowed(r)) {
 			writeError(w, http.StatusUnauthorized, "SESSION_REQUIRED", "Valid session required")
 			return
 		}
@@ -70,7 +95,7 @@ func (a *API) Require(next http.Handler) http.Handler {
 // A browser cookie handshake must carry a matching Origin even though it is GET.
 func (a *API) AuthenticateUpgrade(r *http.Request) (string, bool) {
 	id, cookieOnly, ok := a.authenticate(r)
-	if !ok || (cookieOnly && !SameOrigin(r)) {
+	if !ok || (cookieOnly && !a.originAllowed(r)) {
 		return "", false
 	}
 	return id, true

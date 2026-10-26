@@ -192,6 +192,21 @@ func TestCookieOriginAndUpgradeSeam(t *testing.T) {
 	if id, ok := api.AuthenticateUpgrade(ws); !ok || id != first.PlayerID {
 		t.Fatal("TLS same-origin upgrade rejected")
 	}
+	// A TLS proxy in front of Go (PUBLIC_ORIGINS) is accepted only for its
+	// exact configured origin; other origins keep failing.
+	proxied := New(api.registry, "https://lab.example:4173")
+	behind := httptest.NewRequest(http.MethodGet, "http://go:8080/v1/realtime", nil)
+	behind.AddCookie(cookie)
+	for origin, want := range map[string]bool{"https://lab.example:4173": true, "https://lab.example:4174": false,
+		"http://lab.example:4173": false, "https://evil.example": false} {
+		behind.Header.Set("Origin", origin)
+		if _, ok := proxied.AuthenticateUpgrade(behind); ok != want {
+			t.Fatalf("public origin %q: got %v", origin, ok)
+		}
+	}
+	if _, ok := api.AuthenticateUpgrade(behind); ok {
+		t.Fatal("public origin accepted without PUBLIC_ORIGINS")
+	}
 	// A non-browser bearer client need not send Origin on a state change.
 	bearer := httptest.NewRequest(http.MethodPost, "http://example.com/mutate", nil)
 	bearer.Header.Set("Authorization", "Bearer "+first.Token)

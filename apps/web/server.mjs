@@ -1,5 +1,7 @@
 import http from 'node:http';
+import https from 'node:https';
 import net from 'node:net';
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -14,6 +16,12 @@ const port = Number(process.env.COMPUNUBE_WEB_PORT || 4173);
 const go = process.env.COMPUNUBE_GO_URL ? new URL(process.env.COMPUNUBE_GO_URL) : null;
 if (go && (go.protocol !== 'http:' || go.pathname !== '/' || go.search)) throw new Error('COMPUNUBE_GO_URL must be an http:// origin');
 const isApi = url => url === '/v1' || url.startsWith('/v1/');
+// Optional HTTPS (H66): browsers on other machines only send Go's Secure session
+// cookie over HTTPS. Go must list this page's origin in PUBLIC_ORIGINS, because
+// it sees the proxied request over plain HTTP.
+const tlsCert = process.env.COMPUNUBE_TLS_CERT, tlsKey = process.env.COMPUNUBE_TLS_KEY;
+if (!!tlsCert !== !!tlsKey) throw new Error('COMPUNUBE_TLS_CERT and COMPUNUBE_TLS_KEY must be set together');
+const tls = tlsCert ? { cert: readFileSync(tlsCert), key: readFileSync(tlsKey) } : null;
 
 function unavailable(res) {
   res.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -31,7 +39,7 @@ function forward(req, res) {
   req.pipe(upstream);
 }
 
-const server = http.createServer(async (req, res) => {
+const handler = async (req, res) => {
   if (isApi(req.url)) { forward(req, res); return; }
   try {
     const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
@@ -43,7 +51,8 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': types[path.extname(target)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
     res.end(body);
   } catch { res.writeHead(404); res.end('Not found'); }
-});
+};
+const server = tls ? https.createServer(tls, handler) : http.createServer(handler);
 
 // WebSocket upgrades for /v1/realtime are tunnelled byte for byte to Go.
 server.on('upgrade', (req, socket, head) => {
@@ -59,4 +68,4 @@ server.on('upgrade', (req, socket, head) => {
   upstream.on('error', close); socket.on('error', close);
 });
 
-server.listen(port, host, () => console.log(`Compunube: http://${host}:${port}${go ? ` · online via ${go.origin}` : ''}`));
+server.listen(port, host, () => console.log(`Compunube: ${tls ? 'https' : 'http'}://${host}:${port}${go ? ` · online via ${go.origin}` : ''}`));

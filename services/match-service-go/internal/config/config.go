@@ -41,6 +41,7 @@ type Config struct {
 	PlayerProfileRetryBase          time.Duration
 	PlayerProfileRetryCap           time.Duration
 	RoomResultsLobbyDelay           time.Duration
+	PublicOrigins                   []string
 }
 
 func Load() (Config, error) { return Parse(os.Getenv) }
@@ -141,6 +142,15 @@ func Parse(getenv func(string) string) (Config, error) {
 				return Config{}, fmt.Errorf("%s must be a positive duration", item.name)
 			}
 			*item.target = d
+		}
+	}
+	if v := getenv("PUBLIC_ORIGINS"); v != "" {
+		for _, origin := range strings.Split(v, ",") {
+			u, err := url.Parse(strings.TrimSpace(origin))
+			if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.Host != strings.ToLower(u.Host) {
+				return Config{}, fmt.Errorf("PUBLIC_ORIGINS must be comma-separated https origins such as https://10.0.0.5:4173")
+			}
+			c.PublicOrigins = append(c.PublicOrigins, u.Scheme+"://"+u.Host)
 		}
 	}
 	if c.ConnectionSnapshotSlots != 1 {

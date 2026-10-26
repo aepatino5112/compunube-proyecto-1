@@ -23,6 +23,6 @@ Duración orientativa: 20–25 minutos. Todo se ejecuta localmente; no depende d
 
 ## Riesgos de la demo
 
-- Si los navegadores están en equipos distintos del servidor, se necesita HTTPS (cookie `Secure`); por defecto la demo usa navegadores en el mismo equipo que Go o el cliente Python desde otros equipos.
+- Navegadores en equipos distintos del servidor: web por HTTPS con `PUBLIC_ORIGINS` en Go ([guía](../deployment/https-lab.md)); sin eso, navegadores en el mismo equipo que Go y el cliente Python desde los demás.
 - Reiniciar Go durante la demo invalida las sesiones (limitación F48); no se incluye ese paso.
 - Tras el resultado acreditado la sala vuelve sola a LOBBY en ~10 s (RF-035): «Otra ola con la sala» en la web o Listo en la ventana Python para otra carrera.
