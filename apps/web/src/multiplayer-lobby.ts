@@ -237,7 +237,7 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
       const countdown = state.room!.state === 'countdown' || state.room!.state === 'running';
       const ended = state.room!.state === 'ended';
       const confirmedChoice = self?.reduceChoice || null;
-      if (self?.ready && confirmedChoice) reduceChoice = confirmedChoice;
+      if (self?.ready && confirmedChoice && !ended) reduceChoice = confirmedChoice;
       for (const button of reduceButtons) {
         button.disabled = !activeRoom || state.room!.state !== 'waiting' || !!self?.ready || !!readyPending;
         button.setAttribute('aria-pressed', String(button.dataset.olReduce === reduceChoice));
@@ -380,7 +380,8 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
     state = next || client.state;
     if (state.error && state.error !== previousError) clearReadyPending();
     if (state.status === 'racing') { operation = null; reduceChoice = null; finishClose(); return; }
-    if (!state.room) reduceChoice = null;
+    // RF-035: after a race the next one needs a new Reducir decision.
+    if (!state.room || state.room.state === 'ended') reduceChoice = null;
     render();
   });
   return {

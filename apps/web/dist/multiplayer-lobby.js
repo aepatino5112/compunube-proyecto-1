@@ -228,7 +228,7 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
             const countdown = state.room.state === 'countdown' || state.room.state === 'running';
             const ended = state.room.state === 'ended';
             const confirmedChoice = self?.reduceChoice || null;
-            if (self?.ready && confirmedChoice)
+            if (self?.ready && confirmedChoice && !ended)
                 reduceChoice = confirmedChoice;
             for (const button of reduceButtons) {
                 button.disabled = !activeRoom || state.room.state !== 'waiting' || !!self?.ready || !!readyPending;
@@ -441,7 +441,8 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
             finishClose();
             return;
         }
-        if (!state.room)
+        // RF-035: after a race the next one needs a new Reducir decision.
+        if (!state.room || state.room.state === 'ended')
             reduceChoice = null;
         render();
     });
