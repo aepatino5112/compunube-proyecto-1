@@ -15,6 +15,7 @@ on:
       - "scripts/validation/h68-prometheus.py"
       - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
+      - "scripts/validation/g58-python-gui.py"
       - "scripts/validation/i72-e2e-concurrency.py"
       - "scripts/validation/i73-resilience.py"
       - "apps/client-secondary/**"
@@ -40,6 +41,7 @@ on:
       - "scripts/validation/h68-prometheus.py"
       - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
+      - "scripts/validation/g58-python-gui.py"
       - "scripts/validation/i72-e2e-concurrency.py"
       - "scripts/validation/i73-resilience.py"
       - "apps/client-secondary/**"
@@ -148,6 +150,25 @@ jobs:
         env:
           G58_SKIP_BUILD: "1"
         run: python3 scripts/validation/g58-python-client.py
+
+      - name: Install Tk and Xvfb for the Python window (G58)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends python3-tk xvfb
+
+      - name: Race the Python graphical window against Go (G58)
+        env:
+          COMPUNUBE_GO_URL: http://127.0.0.1:8080
+          G58_GUI_EVIDENCE: ${{ runner.temp }}/g58-gui/race-canvas.ps
+        run: |
+          mkdir -p "$RUNNER_TEMP/g58-gui"
+          xvfb-run -a python3 scripts/validation/g58-python-gui.py
+
+      - name: Upload Python window evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g58-python-gui
+          path: ${{ runner.temp }}/g58-gui
+          if-no-files-found: ignore
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
