@@ -58,7 +58,7 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 | RF-032 canje | Rust | `economy_mutations.rs`; G58 (replay del CLI con el mismo `requestId`) | E-RS, E-INT | PASS-CI | #70 |
 | RF-033 fabricación | Rust | `economy_mutations.rs`; G57 (rechazo sin materiales) | E-RS, E-INT | PASS-CI | #71 |
 | RF-034 compra y equipamiento separados | Rust; Go `profilehttp` | `economy_mutations.rs` (incluye I71-R1: replay de EquipItem/SetAppearance sin efectos y conflicto de payload sin cambios persistidos en perfil, ledger, propiedad ni ranuras; también CraftItem), `TestStrictBodiesAndErrorMapping`; G57 | E-RS, E-GO, E-INT | PASS-CI | #71, #86 (merge cf85c1a) |
-| RF-035 repetir RESULTS → LOBBY | Go rooms | `rooms.Manager.Repeat` existe pero **ni E43 ni E45 definen el disparador** | — | NO CUBIERTO (decisión de contrato pendiente) | `docs/uml/README.md` |
+| RF-035 repetir RESULTS → LOBBY | Go rooms; web; Python | `TestResultsReturnToLobbyAfterConfirmedSettlement` (sin vuelta antes del settlement, vuelta a los 10 s, desconectados fuera, nuevo join, sala vacía CLOSED); E2E: dos navegadores vuelven al lobby y corren una segunda carrera | E-GO, E-INT | PASS-CI (pendiente run del PR) | [ADR 0004](../adr/0004-results-return-to-lobby.md) |
 | RF-036 compatibilidad de protocolo | Go realtime; clientes | `TestRealtimeHandshakeAndRoomState`; G58 (subprotocolo rechazado); web (`INCOMPATIBLE_VERSION`) | E-GO, E-INT, E-WEB | PASS-CI | #70, #72 |
 | RF-037 `rulesVersion`/`courseVersion` | Go race; web | `TestVersionedCoursesAndWireShape`; `tests/go-realtime-adapter.test.js` con el manifiesto real de Go | E-GO, E-WEB | PASS-CI | #72 |
 | RF-038 `catalogVersion` | Rust; web/Python | `economy_mutations.rs`; adaptador (`INVALID_CATALOG_VERSION`, cuerpo fijo por `requestId`) | E-RS, E-WEB | PASS-CI | #71 |
@@ -97,7 +97,7 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 
 ## Huecos conocidos
 
-1. **RF-035** sin disparador contractual para repetir carrera.
+1. **RF-035** resuelto por [ADR 0004](../adr/0004-results-return-to-lobby.md): Go vuelve a LOBBY tras el settlement confirmado; sin settlement (Rust caído) la sala sigue en RESULTS.
 2. **RF-022** sin prueba online específica.
 3. **Navegador Firefox**: en el runner de CI Firefox headless no crea contexto WebGL; el E2E de navegador usa dos procesos Chromium independientes más el cliente Python.
 4. **Sesiones de Go en memoria (F48)**: un reinicio de Go invalida todas las sesiones; el jugador no recupera su perfil online anterior aunque los datos sigan en `player.*` (lo verifica I73).

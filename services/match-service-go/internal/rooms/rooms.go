@@ -114,6 +114,7 @@ type Manager struct {
 	inputSlots, jumpEdges int
 	inputObserver         inputmailbox.Observer
 	recorder              interface{ Offer(matchstore.Record) }
+	resultsLobbyDelay     time.Duration
 }
 type inputGateway struct {
 	raceID  string
@@ -129,6 +130,10 @@ type Options struct {
 	InputSlots, JumpEdges int
 	Recorder              interface{ Offer(matchstore.Record) }
 	InputObserver         inputmailbox.Observer
+	// ResultsLobbyDelay is how long a room stays in RESULTS after the
+	// settlement of its race is confirmed before returning to LOBBY (RF-035,
+	// UC-17). Zero keeps the room in RESULTS until Repeat or every member leaves.
+	ResultsLobbyDelay time.Duration
 }
 
 func NewManager(runtime *roomruntime.Manager, verifier Verifier, options ...Options) *Manager {
@@ -139,7 +144,10 @@ func NewManager(runtime *roomruntime.Manager, verifier Verifier, options ...Opti
 	if opts.InputSlots <= 0 || opts.JumpEdges <= 0 {
 		panic("invalid room input options")
 	}
-	return &Manager{rooms: map[string]*entry{}, runtime: runtime, verifier: verifier, inputSlots: opts.InputSlots, jumpEdges: opts.JumpEdges, recorder: opts.Recorder, inputObserver: opts.InputObserver}
+	if opts.ResultsLobbyDelay < 0 {
+		panic("invalid results lobby delay")
+	}
+	return &Manager{rooms: map[string]*entry{}, runtime: runtime, verifier: verifier, inputSlots: opts.InputSlots, jumpEdges: opts.JumpEdges, recorder: opts.Recorder, inputObserver: opts.InputObserver, resultsLobbyDelay: opts.ResultsLobbyDelay}
 }
 func validMap(id string) bool           { return id == "maracaibo" || id == "orinoco" }
 func courseVersion(mapID string) string { return mapID + "-surf-mvp-1" }
@@ -160,7 +168,7 @@ func (m *Manager) Create(ctx context.Context, mapID, playerID string) (Membershi
 		return Membership{}, err
 	}
 	createdAt := time.Now()
-	r := &room{id: id, mapID: mapID, state: Lobby, members: map[string]*Member{}, sinks: map[string]Sink{}, inputSlots: m.inputSlots, jumpEdges: m.jumpEdges, recorder: m.recorder, inputObserver: m.inputObserver, createdAt: createdAt}
+	r := &room{id: id, mapID: mapID, state: Lobby, members: map[string]*Member{}, sinks: map[string]Sink{}, inputSlots: m.inputSlots, jumpEdges: m.jumpEdges, recorder: m.recorder, inputObserver: m.inputObserver, createdAt: createdAt, resultsLobbyDelay: m.resultsLobbyDelay}
 	m.mu.Lock()
 	h, err := m.runtime.Start(id, r)
 	if err == nil {
@@ -335,6 +343,9 @@ type room struct {
 	inputObserver         inputmailbox.Observer
 	recorder              interface{ Offer(matchstore.Record) }
 	createdAt             time.Time
+	resultsLobbyDelay     time.Duration
+	settled               bool      // settlement of the current race confirmed
+	lobbyAt               time.Time // tick time at which RESULTS returns to LOBBY
 }
 type join struct{ playerID string }
 type leave struct{ playerID string }
@@ -494,30 +505,13 @@ func (r *room) HandleCommand(_ context.Context, c any) (any, error) {
 		if r.state != Results {
 			return nil, ErrState
 		}
-		r.state = Lobby
-		r.raceID = ""
-		r.race = nil
-		r.gateway.Store(nil)
-		for id, p := range r.members {
-			if p.departed {
-				delete(r.members, id)
-				delete(r.sinks, id)
-				continue
-			}
-			p.Ready = false
-			p.ParticipantState = "not_ready"
-			p.ReduceChoice = nil
-		}
-		if len(r.members) == 0 {
-			r.state = Closed
-			r.close()
-		}
-		r.publish()
+		r.returnToLobby()
 		return nil, nil
 	case settlementConfirmed:
 		if r.state != Results || r.race == nil || r.race.ID != x.raceID || r.race.Result == nil {
 			return nil, ErrState
 		}
+		r.settled = true
 		changed := false
 		for i := range r.race.Result.Participants {
 			if r.race.Result.Participants[i].SettlementState != "confirmed" {
@@ -536,6 +530,16 @@ func (r *room) HandleCommand(_ context.Context, c any) (any, error) {
 	return nil, ErrState
 }
 func (r *room) HandleTick(_ context.Context, t roomruntime.Tick) {
+	if r.state == Results && r.settled && r.resultsLobbyDelay > 0 {
+		// The delay is measured on the room clock from the first tick after the
+		// confirmation, so members can read the settled result before LOBBY.
+		if r.lobbyAt.IsZero() {
+			r.lobbyAt = t.At.Add(r.resultsLobbyDelay)
+		} else if !t.At.Before(r.lobbyAt) {
+			r.returnToLobby()
+		}
+		return
+	}
 	if r.state == Lobby {
 		r.maybeCountdown(t.At)
 		if r.state == Countdown {
@@ -631,6 +635,36 @@ func (r *room) HandleTick(_ context.Context, t roomruntime.Tick) {
 			}
 		}
 	}
+}
+
+// returnToLobby implements RF-035/UC-17: remaining members go back to LOBBY as
+// not_ready with the same map and must confirm profile and Reduce again.
+// Members who left or are disconnected are dropped, as in LOBBY; an empty
+// room closes and its code stops working.
+func (r *room) returnToLobby() {
+	r.state = Lobby
+	r.raceID = ""
+	r.race = nil
+	r.settled = false
+	r.lobbyAt = time.Time{}
+	r.gateway.Store(nil)
+	for id, p := range r.members {
+		if p.departed || !p.Connected {
+			delete(r.members, id)
+			delete(r.sinks, id)
+			continue
+		}
+		p.Ready = false
+		p.ParticipantState = "not_ready"
+		p.ReduceChoice = nil
+	}
+	if len(r.members) == 0 {
+		r.state = Closed
+		r.publish()
+		r.close()
+		return
+	}
+	r.publish()
 }
 func (r *room) recordRace() {
 	if r.recorder == nil || r.race == nil {

@@ -237,7 +237,7 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
       const countdown = state.room!.state === 'countdown' || state.room!.state === 'running';
       const ended = state.room!.state === 'ended';
       const confirmedChoice = self?.reduceChoice || null;
-      if (self?.ready && confirmedChoice) reduceChoice = confirmedChoice;
+      if (self?.ready && confirmedChoice && !ended) reduceChoice = confirmedChoice;
       for (const button of reduceButtons) {
         button.disabled = !activeRoom || state.room!.state !== 'waiting' || !!self?.ready || !!readyPending;
         button.setAttribute('aria-pressed', String(button.dataset.olReduce === reduceChoice));
@@ -256,7 +256,7 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
       readyButton.setAttribute('aria-pressed', String(!!self?.ready));
       readyButton.replaceChildren(document.createTextNode(ended ? 'Esta ola terminó' : countdown ? 'Preparando la salida…' : readyPending ? 'Confirmando…' : self?.ready ? 'Listo para salir' : 'Estoy listo'));
       const mark = document.createElement('span'); mark.setAttribute('aria-hidden', 'true'); mark.textContent = self?.ready ? '✓' : '↗'; readyButton.append(mark);
-      $('.ol-room-note').textContent = state.status === 'reconnecting' ? 'Reconectando… la sala te espera durante unos segundos.' : ended ? 'Esta ola ya terminó. Sal de la sala para preparar otra.' : countdown ? 'Su próxima ola está por comenzar. Espera la salida.' : self?.ready ? 'Todo listo de tu lado. Puedes pulsar otra vez si necesitas esperar.' : 'Cuando todos estén listos, la sala preparará la salida.';
+      $('.ol-room-note').textContent = state.status === 'reconnecting' ? 'Reconectando… la sala te espera durante unos segundos.' : ended ? 'Esta ola ya terminó. Cuando se confirme la acreditación, la sala volverá a prepararse para otra ola; sal si prefieres terminar aquí.' : countdown ? 'Su próxima ola está por comenzar. Espera la salida.' : self?.ready ? 'Todo listo de tu lado. Puedes pulsar otra vez si necesitas esperar.' : 'Cuando todos estén listos, la sala preparará la salida.';
     }
   }
 
@@ -380,7 +380,8 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
     state = next || client.state;
     if (state.error && state.error !== previousError) clearReadyPending();
     if (state.status === 'racing') { operation = null; reduceChoice = null; finishClose(); return; }
-    if (!state.room) reduceChoice = null;
+    // RF-035: after a race the next one needs a new Reducir decision.
+    if (!state.room || state.room.state === 'ended') reduceChoice = null;
     render();
   });
   return {

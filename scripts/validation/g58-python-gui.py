@@ -164,6 +164,15 @@ def main():
               f"profile panel shows exactly the credited materials once {credited}")
         check(f"Plástico {after['plastic']}" in window.profile_label.cget("text"), "profile panel refreshed")
 
+        # RF-035: about 10 s after the confirmed settlement Go returns the room
+        # to LOBBY; the guest already left, so only the window remains.
+        pump_until(root, "room back in LOBBY", 60,
+                   lambda: window.room_label.cget("text").startswith(f"Sala {room_id} · maracaibo · En el lobby"))
+        lines = window.room_label.cget("text").splitlines()
+        check(len(lines) == 2 and "not_ready" in lines[1], "room returned to LOBBY with the window not_ready")
+        check(not window.ready_button.instate(["disabled"]) and window.canvas.find_withtag("placeholder"),
+              "window offers Listo again for another race in the same room")
+
         window.leave_button.invoke()
         pump_until(root, "left the room", 10, lambda: window.room_label.cget("text") == "Sin sala.")
         check(not window.create_button.instate(["disabled"]), "after leaving the room can be created again")

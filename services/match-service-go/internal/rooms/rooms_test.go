@@ -438,3 +438,94 @@ func TestAllRacingMembersLeaveClosesRoom(t *testing.T) {
 		t.Fatalf("empty race kept room open: %v", err)
 	}
 }
+
+func TestResultsReturnToLobbyAfterConfirmedSettlement(t *testing.T) {
+	clock := &testClock{created: make(chan *testTicker, 1)}
+	rt, err := roomruntime.NewManager(context.Background(), roomruntime.Options{TickInterval: 50 * time.Millisecond, QueueCapacity: 32, Clock: clock})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(rt.Close)
+	m := NewManager(rt, fakeVerifier{}, Options{InputSlots: 4, JumpEdges: 4, ResultsLobbyDelay: 10 * time.Second})
+	ctx := context.Background()
+	v, err := m.Create(ctx, "orinoco", "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticker, id := <-clock.created, v.RoomID
+	if _, err := m.Join(ctx, id, "b"); err != nil {
+		t.Fatal(err)
+	}
+	sinks := map[string]*sink{"a": {}, "b": {}}
+	for p, s := range sinks {
+		if err := m.Bind(ctx, id, p, "conn-"+p, s); err != nil {
+			t.Fatal(err)
+		}
+		if err := m.Ready(ctx, id, p, true, 1, "reusable"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, _ := m.Snapshot(ctx, id)
+	startAt := time.UnixMilli(*s.CountdownEndsAtMs).Add(time.Millisecond)
+	ticker.ch <- startAt
+	for i := 1; i <= 1600; i++ {
+		ticker.ch <- startAt.Add(time.Duration(i) * 50 * time.Millisecond)
+	}
+	s, _ = m.Snapshot(ctx, id)
+	if s.State != Results || s.RaceID == nil {
+		t.Fatalf("results: %s", s.State)
+	}
+	raceID := *s.RaceID
+
+	// Without a confirmed settlement the room keeps showing the result.
+	later := startAt.Add(time.Hour)
+	ticker.ch <- later
+	ticker.ch <- later.Add(time.Minute)
+	if s, _ = m.Snapshot(ctx, id); s.State != Results {
+		t.Fatalf("left RESULTS before settlement: %s", s.State)
+	}
+	m.Disconnect(ctx, id, "b", "conn-b")
+	if err := m.ConfirmSettlement(ctx, id, raceID); err != nil {
+		t.Fatal(err)
+	}
+	confirmedAt := later.Add(2 * time.Minute)
+	ticker.ch <- confirmedAt
+	ticker.ch <- confirmedAt.Add(10*time.Second - time.Millisecond)
+	if s, _ = m.Snapshot(ctx, id); s.State != Results {
+		t.Fatalf("returned before the delay: %s", s.State)
+	}
+	ticker.ch <- confirmedAt.Add(10 * time.Second)
+	s, _ = m.Snapshot(ctx, id)
+	if s.State != Lobby || s.MapID != "orinoco" || s.RaceID != nil || len(s.Members) != 1 || s.Members[0].PlayerID != "a" {
+		t.Fatalf("RF-035 lobby: %+v", s)
+	}
+	if p := s.Members[0]; p.Ready || p.ParticipantState != "not_ready" || p.ReduceChoice != nil || !p.Connected {
+		t.Fatalf("member not reset: %+v", p)
+	}
+	last, ok := sinks["a"].messages[len(sinks["a"].messages)-1].(Message)
+	if !ok || last.Type != "room.state" || last.Room.State != Lobby {
+		t.Fatalf("LOBBY not published: %+v", sinks["a"].messages[len(sinks["a"].messages)-1])
+	}
+
+	// The same room prepares another race: joins are open again and ready
+	// needs a new profile confirmation and Reduce choice.
+	if _, err := m.Join(ctx, id, "c"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Ready(ctx, id, "a", true, 2, "disposable"); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ = m.Snapshot(ctx, id); s.State != Lobby {
+		t.Fatalf("one ready member must wait for the other: %s", s.State)
+	}
+	if err := m.Leave(ctx, id, "a"); err != nil {
+		t.Fatal(err)
+	}
+	// The last leave closes the room loop while answering (existing behavior).
+	if err := m.Leave(ctx, id, "c"); err != nil && !errors.Is(err, roomruntime.ErrClosed) {
+		t.Fatal(err)
+	}
+	if _, err := m.Join(ctx, id, "d"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("closed room code still works: %v", err)
+	}
+}
