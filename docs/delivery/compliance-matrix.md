@@ -26,4 +26,4 @@ Requisito de entrega → componente → tarjeta/PR → prueba → evidencia → 
 La columna de estado se actualiza al integrar cada PR; Trello conserva el estado operativo de las tarjetas.
 | Pruebas Rust de idempotencia y correlación (I71-R1/R2) | Rust Player/Profile | #86 (cf85c1a), #87 (40975e9) | `economy_mutations.rs`, `grpc_request_log.rs` con PostgreSQL obligatorio | CI Rust de `main` (0 ignoradas) | Cumplido |
 | Runbook operativo Rust (I74-R1) | documentación | #88 (0cef380) | revisión de variables, puertos y comandos contra el repositorio | `docs/runbooks/rust-player-profile-service.md` | Cumplido |
-| Documentación de la API HTTP (OpenAPI/Swagger) | `contracts/http/openapi.yaml`, Swagger UI en `/api-docs/` | E45 | CI Contracts (validador), `openapi-contract.test.js` (conformidad con Go real), `api-docs.spec.mjs` | CI Integration | En PR |
+| Documentación de la API HTTP (OpenAPI/Swagger) | `contracts/http/openapi.yaml`, Swagger UI en `/api-docs/` | E45 | CI Contracts (validador), `openapi-contract.test.js` (conformidad con Go real), `api-docs.spec.mjs` | CI Integration (run 40363844905) | Cumplido |
