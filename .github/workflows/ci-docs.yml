@@ -29,7 +29,7 @@ jobs:
         working-directory: docs/uml
         run: |
           sources=$(ls *.puml)
-          docker run --rm -v "$PWD:/work" -w /work \
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
             plantuml/plantuml@sha256:9b5071ab56a4192aac458ab4b0d42261c22c8109695894ae5be6013c3be6cac1 \
             -failfast2 -tsvg $sources
           for source in $sources; do
