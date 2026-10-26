@@ -19,14 +19,29 @@ async function startWeb() {
 }
 
 async function openClub(browserType, origin, name, info) {
-  // Software WebGL so headless CI runners can render Three.js.
-  const browser = await browserType.launch(browserType === chromium ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } : {});
+  // Software WebGL so headless CI runners (no GPU) can render Three.js.
+  const browser = await browserType.launch(browserType === chromium
+    ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }
+    : { firefoxUserPrefs: { 'webgl.force-enabled': true, 'webgl.disabled': false, 'gfx.webrender.software': true,
+      'webgl.disable-fail-if-major-performance-caveat': true } });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  const errors = [];
+  const errors = [], consoleLines = [];
   page.on('pageerror', error => errors.push(String(error)));
+  page.on('console', message => { if (['error', 'warning'].includes(message.type())) consoleLines.push(`${message.type()}: ${message.text()}`.slice(0, 300)); });
   const started = Date.now();
   await page.goto(origin);
-  await expect(page.locator('#play')).toBeEnabled({ timeout: 120_000 });
+  try {
+    await expect(page.locator('#play')).toBeEnabled({ timeout: 180_000 });
+  } catch (error) {
+    const webgl = await page.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+      return gl ? gl.getParameter(gl.VERSION) : 'no WebGL context';
+    }).catch(() => 'evaluate failed');
+    info.annotations.push({ type: `${name} diagnostics`, description: JSON.stringify({ webgl, errors, console: consoleLines.slice(-15) }) });
+    console.log(`${name} did not finish loading:`, webgl, errors, consoleLines.slice(-15));
+    throw error;
+  }
   info.annotations.push({ type: name, description: `club ready in ${Date.now() - started} ms` });
   return { browser, page, errors, name };
 }
