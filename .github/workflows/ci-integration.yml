@@ -12,6 +12,7 @@ on:
       - "proto/**"
       - "scripts/validation/j83-profile-economy.py"
       - "scripts/validation/j85-compose-readiness.py"
+      - "scripts/validation/h68-prometheus.py"
       - ".github/workflows/ci-integration.yml"
   push:
     branches: [main]
@@ -24,6 +25,7 @@ on:
       - "proto/**"
       - "scripts/validation/j83-profile-economy.py"
       - "scripts/validation/j85-compose-readiness.py"
+      - "scripts/validation/h68-prometheus.py"
       - ".github/workflows/ci-integration.yml"
 
 permissions:
@@ -119,6 +121,11 @@ jobs:
         env:
           J85_SKIP_BUILD: "1"
         run: python3 scripts/validation/j85-compose-readiness.py
+
+      - name: Validate Prometheus targets and recovery (H68)
+        env:
+          H68_SKIP_BUILD: "1"
+        run: python3 scripts/validation/h68-prometheus.py
 
       - name: Logs on failure
         if: failure()

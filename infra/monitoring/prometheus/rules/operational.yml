@@ -1,0 +1,31 @@
+groups:
+  - name: compunube-operational
+    rules:
+      - alert: CompunubeTargetDown
+        expr: up{job=~"match-service-go|player-profile-rust|envoy|postgres"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Monitoring target unavailable"
+      - alert: CompunubePostgreSQLDown
+        expr: (pg_up{job="postgres"} == 0) or (up{job="postgres"} == 0)
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL unavailable to exporter"
+      - alert: CompunubeBothRustDown
+        expr: (sum(up{job="player-profile-rust"}) or vector(0)) == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Both Player/Profile replicas unavailable"
+      - alert: CompunubePlayerProfileCircuitOpen
+        expr: compunube_player_profile_circuit_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Go Player/Profile circuit remains open"

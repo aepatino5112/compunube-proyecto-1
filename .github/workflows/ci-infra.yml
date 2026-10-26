@@ -35,3 +35,10 @@ jobs:
             -v "$PWD/infra/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro" \
             envoyproxy/envoy:v1.31-latest \
             envoy --mode validate -c /etc/envoy/envoy.yaml
+      - name: Validate Prometheus configuration and rules
+        run: |
+          docker run --rm \
+            -v "$PWD/infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+            -v "$PWD/infra/monitoring/prometheus/rules:/etc/prometheus/rules:ro" \
+            --entrypoint promtool prom/prometheus:v2.55.1 \
+            check config /etc/prometheus/prometheus.yml
