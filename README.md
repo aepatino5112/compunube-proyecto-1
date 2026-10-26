@@ -78,8 +78,9 @@ Abrir http://127.0.0.1:4173/. La demo incluye dos mapas y tres rivales de IA. Lo
 
 ```bash
 cp .env.example .env
-# Completar en .env cuatro secretos distintos, URL-safe:
-# POSTGRES_PASSWORD, MATCH_DB_PASSWORD, PLAYER_DB_PASSWORD, MONITOR_DB_PASSWORD
+# Completar en .env cinco secretos distintos, URL-safe:
+# POSTGRES_PASSWORD, MATCH_DB_PASSWORD, PLAYER_DB_PASSWORD, MONITOR_DB_PASSWORD,
+# GRAFANA_ADMIN_PASSWORD (Grafana ya no arranca con admin/admin por defecto)
 # Ejemplo para generar cada valor: openssl rand -hex 24
 docker compose up -d --build
 docker compose ps
