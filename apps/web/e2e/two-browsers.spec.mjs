@@ -25,7 +25,9 @@ async function startWeb() {
 async function openClub(browserType, origin, name, info) {
   // Software WebGL so headless CI runners (no GPU) can render Three.js.
   const browser = await browserType.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  // CI renders in software: a small viewport and reduced motion keep two
+  // browsers fast enough to apply 10 Hz snapshots in real time.
+  const page = await browser.newPage({ viewport: { width: 640, height: 400 }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
   const errors = [], consoleLines = [];
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (['error', 'warning'].includes(message.type())) consoleLines.push(`${message.type()}: ${message.text()}`.slice(0, 300)); });
@@ -109,7 +111,7 @@ test('two browsers and the Python client share a real Go race from the lobby to 
 
     // Authoritative result in both browsers, then the settlement confirmation.
     for (const client of [host, guest]) {
-      await expect(client.page.locator('#card-label')).toContainText('CARRERA CON AMIGOS', { timeout: 150_000 });
+      await expect(client.page.locator('#card-label')).toContainText('CARRERA CON AMIGOS', { timeout: 240_000 });
     }
     for (const client of [host, guest]) {
       const text = await client.page.locator('#card-text').textContent();
