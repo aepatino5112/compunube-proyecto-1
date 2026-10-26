@@ -19,6 +19,45 @@ macro_rules! env {
     };
 }
 
+/// Everything a mutation may leave behind for one player: the profile (balances,
+/// equipment, appearance, revision) and the raw rows of the ledger and of the
+/// ownership/equipment tables. Two equal snapshots mean "nothing happened".
+#[derive(Debug, PartialEq)]
+struct Persisted {
+    profile: player_profile_service::domain::ProfileState,
+    operations: Vec<(String, String, String, String, Option<i64>)>,
+    owned: Vec<(String, String)>,
+    slots: Vec<(String, String)>,
+}
+
+async fn persisted(env: &common::Env, player: &str) -> Persisted {
+    Persisted {
+        profile: env.profile(player).await,
+        operations: sqlx::query_as(
+            "SELECT request_id, operation_type, request_fingerprint, status::text, profile_revision_after \
+             FROM player.economic_operations WHERE player_id = $1 ORDER BY request_id",
+        )
+        .bind(player)
+        .fetch_all(&env.pool)
+        .await
+        .unwrap(),
+        owned: sqlx::query_as(
+            "SELECT item_id, acquisition_type FROM player.owned_items WHERE player_id = $1 ORDER BY item_id",
+        )
+        .bind(player)
+        .fetch_all(&env.pool)
+        .await
+        .unwrap(),
+        slots: sqlx::query_as(
+            "SELECT slot, item_id FROM player.equipment_slots WHERE player_id = $1 ORDER BY slot",
+        )
+        .bind(player)
+        .fetch_all(&env.pool)
+        .await
+        .unwrap(),
+    }
+}
+
 // ---- BuyItem ---------------------------------------------------------------
 
 #[tokio::test]
@@ -247,6 +286,51 @@ async fn craft_spends_materials_and_grants_the_net() {
     assert_eq!((again.plastic, again.metal), (4, 2));
 }
 
+#[tokio::test]
+async fn craft_reusing_a_request_id_for_another_payload_is_a_conflict_that_changes_nothing() {
+    let env = env!("craft_reusing_a_request_id_for_another_payload");
+    let player = unique("craftconf");
+    env.fund(&player, 500, 40, 40).await;
+    let (_, crafted) = applied(env.craft(&player, "c1", "red-reuso").await);
+    let before = persisted(&env, &player).await;
+    assert_eq!(before.profile, crafted);
+
+    // another item, another catalog version, another operation: all conflict
+    assert_eq!(
+        rejected(env.craft(&player, "c1", "red-marea").await),
+        (R::IdempotencyConflict, false)
+    );
+    assert_eq!(
+        rejected(
+            env.app
+                .craft_item(common::item_command(
+                    &player,
+                    "c1",
+                    "online-v2",
+                    "red-reuso"
+                ))
+                .await
+                .unwrap()
+                .outcome
+        ),
+        (R::IdempotencyConflict, false)
+    );
+    // same request id and same item, but a buy is not a craft
+    assert_eq!(
+        rejected(env.buy(&player, "c1", "red-reuso").await),
+        (R::IdempotencyConflict, false)
+    );
+    assert_eq!(
+        persisted(&env, &player).await,
+        before,
+        "a conflict records nothing and changes no balance, item or revision"
+    );
+    let (replayed, again) = applied(env.craft(&player, "c1", "red-reuso").await);
+    assert!(replayed, "the original record still replays");
+    assert_eq!(again, crafted);
+    assert_eq!(persisted(&env, &player).await, before);
+}
+
 // ---- ExchangeMaterials -----------------------------------------------------
 
 #[tokio::test]
@@ -412,6 +496,84 @@ async fn equipping_a_character_also_sets_hair_and_look_and_equipping_again_still
     assert_eq!(again.equipment, profile.equipment);
 }
 
+#[tokio::test]
+async fn equip_replays_the_same_request_without_extra_effects() {
+    let env = env!("equip_replays_the_same_request");
+    let player = unique("equiprep");
+    env.fund(&player, 500, 0, 0).await;
+    applied(env.buy(&player, "b1", "manglar").await);
+    let (replayed, equipped) = applied(env.equip(&player, "q1", "manglar").await);
+    assert!(!replayed);
+    assert_eq!(equipped.equipment.board_id, "manglar");
+    assert_eq!(equipped.revision, 3, "profile at 1, buy at 2, equip at 3");
+    let before = persisted(&env, &player).await;
+    assert_eq!(before.profile, equipped);
+    assert_eq!(before.operations.len(), 2, "one buy and one equip");
+
+    for _ in 0..2 {
+        let (replayed, again) = applied(env.equip(&player, "q1", "manglar").await);
+        assert!(replayed, "same request and payload is a replay");
+        assert_eq!(again, equipped, "same profile and same revision");
+    }
+    assert_eq!(
+        persisted(&env, &player).await,
+        before,
+        "no extra revision, balance, equipment or ledger row"
+    );
+}
+
+#[tokio::test]
+async fn equip_reusing_a_request_id_for_another_payload_is_a_conflict_that_changes_nothing() {
+    let env = env!("equip_reusing_a_request_id_for_another_payload");
+    let player = unique("equipconf");
+    env.fund(&player, 500, 0, 0).await;
+    applied(env.buy(&player, "b1", "manglar").await);
+    applied(env.buy(&player, "b2", "brisa").await);
+    let (_, equipped) = applied(env.equip(&player, "q1", "manglar").await);
+    let before = persisted(&env, &player).await;
+    assert_eq!(before.profile, equipped);
+
+    // an owned item that would otherwise apply (a different slot, even)
+    assert_eq!(
+        rejected(env.equip(&player, "q1", "brisa").await),
+        (R::IdempotencyConflict, false)
+    );
+    // an unknown item and another catalog version are different payloads too
+    assert_eq!(
+        rejected(env.equip(&player, "q1", "ghost").await),
+        (R::IdempotencyConflict, false)
+    );
+    assert_eq!(
+        rejected(
+            env.app
+                .equip_item(common::item_command(&player, "q1", "online-v2", "manglar"))
+                .await
+                .unwrap()
+                .outcome
+        ),
+        (R::IdempotencyConflict, false)
+    );
+    // and so is another operation type under the same request id, even with
+    // the same item id
+    assert_eq!(
+        rejected(env.buy(&player, "q1", "manglar").await),
+        (R::IdempotencyConflict, false)
+    );
+    assert_eq!(
+        rejected(env.appearance(&player, "q1", "deep", "blue").await),
+        (R::IdempotencyConflict, false)
+    );
+    let after = persisted(&env, &player).await;
+    assert_eq!(after, before, "a conflict changes nothing that persists");
+    assert_eq!(after.profile.equipment.outfit_id, "costero");
+    assert_eq!(after.profile.equipment.board_id, "manglar");
+
+    let (replayed, again) = applied(env.equip(&player, "q1", "manglar").await);
+    assert!(replayed, "the original record still replays");
+    assert_eq!(again, equipped);
+    assert_eq!(persisted(&env, &player).await, before);
+}
+
 // ---- SetAppearance ---------------------------------------------------------
 
 #[tokio::test]
@@ -441,6 +603,83 @@ async fn appearance_accepts_listed_options_only() {
         rejected(env.appearance(&player, "a2", "nope", "blue").await),
         (R::InvalidAppearance, true)
     );
+}
+
+#[tokio::test]
+async fn appearance_replays_the_same_request_without_extra_effects() {
+    let env = env!("appearance_replays_the_same_request");
+    let player = unique("lookrep");
+    let (replayed, styled) = applied(env.appearance(&player, "a1", "deep", "blue").await);
+    assert!(!replayed);
+    assert_eq!(
+        styled.revision, 2,
+        "provisioned at 1, then the look applied"
+    );
+    let before = persisted(&env, &player).await;
+    assert_eq!(before.profile, styled);
+    assert_eq!(before.operations.len(), 1);
+
+    for _ in 0..2 {
+        let (replayed, again) = applied(env.appearance(&player, "a1", "deep", "blue").await);
+        assert!(replayed, "same request and payload is a replay");
+        assert_eq!(again, styled, "same profile and same revision");
+    }
+    assert_eq!(
+        persisted(&env, &player).await,
+        before,
+        "no extra revision or ledger row"
+    );
+}
+
+#[tokio::test]
+async fn appearance_reusing_a_request_id_for_another_payload_is_a_conflict_that_changes_nothing() {
+    let env = env!("appearance_reusing_a_request_id_for_another_payload");
+    let player = unique("lookconf");
+    let (_, styled) = applied(env.appearance(&player, "a1", "deep", "blue").await);
+    let before = persisted(&env, &player).await;
+
+    // each field alone, both fields, an invalid look, another catalog version
+    for (skin, hair) in [
+        ("dark", "blue"),
+        ("deep", "black"),
+        ("dark", "black"),
+        ("nope", "nope"),
+    ] {
+        assert_eq!(
+            rejected(env.appearance(&player, "a1", skin, hair).await),
+            (R::IdempotencyConflict, false),
+            "{skin}/{hair}"
+        );
+    }
+    assert_eq!(
+        rejected(
+            env.app
+                .set_appearance(player_profile_service::application::SetAppearanceCommand {
+                    player_id: player.clone(),
+                    request_id: "a1".into(),
+                    catalog_version: "online-v2".into(),
+                    skin_id: "deep".into(),
+                    hair_color_id: "blue".into(),
+                })
+                .await
+                .unwrap()
+                .outcome
+        ),
+        (R::IdempotencyConflict, false)
+    );
+    // another operation type under the same request id
+    assert_eq!(
+        rejected(env.equip(&player, "a1", "luna").await),
+        (R::IdempotencyConflict, false)
+    );
+    let after = persisted(&env, &player).await;
+    assert_eq!(after, before, "a conflict changes nothing that persists");
+    assert_eq!(after.profile.appearance, styled.appearance);
+
+    let (replayed, again) = applied(env.appearance(&player, "a1", "deep", "blue").await);
+    assert!(replayed, "the original record still replays");
+    assert_eq!(again, styled);
+    assert_eq!(persisted(&env, &player).await, before);
 }
 
 // ---- concurrency -----------------------------------------------------------
