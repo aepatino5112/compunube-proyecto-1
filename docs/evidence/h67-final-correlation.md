@@ -17,4 +17,6 @@ El [harness público J83](../../scripts/validation/j83-profile-economy.py) enví
 
 ## Resultado local
 
-En este entorno, `gofmt -l .`, `go vet ./...`, `go test ./...` y `go test -race ./...` pasaron. El resultado de Rust y Compose se verificará en CI de la PR.
+En este entorno, `gofmt -l .`, `go vet ./...`, `go test ./...` y `go test -race ./...` pasaron. `cargo fmt --check` también pasó antes de un reinicio del entorno temporal.
+
+El [run de CI Integration de la PR #65](https://github.com/aepatino5112/compunube-proyecto-1/actions/runs/40248143361) confirmó `PASS Go preserves safe X-Request-ID on public profile response`, `PASS Go -> Envoy -> Rust correlation metadata reaches structured RPC log` y `PASS Go HTTP log carries correlation ID without bearer token`. El harness J83 terminó en `RESULT: PASS`, igual que la regresión J85. Go, Rust, Contracts, Infrastructure, Integration y Web pasaron en esa revisión.
