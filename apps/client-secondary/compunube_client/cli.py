@@ -5,6 +5,7 @@ Talks only to Go's public HTTP API and WebSocket. Examples:
     python -m compunube_client --server http://127.0.0.1:8080 profile
     python -m compunube_client play --create maracaibo
     python -m compunube_client play --join <room-code> --manual
+    python -m compunube_client gui
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from .api import ApiError, GoApi
 from .autopilot import Intent, decide
 from .game import GameSession
 from .realtime import REDUCE_CHOICES, RealtimeError
+from .view import member_name
 
 EXIT_ERROR = 1
 
@@ -47,18 +49,6 @@ def print_profile(profile: dict):
     equipment = profile["equipment"]
     print("  Equipo: " + ", ".join(f"{key[:-2]}={value}" for key, value in equipment.items()))
     print(f"  Objetos: {len(profile['ownedItemIds'])}")
-
-
-CHARACTER_NAMES = {"nico": "Nico", "luna": "Luna", "amara": "Amara", "samuel": "Samuel"}
-
-
-def member_name(member: dict) -> str:
-    """Go publishes the opaque playerId (or nothing before ready) as displayName."""
-    name = (member.get("displayName") or "").strip()
-    if name and name != member["playerId"]:
-        return name
-    character = CHARACTER_NAMES.get(member.get("equipment", {}).get("characterId", ""))
-    return f"{character or 'Surfista'} ({member['playerId'][:6]})"
 
 
 def print_room(room: dict, self_id: str):
@@ -190,11 +180,23 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument("--lobby-timeout", type=float, default=300.0)
     play.add_argument("--race-timeout", type=float, default=240.0)
     play.add_argument("--settlement-timeout", type=float, default=30.0)
+    commands.add_parser("gui", help="open the graphical window (Tkinter)")
     return parser
 
 
 def run(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "gui":
+        try:
+            from .gui import run_gui
+            return run_gui(args.server, args.token_file)
+        except ImportError as error:
+            print(f"La ventana necesita Tkinter ({error}). En Debian/Ubuntu: sudo apt install python3-tk; "
+                  "el instalador de python.org lo incluye en Windows.", file=sys.stderr)
+            return EXIT_ERROR
+        except ValueError as error:
+            print(f"Error: {error}", file=sys.stderr)
+            return EXIT_ERROR
     api = GoApi(args.server)
     try:
         player_id = load_session(api, args.token_file)
