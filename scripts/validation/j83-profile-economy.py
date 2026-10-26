@@ -32,7 +32,7 @@ PORTS = {
 ENV = os.environ.copy()
 for key, value in PORTS.items():
     ENV.setdefault(key, value)
-for key in ("POSTGRES_PASSWORD", "MATCH_DB_PASSWORD", "PLAYER_DB_PASSWORD", "MONITOR_DB_PASSWORD"):
+for key in ("POSTGRES_PASSWORD", "MATCH_DB_PASSWORD", "PLAYER_DB_PASSWORD", "MONITOR_DB_PASSWORD", "GRAFANA_ADMIN_PASSWORD"):
     if not ENV.get(key):
         ENV[key] = secrets.token_hex(24)
 GO = f"http://127.0.0.1:{ENV['GO_HTTP_PORT']}"

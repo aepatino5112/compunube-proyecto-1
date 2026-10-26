@@ -1,0 +1,43 @@
+name: CI Client Secondary
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - "apps/client-secondary/**"
+      - ".github/workflows/ci-client-secondary.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-client-secondary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  client-secondary:
+    name: client-secondary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: apps/client-secondary
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Compile sources
+        run: python -m compileall -q compunube_client
+      - name: Run client tests
+        run: python -m pytest -q
+      - name: CLI help
+        run: python -m compunube_client --help
