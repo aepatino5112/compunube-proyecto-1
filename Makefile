@@ -1,9 +1,10 @@
 GO_DIR := services/match-service-go
 RUST_DIR := services/player-profile-service-rust
 WEB_DIR := apps/web
+CLIENT2_DIR := apps/client-secondary
 
 .PHONY: up down build logs ps compose-config test test-go test-rust lint lint-go lint-rust \
-	quality quality-go quality-rust quality-web quality-contracts quality-infra
+	quality quality-go quality-rust quality-web quality-client-secondary quality-contracts quality-infra
 
 up:
 	docker compose up -d --build
@@ -39,7 +40,7 @@ lint-go:
 lint-rust:
 	cd $(RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets --all-features -- -D warnings
 
-quality: quality-go quality-rust quality-web quality-contracts quality-infra
+quality: quality-go quality-rust quality-web quality-client-secondary quality-contracts quality-infra
 
 quality-go:
 	@echo "==> Go quality gate"
@@ -52,6 +53,10 @@ quality-rust:
 quality-web:
 	@echo "==> Web quality gate"
 	cd $(WEB_DIR) && npm ci --ignore-scripts --no-audit --no-fund && npm run check && npm test
+
+quality-client-secondary:
+	@echo "==> Python client quality gate"
+	cd $(CLIENT2_DIR) && python3 -m compileall -q compunube_client && python3 -m pytest -q
 
 quality-contracts:
 	@echo "==> Contracts quality gate"
