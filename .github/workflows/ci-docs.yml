@@ -1,0 +1,47 @@
+name: CI Docs
+
+on:
+  pull_request:
+    paths:
+      - "docs/uml/**"
+      - ".github/workflows/ci-docs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/uml/**"
+      - ".github/workflows/ci-docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  uml:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render every UML source with the pinned PlantUML image
+        working-directory: docs/uml
+        run: |
+          sources=$(ls *.puml)
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
+            plantuml/plantuml@sha256:9b5071ab56a4192aac458ab4b0d42261c22c8109695894ae5be6013c3be6cac1 \
+            -failfast2 -tsvg $sources
+          for source in $sources; do
+            test -s "${source%.puml}.svg" || { echo "missing SVG for $source"; exit 1; }
+          done
+      - name: Upload rendered SVG
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uml-svg
+          path: docs/uml/*.svg
+      - name: Committed SVG must match the sources
+        run: |
+          git status --porcelain -- docs/uml
+          test -z "$(git status --porcelain -- docs/uml)"
