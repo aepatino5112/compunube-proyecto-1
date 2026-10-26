@@ -72,7 +72,9 @@ class GameSession:
                 self.inputs.sync(me["lastProcessedInputSeq"], me["lastProcessedJumpSeq"])
         elif kind == "error":
             error = message["error"]
-            self.log(f"Go rechazó {error.get('relatedType') or 'el mensaje'}: {error['code']}")
+            # An intent sent while Go was closing the race is simply discarded.
+            if error.get("relatedType") != "race.input" or error["code"] not in ("RACE_NOT_ACTIVE", "RATE_LIMITED"):
+                self.log(f"Go rechazó {error.get('relatedType') or 'el mensaje'}: {error['code']}")
             if error.get("fatal"):
                 raise RealtimeError(error["code"], "fatal")
         return message

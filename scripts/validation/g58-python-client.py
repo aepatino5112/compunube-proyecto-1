@@ -120,6 +120,10 @@ def main():
               "race.ended lists exactly the two sessions of this room")
     h68.check(outcomes[1]["result"]["raceId"] == result["raceId"], "both clients received the same authoritative result")
     finished = [p for p in participants.values() if p["outcome"] == "finished"]
+    for p in sorted(participants.values(), key=lambda p: (p["rank"] is None, p["rank"] or 0)):
+        seconds = f"{p['finishTimeMs'] / 1000:.1f}s" if p["finishTimeMs"] is not None else "-"
+        print(f"  result {p['playerId'][:8]}: {p['outcome']} rank={p['rank']} time={seconds} "
+              f"collected={p['collected']} credited={p['credited']} reduce={p['reduceChoice']}", flush=True)
     for p in participants.values():
         h68.check(p["outcome"] in TERMINAL, f"terminal outcome {p['outcome']}")
         if p["outcome"] == "finished":
