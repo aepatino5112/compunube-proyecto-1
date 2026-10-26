@@ -15,4 +15,7 @@ USER app
 COPY --from=build /out/match-service /usr/local/bin/match-service
 
 EXPOSE 8080
+# Deployed revision (H66): set by compose build args, verified after deploy.
+ARG COMPUNUBE_REVISION=dev
+LABEL org.opencontainers.image.revision=$COMPUNUBE_REVISION
 ENTRYPOINT ["/usr/local/bin/match-service"]
