@@ -45,4 +45,7 @@ COPY --from=build /src/services/player-profile-service-rust/target/release/playe
 COPY --from=healthcheck /out/player-profile-healthcheck /usr/local/bin/player-profile-healthcheck
 
 EXPOSE 50051 9100
+# Deployed revision (H66): set by compose build args, verified after deploy.
+ARG COMPUNUBE_REVISION=dev
+LABEL org.opencontainers.image.revision=$COMPUNUBE_REVISION
 ENTRYPOINT ["/usr/local/bin/player-profile-service"]

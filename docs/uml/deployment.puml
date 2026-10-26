@@ -1,0 +1,60 @@
+@startuml deployment
+title D33 · Despliegue validado: un host Docker Compose (CI / desarrollo)
+skinparam shadowing false
+skinparam defaultFontName DejaVu Sans
+skinparam ArrowColor #356D77
+skinparam node {
+  BackgroundColor #F3F8FA
+  BorderColor #286B75
+}
+
+node "Equipo cliente (navegador)" as WebHost {
+  artifact "Surf Club web\n(server.mjs :4173,\nproxy /v1 mismo origen)" as Web
+}
+node "Equipo cliente (terminal)" as PyHost {
+  artifact "compunube_client\n(Python 3.12)" as Py
+}
+
+node "Host Docker (Linux o Windows 10 + WSL2)" as Host {
+  node "red Compose compunube" as Net {
+    node "match-service-go" as Go {
+      artifact "compunube-match-service:<rev>\n:8080 HTTP E45 + WS E43" as GoA
+    }
+    node "envoy" as Envoy {
+      artifact "envoyproxy/envoy:v1.31.10\n:50051 gRPC, :9901 admin" as EnvoyA
+    }
+    node "player-profile-rust-1" as R1 {
+      artifact "compunube-player-profile-service:<rev>\n:50051 gRPC, :9100 métricas" as R1A
+    }
+    node "player-profile-rust-2" as R2 {
+      artifact "compunube-player-profile-service:<rev>\n:50051 gRPC, :9100 métricas" as R2A
+    }
+    node "postgres" as PG {
+      database "postgres:17-alpine\n:5432, volumen postgres-data\nschemas match / player" as PGA
+    }
+    node "db-migrate (one-shot)" as Mig
+    node "prometheus :9090 / grafana :3000\npostgres-exporter :9187" as Mon
+  }
+}
+
+Web --> GoA : HTTP + WebSocket\n(GO_HTTP_PORT, host → :8080)
+Py --> GoA : HTTP + WebSocket (Bearer)
+GoA --> EnvoyA : gRPC envoy:50051
+EnvoyA --> R1A : gRPC + health check
+EnvoyA --> R2A : gRPC + health check
+GoA --> PGA : SQL rol match_runtime
+R1A --> PGA : SQL rol player_runtime
+R2A --> PGA : SQL rol player_runtime
+Mig --> PGA : migraciones y roles
+Mon ..> GoA
+Mon ..> R1A
+Mon ..> R2A
+Mon ..> EnvoyA
+Mon ..> PGA
+
+note bottom of Host
+  Topología verificada en CI Integration: todos los servicios en un host.
+  La distribución entre los equipos del laboratorio (D31) queda pendiente de A05;
+  no se fijan IPs ni hostnames.
+end note
+@enduml
