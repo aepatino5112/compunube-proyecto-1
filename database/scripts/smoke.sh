@@ -20,7 +20,7 @@ done
 
 createdb -h 127.0.0.1 -U "$POSTGRES_USER" "$clean_db"
 DATABASE_URL="postgresql://$POSTGRES_USER@127.0.0.1:5432/$clean_db" sh "$script_dir/migrate.sh" >/dev/null
-[ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$clean_db" -X -At -c "SELECT count(*) FROM information_schema.tables WHERE table_schema IN ('match','player')")" = 13 ]
+[ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$clean_db" -X -At -c "SELECT count(*) FROM information_schema.tables WHERE table_schema IN ('match','player')")" = 14 ]
 
 sh "$script_dir/migrate.sh"
 sh "$script_dir/seed.sh"
@@ -28,8 +28,8 @@ sh "$script_dir/seed.sh" >/dev/null
 before=$(psql "$DATABASE_URL" -X -At -c 'SELECT count(*) FROM public.schema_migrations')
 sh "$script_dir/migrate.sh"
 after=$(psql "$DATABASE_URL" -X -At -c 'SELECT count(*) FROM public.schema_migrations')
-[ "$before" = 2 ] && [ "$after" = 2 ]
-[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM information_schema.tables WHERE table_schema IN ('match','player')")" = 13 ]
+[ "$before" = 3 ] && [ "$after" = 3 ]
+[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM information_schema.tables WHERE table_schema IN ('match','player')")" = 14 ]
 [ "$(psql "$DATABASE_URL" -X -At -c 'SELECT count(*) FROM player.item_definitions')" = 22 ]
 # F52 (0002): published active online-v1 catalog covering all 22 items, and stored rejections.
 [ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM player.catalog_versions WHERE catalog_version = 'online-v1' AND active AND published_at IS NOT NULL")" = 1 ]
@@ -47,6 +47,14 @@ if psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "BEGIN; SET ROLE compunube_p
   echo 'player role wrote match schema' >&2; exit 1
 fi
 psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "BEGIN; SET ROLE compunube_match_app; INSERT INTO match.rooms(room_id,map_id) VALUES ('e42-allowed','maracaibo'); ROLLBACK" >/dev/null
+# F48 (0003): Go stores session token hashes (32 bytes only); Rust cannot read them.
+psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "BEGIN; SET ROLE compunube_match_app; INSERT INTO match.sessions(token_hash,player_id) VALUES (sha256('f48-smoke'),'f48-allowed'); ROLLBACK" >/dev/null
+if psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "INSERT INTO match.sessions(token_hash,player_id) VALUES ('raw-token','f48-raw')" >/dev/null 2>&1; then
+  echo 'a value that is not a SHA-256 hash was stored as a session' >&2; exit 1
+fi
+if psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "BEGIN; SET ROLE compunube_player_app; SELECT count(*) FROM match.sessions; ROLLBACK" >/dev/null 2>&1; then
+  echo 'player role read match sessions' >&2; exit 1
+fi
 psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "BEGIN; SET ROLE compunube_player_app; INSERT INTO player.profiles(player_id) VALUES ('e42-allowed'); ROLLBACK" >/dev/null
 
 psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -q -c "INSERT INTO match.rooms(room_id,map_id) VALUES ('e42-backup-fixture','maracaibo')"
@@ -69,5 +77,5 @@ sh "$script_dir/backup.sh" "$backup_file"
 createdb -h 127.0.0.1 -U "$POSTGRES_USER" "$restore_db"
 DATABASE_URL="postgresql://$POSTGRES_USER@127.0.0.1:5432/$restore_db" RESTORE_CONFIRM=YES sh "$script_dir/restore.sh" "$backup_file"
 [ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$restore_db" -X -At -c "SELECT count(*) FROM match.rooms WHERE room_id='e42-backup-fixture'")" = 1 ]
-[ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$restore_db" -X -At -c 'SELECT count(*) FROM public.schema_migrations')" = 2 ]
-echo 'E42/F52 migration, permissions, backup and restore smoke: PASS'
+[ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$restore_db" -X -At -c 'SELECT count(*) FROM public.schema_migrations')" = 3 ]
+echo 'E42/F52/F48 migration, permissions, backup and restore smoke: PASS'

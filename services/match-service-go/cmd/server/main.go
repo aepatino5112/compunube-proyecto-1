@@ -90,6 +90,12 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		logger.Warn("DATABASE_URL absent; match results are not durable")
 	}
 	identities := identity.NewRegistry()
+	if store != nil {
+		// F48/ADR 0005: sessions survive a Go restart through match.sessions.
+		identities.UseStore(store, time.Second, logger)
+	} else {
+		logger.Warn("DATABASE_URL absent; sessions end when Go restarts")
+	}
 	sessions := sessionhttp.New(identities, cfg.PublicOrigins...)
 	verifier := playerprofile.ProfileVerifier{Port: resilientProfile, Pool: profilePool}
 	roomManager := rooms.NewManager(runtime, verifier, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer, Recorder: recorder, InputObserver: measure, ResultsLobbyDelay: cfg.RoomResultsLobbyDelay})

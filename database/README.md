@@ -36,6 +36,10 @@ El seed añade las **18 referencias de objeto** verificadas en [`apps/web/dist/e
 
 El servicio Rust exige que `0002` esté aplicada para pasar a `SERVING`.
 
+### Migración 0003 (F48): sesiones de Go
+
+`0003_apply.sql` (+ `0003_match_sessions.up.sql`), misma convención. Crea `match.sessions(token_hash BYTEA PK CHECK 32 bytes, player_id TEXT UNIQUE, created_at)` con permisos DML para `compunube_match_app`. Guarda solo el hash del token, nunca el token; permite que Go conserve las sesiones al reiniciarse ([ADR 0005](../docs/adr/0005-persistent-go-sessions.md)). Sin FK entre esquemas.
+
 ## Backup, restore y rollback
 
 Los scripts reciben `DATABASE_URL` por entorno y no escriben credenciales en Git ni en logs. `backup.sh OUTPUT.dump` usa `pg_dump -Fc` y crea el archivo con permisos privados. `restore.sh BACKUP.dump` exige `RESTORE_CONFIRM=YES`, usa `pg_restore --clean --if-exists --exit-on-error` y **reemplaza objetos/datos de la base destino**. Verifique que el destino es el correcto y haga una copia previa. En un cluster nuevo, cree antes los roles de migración y runtime con el procedimiento de despliegue; `pg_dump` de una base no incluye roles globales. La prueba automatizada restaura en una base temporal del mismo cluster, donde ya existen esos roles.

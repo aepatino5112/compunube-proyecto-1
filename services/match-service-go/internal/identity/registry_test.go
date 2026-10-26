@@ -2,9 +2,11 @@ package identity
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestCreateAndRebind(t *testing.T) {
@@ -115,5 +117,85 @@ func TestConcurrentRegistryAndContext(t *testing.T) {
 	}
 	if _, ok := r.Snapshot(cancelled, "anything"); ok {
 		t.Fatal("cancelled snapshot succeeded")
+	}
+}
+
+type memoryStore struct {
+	mu                 sync.Mutex
+	rows               map[string]string
+	failSave, failLoad bool
+	saves, loads       int
+}
+
+func (m *memoryStore) SaveSession(_ context.Context, hash []byte, playerID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.saves++
+	if m.failSave {
+		return errors.New("db down")
+	}
+	m.rows[string(hash)] = playerID
+	return nil
+}
+
+func (m *memoryStore) LoadSession(_ context.Context, hash []byte) (string, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.loads++
+	if m.failLoad {
+		return "", false, errors.New("db down")
+	}
+	id, ok := m.rows[string(hash)]
+	return id, ok, nil
+}
+
+func TestSessionsSurviveARestartThroughTheStore(t *testing.T) {
+	ctx := context.Background()
+	store := &memoryStore{rows: map[string]string{}}
+	before := NewRegistry()
+	before.UseStore(store, time.Second, nil)
+	id, token, err := before.Create(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for hash, player := range store.rows {
+		if player != id || len(hash) != sha256.Size || hash == token {
+			t.Fatalf("store must keep only the token hash: %q -> %q", hash, player)
+		}
+	}
+
+	// A new process (empty memory) resolves the same token from the store once.
+	after := NewRegistry()
+	after.UseStore(store, time.Second, nil)
+	if got, ok := after.Lookup(ctx, token); !ok || got != id {
+		t.Fatalf("restored session: %q %v", got, ok)
+	}
+	if got, ok := after.Lookup(ctx, token); !ok || got != id || store.loads != 1 {
+		t.Fatalf("second lookup must hit memory: loads=%d", store.loads)
+	}
+	if bound, err := after.Bind(ctx, id); err != nil || !bound.Connected {
+		t.Fatalf("restored player cannot bind: %v", err)
+	}
+	if _, ok := after.Lookup(ctx, "forged-token"); ok {
+		t.Fatal("unknown token accepted")
+	}
+
+	// Store down: lookups fail closed like an unknown token; new sessions still
+	// work in this process and are logged as not persisted.
+	store.failLoad, store.failSave = true, true
+	if _, ok := NewRegistry().Lookup(ctx, token); ok {
+		t.Fatal("registry without store resolved a foreign token")
+	}
+	down := NewRegistry()
+	down.UseStore(store, time.Second, nil)
+	if _, ok := down.Lookup(ctx, token); ok {
+		t.Fatal("unavailable store must not authenticate")
+	}
+	local, localToken, err := down.Create(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := down.Lookup(ctx, localToken); !ok || got != local {
+		t.Fatal("session issued while the store is down must work in this process")
 	}
 }

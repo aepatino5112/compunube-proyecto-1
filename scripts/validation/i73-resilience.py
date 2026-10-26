@@ -4,8 +4,9 @@
 Race A (two Python clients): a client's socket drops and it reenters; rust-1 is
 killed (Envoy fails over to rust-2); rust-2 is killed (profile/economy degrade,
 the race keeps running in Go); the result stays pending and durable in
-match.settlement_delivery; Go restarts with that pending settlement; Rust comes
-back and the credit is applied exactly once.
+match.settlement_delivery; Go restarts with that pending settlement and the
+sessions issued before the restart stay valid (match.sessions, F48/ADR 0005);
+Rust comes back and the credit is applied exactly once.
 Race B: PostgreSQL is stopped during a race; the race finishes; when PostgreSQL
 returns the result is persisted and settled.
 Only the isolated project's throwaway data is touched.
@@ -134,8 +135,8 @@ def answers(call):
 
 
 def verify_credit(label, race_id, racers):
-    # Go sessions live in process memory (F48), so after a Go restart the old
-    # tokens are invalid; the Rust-owned balances are read from player.profiles.
+    # The Rust-owned balances are read from player.profiles; callers also read
+    # them through Go with sessions issued before the Go restart.
     parts = {p["playerId"]: p for p in racers[0].result["participants"]}
     rows = psql(f"SELECT count(*), coalesce(sum(credited_plastic),0), coalesce(sum(credited_metal),0) FROM player.settlements WHERE race_id='{race_id}'")
     expected = f"2|{sum(p['credited']['plastic'] for p in parts.values())}|{sum(p['credited']['metal'] for p in parts.values())}"
@@ -158,7 +159,7 @@ def main():
     h68.dc("up", "-d", "--no-build", "--wait", "--wait-timeout", "300", timeout=360)
     h68.wait_for("both Rust replicas SERVING", 90, lambda: h68.rust_health() == {"rust-1": 1, "rust-2": 1})
     observer = GoApi(GO)
-    observer.create_session()
+    observer_id = observer.create_session()["playerId"]
     profile_with_retry(observer)
 
     # ---- Race A -------------------------------------------------------------
@@ -202,7 +203,11 @@ def main():
 
     h68.dc("restart", "match-service-go", timeout=120)
     h68.wait_for("Go healthy again after restart", 60, lambda: answers(GoApi(GO).create_session))
-    h68.check(not answers(observer.profile), "sessions issued before the Go restart are no longer valid (in-memory F48 registry)")
+    h68.check(observer.current_session()["playerId"] == observer_id
+              and all(r.api.current_session()["playerId"] == r.before["playerId"] for r in (host, guest)),
+              "sessions issued before the Go restart are still valid with the same playerId (match.sessions)")
+    h68.check(psql(f"SELECT count(*), min(octet_length(token_hash)) FROM match.sessions WHERE player_id='{observer_id}'") == "1|32",
+              "match.sessions keeps one 32-byte token hash per player, never the token")
     h68.check(settlement_rows(race_a) == "pending|2", "Go restart keeps the pending settlement rows")
 
     h68.dc("start", "player-profile-rust-1", "player-profile-rust-2", timeout=120)
@@ -211,6 +216,14 @@ def main():
     h68.wait_for("pending settlement drained after recovery", 120, lambda: settlement_rows(race_a) == "confirmed|2")
     h68.check(True, "settlement confirmed after Rust and Go recovery")
     verify_credit("race A", race_a, (host, guest))
+    parts = {p["playerId"]: p["credited"] for p in host.result["participants"]}
+    for racer in (host, guest):
+        after = profile_with_retry(racer.api)
+        credit = parts[racer.before["playerId"]]
+        h68.check(after["playerId"] == racer.before["playerId"]
+                  and after["plastic"] == racer.before["plastic"] + credit["plastic"]
+                  and after["metal"] == racer.before["metal"] + credit["metal"],
+                  f"race A: {racer.label} reads the credited profile through Go with its pre-restart session")
 
     # ---- Race B: PostgreSQL outage during a race -------------------------------
     host, guest, threads = start_race("orinoco")

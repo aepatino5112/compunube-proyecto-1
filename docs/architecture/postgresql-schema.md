@@ -277,6 +277,16 @@ Constraints adicionales:
 
 El resultado histórico refleja lo decidido por Go; PostgreSQL no recalcula ranking ni elegibilidad.
 
+### `match.sessions`
+
+Sesiones emitidas por Go ([ADR 0005](../adr/0005-persistent-go-sessions.md), migración `0003`). Nunca guarda el token.
+
+| Columna | Tipo | Restricción / uso |
+| --- | --- | --- |
+| `token_hash` | `BYTEA` | PK; SHA-256 del token, CHECK 32 bytes. |
+| `player_id` | `TEXT` | NOT NULL, UNIQUE; identidad opaca emitida por Go, la misma con la que Rust guarda el perfil (sin FK). |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `now()`; base para una expiración futura. |
+
 ### `match.settlement_delivery`
 
 Estado durable de coordinación entre resultado Go y confirmación Rust. No almacena saldo de perfil.
