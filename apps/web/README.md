@@ -26,6 +26,10 @@ COMPUNUBE_GO_URL=http://127.0.0.1:8080 npm start
 
 `server.mjs` reenvía `/v1` (HTTP y la actualización WebSocket de `/v1/realtime`) a Go conservando el `Host` de la página. Así el navegador queda en un único origen: Go emite la cookie de sesión `HttpOnly; Secure; SameSite=Strict` y comprueba `Origin` en mutaciones y en el WebSocket. Sin `COMPUNUBE_GO_URL`, `/v1` responde `503 SERVICE_UNAVAILABLE` y el modo local sigue funcionando. Los navegadores aceptan la cookie `Secure` en `http://127.0.0.1`/`localhost`; desde otro equipo por `http://<IP>` la rechazan, por lo que el acceso en el laboratorio necesita HTTPS (pendiente de H66/D31).
 
+### Documentación de la API (Swagger UI)
+
+Con `COMPUNUBE_GO_URL` configurado, `http://127.0.0.1:4173/api-docs/` muestra el contrato E45 ([openapi.yaml](../../contracts/http/openapi.yaml)) con Swagger UI y permite «Try it out» contra Go por el mismo origen. `npm run build` copia el contrato y los recursos fijados de `swagger-ui-dist` a `dist/api-docs/`; CI Web falla si la copia difiere.
+
 ### TypeScript
 
 Los módulos nuevos de integración online están en `src/net/*.ts` y se compilan con `npm run build` (TypeScript fijado en `package-lock.json`, modo `strict`) a `dist/net/`, que se versiona para que `npm start` no requiera compilar. Los tipos realtime se importan del contrato normativo [`contracts/realtime/v1.ts`](../../contracts/realtime/v1.ts) mediante `tsconfig.contracts.json`, sin copiarlo; los DTO HTTP de `src/net/e45.ts` reflejan [`openapi.yaml`](../../contracts/http/openapi.yaml). CI Web compila y falla si `dist/net` no coincide con `src/net`.

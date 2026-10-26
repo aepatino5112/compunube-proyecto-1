@@ -170,6 +170,8 @@ G59 extiende `npm run test:integration` con dos clientes web (cookies separadas)
 
 G60/G61 añaden al mismo test de integración la caída del WebSocket de un jugador durante la carrera (reconexión dentro de la ventana, el snapshot conserva `lastProcessedInputSeq` y el cliente no reenvía una secuencia ya procesada) y la recarga de otra página con la misma cookie, que recupera la carrera con el manifiesto versionado y coincide en la propiedad de recogidas. CI Web comprueba que `dist/courses` es copia exacta de los manifiestos de Go.
 
+E45 publica Swagger UI en `/api-docs/` del cliente web (copia del contrato verificada en CI Web). CI Integration ejecuta además `integration/openapi-contract.test.js`, que valida estados y cuerpos de todas las operaciones contra Go real, y `e2e/api-docs.spec.mjs`, que usa «Try it out» en Chromium.
+
 Los checks separados de GitHub mantienen errores fáciles de localizar: un fallo de Go, Rust, Web, Contracts o Infrastructure aparece en su job correspondiente. No se reemplazan por un único job monolítico.
 
 ## Ejecución local equivalente

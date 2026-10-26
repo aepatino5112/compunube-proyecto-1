@@ -52,7 +52,7 @@ quality-rust:
 
 quality-web:
 	@echo "==> Web quality gate"
-	cd $(WEB_DIR) && npm ci --ignore-scripts --no-audit --no-fund && npm run build && git diff --exit-code -- dist/net dist/courses && npm run check && npm test
+	cd $(WEB_DIR) && npm ci --ignore-scripts --no-audit --no-fund && npm run build && git diff --exit-code -- dist/net dist/courses dist/api-docs && npm run check && npm test
 
 quality-client-secondary:
 	@echo "==> Python client quality gate"

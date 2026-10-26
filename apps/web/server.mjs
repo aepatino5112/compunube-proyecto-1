@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(fileURLToPath(new URL('./dist/', import.meta.url)));
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary', '.json': 'application/json; charset=utf-8' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary', '.json': 'application/json; charset=utf-8', '.yaml': 'application/yaml; charset=utf-8', '.png': 'image/png' };
 const host = process.env.COMPUNUBE_WEB_HOST || '127.0.0.1';
 const port = Number(process.env.COMPUNUBE_WEB_PORT || 4173);
 // Optional Go Match Service origin (for example http://127.0.0.1:8080). /v1 is
@@ -35,7 +35,9 @@ const server = http.createServer(async (req, res) => {
   if (isApi(req.url)) { forward(req, res); return; }
   try {
     const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-    const target = path.resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
+    // Swagger UI for the E45 contract lives in dist/api-docs/ (relative assets).
+    if (pathname === '/api-docs') { res.writeHead(301, { Location: '/api-docs/' }); res.end(); return; }
+    const target = path.resolve(root, '.' + (pathname.endsWith('/') ? pathname + 'index.html' : pathname));
     if (!target.startsWith(root + path.sep)) { res.writeHead(403); res.end(); return; }
     const body = await readFile(target);
     res.writeHead(200, { 'Content-Type': types[path.extname(target)] || 'application/octet-stream', 'Cache-Control': 'no-store' });

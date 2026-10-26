@@ -8,6 +8,7 @@ Duración orientativa: 20–25 minutos. Todo se ejecuta localmente; no depende d
 | --- | --- | --- | --- | --- |
 | 0 | Preparación (antes de la sesión) | — | `scripts/deploy/deploy.sh`; abrir Grafana; dos navegadores en `http://127.0.0.1:4173` con `COMPUNUBE_GO_URL`; una terminal con el cliente Python | CI Deploy |
 | 1 | Arquitectura | Clientes → Go (HTTP/WebSocket) → Envoy → rust-1/rust-2 → PostgreSQL con `match`/`player` separados | [D32](../uml/components.svg), [D33](../uml/deployment.svg), [D34](../uml/README.md#d34--secuencias-críticas) | CI Docs |
+| 1b | API documentada | Swagger UI de E45: operaciones, esquemas, errores; «Try it out» de `POST /sessions` y `GET /profile` contra Go | `http://127.0.0.1:4173/api-docs/` | contrato E45 en CI Integration |
 | 2 | Salud y observabilidad | Cinco targets UP, réplicas Rust, Envoy, PostgreSQL | Grafana → Compunube Operations | H68/H69 |
 | 3 | Perfil online | Sesión emitida por Go; perfil y catálogo confirmados por Rust; separados del progreso local | Web → Mi progreso → Online | G57 |
 | 4 | Economía idempotente | Canje/compra confirmados; rechazo por saldo; mismo `requestId` = replay | Web Taller/Tienda; `python -m compunube_client exchange plastic 1 --request-id demo-1` dos veces | G57, G58 |
