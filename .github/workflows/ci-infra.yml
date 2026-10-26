@@ -42,3 +42,5 @@ jobs:
             -v "$PWD/infra/monitoring/prometheus/rules:/etc/prometheus/rules:ro" \
             --entrypoint promtool prom/prometheus:v2.55.1 \
             check config /etc/prometheus/prometheus.yml
+      - name: Validate versioned Grafana dashboard JSON
+        run: python3 -m json.tool infra/monitoring/grafana/provisioning/dashboards/json/compunube-operations.json >/dev/null

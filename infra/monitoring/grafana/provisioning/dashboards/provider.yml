@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: Compunube
+    orgId: 1
+    folder: Compunube
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/provisioning/dashboards/json
