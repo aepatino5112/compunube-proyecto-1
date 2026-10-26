@@ -1,6 +1,6 @@
 # Cliente secundario (Python)
 
-Segunda interfaz requerida por la asignatura ([ADR 0002](../../docs/adr/0002-client-language-strategy.md), tarjeta G58). Es un cliente de terminal que usa **solo** la frontera pública de Go:
+Segunda interfaz requerida por la asignatura ([ADR 0002](../../docs/adr/0002-client-language-strategy.md), tarjeta G58). Tiene dos interfaces, una **ventana gráfica** (Tkinter) y una de **terminal**, y ambas usan **solo** la frontera pública de Go:
 
 - HTTP E45 ([OpenAPI](../../contracts/http/openapi.yaml)): sesión, perfil, catálogo, mutaciones económicas y crear/entrar sala.
 - WebSocket E43 ([contrato](../../contracts/realtime/events.md)): `/v1/realtime`, subprotocolo `compunube.realtime.v1`, mensajes `room.ready`, `room.leave`, `race.input` hacia Go y `room.state`, `race.start`, `race.snapshot`, `race.event`, `race.ended`, `error` desde Go.
@@ -17,9 +17,25 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-La única dependencia de ejecución es `websockets==15.0.1` (fijada en `requirements.txt`); `requirements-dev.txt` añade `pytest==8.3.5`.
+La única dependencia de ejecución es `websockets==15.0.1` (fijada en `requirements.txt`); `requirements-dev.txt` añade `pytest==8.3.5`. La ventana gráfica usa Tkinter, de la biblioteca estándar: viene con el instalador de python.org en Windows; en Debian/Ubuntu se instala con `sudo apt install python3-tk`.
 
-## Uso
+## Ventana gráfica
+
+```sh
+python -m compunube_client --server http://127.0.0.1:8080 gui
+```
+
+Una sola ventana con:
+
+- **Perfil online:** monedas, plástico, chatarra, equipo y revisión confirmados por Rust a través de Go.
+- **Catálogo:** los 22 objetos con su precio o receta del catálogo activo y si ya son tuyos o están equipados; botones *Comprar*, *Fabricar*, *Equipar* y *Cambiar por monedas*. Cada acción lleva `requestId` y `catalogVersion`; si el resultado es incierto, repetir la misma acción reenvía el **mismo** `requestId`.
+- **Sala multijugador:** elegir mapa y *Crear sala* (el código aparece para compartirlo) o *Entrar con código*; responder «¿Qué llevas para hidratarte?» (Reducir) y pulsar *Listo*; la lista de miembros sale de `room.state`.
+- **Carrera:** vista cenital dibujada con el último `race.snapshot` y el manifiesto de `race.start` (surfistas, obstáculos, residuos sin recoger, salvavidas y meta), más tiempo, distancia, puesto, vidas, impulso y recogidos. Teclas: ←/→ o A/D girar, Espacio saltar, ↑/W impulso, Z/X lado de la red; o *Piloto automático*.
+- **Resultado:** puesto, tiempo y crédito de cada participante, y acreditación pendiente → confirmada; al confirmarse se recarga el perfil.
+
+El trabajo de red corre en hilos y llega a la ventana por una cola que Tk vacía cada 50 ms, así que la ventana no se bloquea. La lógica de presentación (`view.py`) no decide nada: solo da formato al estado de Go. Web y Python pueden compartir sala.
+
+## Uso en terminal
 
 El servidor por defecto es `http://127.0.0.1:8080` (puerto HTTP de Go en `compose.yml`); se cambia con `--server` o la variable `COMPUNUBE_SERVER`. Cada ejecución crea una sesión nueva salvo que se indique `--token-file`, que guarda el token de Go en un archivo privado (permisos `0600`) para reutilizar la misma identidad. El token es un secreto: no lo compartas ni lo subas al repositorio.
 
@@ -59,4 +75,4 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Las pruebas unitarias usan servidores HTTP/WebSocket locales para comprobar el comportamiento del cliente (mismo `requestId` en reintentos, rechazos sin reintento, subprotocolo, cabecera de sesión, reentrada y resincronización de secuencias, piloto automático). No sustituyen la integración real: [`scripts/validation/g58-python-client.py`](../../scripts/validation/g58-python-client.py) levanta un proyecto Compose aislado (PostgreSQL, migraciones, dos Rust, Envoy y Go) y hace que dos clientes Python jueguen una carrera completa contra Go, verifican resultado, propiedad única de recogidas, settlement confirmado, perfil acreditado una sola vez y el replay del CLI con el mismo `requestId`. CI Client Secondary ejecuta las pruebas unitarias en Ubuntu y Windows; CI Integration ejecuta el harness real.
+Las pruebas de la ventana (`tests/test_gui.py`) construyen la ventana real con datos de prueba y comprueban perfil, catálogo, sala, dibujo de la carrera y teclas; sin Tk o sin pantalla se omiten localmente, pero CI define `CLIENT_GUI_REQUIRED=1` (Xvfb en Ubuntu, escritorio en Windows) para que fallen en vez de omitirse. Las pruebas unitarias usan servidores HTTP/WebSocket locales para comprobar el comportamiento del cliente (mismo `requestId` en reintentos, rechazos sin reintento, subprotocolo, cabecera de sesión, reentrada y resincronización de secuencias, piloto automático). No sustituyen la integración real: [`scripts/validation/g58-python-client.py`](../../scripts/validation/g58-python-client.py) levanta un proyecto Compose aislado (PostgreSQL, migraciones, dos Rust, Envoy y Go) y hace que dos clientes Python jueguen una carrera completa contra Go, verifican resultado, propiedad única de recogidas, settlement confirmado, perfil acreditado una sola vez y el replay del CLI con el mismo `requestId`. CI Client Secondary ejecuta las pruebas unitarias en Ubuntu y Windows; CI Integration ejecuta el harness real y además [`scripts/validation/g58-python-gui.py`](../../scripts/validation/g58-python-gui.py), que maneja la **ventana real** bajo Xvfb contra Go: equipa un objeto, crea la sala, corre contra otro cliente Python que entra con el código, dibuja la carrera y muestra el resultado acreditado.

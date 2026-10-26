@@ -5,7 +5,7 @@ Requisito de entrega → componente → tarjeta/PR → prueba → evidencia → 
 | Requisito | Componente | Tarjeta / PR | Prueba | Evidencia | Estado (26-10-2026) |
 | --- | --- | --- | --- | --- | --- |
 | Juego multijugador con autoridad del servidor | Go Match Service (salas, RoomLoop, race) | F46–F53, D28; G58 #70 | `go test -race`; carrera real con 2 clientes Python | CI Go; CI Integration run 40265326508 | Cumplido |
-| Dos lenguajes de interfaz | Web TypeScript (`apps/web/src/net`) + Python | G57 #71, G58 #70, G59 #72 | `npm run build` (dist/net verificado); `pytest` Ubuntu/Windows; integración; E2E web + Python en la misma sala | CI Web, CI Client Secondary, CI Integration | Cumplido |
+| Dos lenguajes de interfaz | Web TypeScript (`apps/web/src/net`) + Python (ventana Tkinter y terminal) | G57 #71, G58 #70, G59 #72 | `npm run build` (dist/net verificado); `pytest` Ubuntu/Windows; integración; E2E web + Python en la misma sala | CI Web, CI Client Secondary, CI Integration | Cumplido |
 | Cliente web conectado a Go real | `src/net/profile.ts`, `realtime.ts`, `server.mjs` | G57 #71; G56/G59 #72 (merge 23dbd86); G60/G61 #73 (merge 6e84e9a) | `integration/*.test.js`; Playwright (2 navegadores + Python) | `docs/evidence/web-online-g56-g61.md` | Cumplido (navegadores Chromium en el mismo host; remoto requiere HTTPS) |
 | Microservicios Go ↔ Rust por gRPC/Protobuf | `proto/`, adaptador gRPC Go, servicio Rust | E43, F47, F52, J77 | CI Contracts, `TestGRPCAdapterMapsEveryRPC`, `grpc_economy.rs` | CI | Cumplido |
 | Balanceo y failover con Envoy (2 réplicas) | Envoy STRICT_DNS + health gRPC | J78, H69 #67, I73 #78 | J78 (local), H69, I73 | `docs/evidence/j78-rust-failover.md`, `h69-grafana.md`, `i73-resilience.md` | Cumplido |

@@ -4,7 +4,7 @@ Proyecto de Computación en la Nube orientado a un videojuego multijugador educa
 
 ## Arquitectura base
 
-- **Clientes:** web Surf Club (Three.js; la integración online está en módulos TypeScript compilados en CI, `apps/web/src/net`) y segunda interfaz **Python** de terminal (`apps/client-secondary`), según [ADR 0002](docs/adr/0002-client-language-strategy.md). Ambos envían solo intenciones a Go por HTTP E45 y WebSocket E43 y presentan el estado confirmado.
+- **Clientes:** web Surf Club (Three.js; la integración online está en módulos TypeScript compilados en CI, `apps/web/src/net`) y segunda interfaz **Python** con ventana gráfica Tkinter y modo terminal (`apps/client-secondary`), según [ADR 0002](docs/adr/0002-client-language-strategy.md). Ambos envían solo intenciones a Go por HTTP E45 y WebSocket E43 y presentan el estado confirmado.
 - **Go Match Service:** salas, jugadores activos, simulación autoritativa, red realtime, goroutines/channels y resiliencia.
 - **Rust Player/Profile Service:** perfil persistente, inventario, catálogo, economía, crafting, equipamiento y settlement de carreras.
 - **gRPC + Protobuf:** comunicación interna Go ↔ Rust.
@@ -80,10 +80,11 @@ Abrir http://127.0.0.1:4173/. La demo local incluye dos mapas y tres rivales de 
 ```bash
 cd apps/client-secondary
 python -m pip install -r requirements.txt
-python -m compunube_client --server http://127.0.0.1:8080 play --create maracaibo
+python -m compunube_client --server http://127.0.0.1:8080 gui                         # ventana gráfica (Tkinter)
+python -m compunube_client --server http://127.0.0.1:8080 play --create maracaibo     # terminal
 ```
 
-Ver [apps/client-secondary/README.md](apps/client-secondary/README.md) para perfil, economía, unirse a una sala y controles manuales.
+Ver [apps/client-secondary/README.md](apps/client-secondary/README.md) para perfil, economía, unirse a una sala y controles. En Debian/Ubuntu la ventana necesita `sudo apt install python3-tk`.
 
 ## Requisitos del stack backend
 
