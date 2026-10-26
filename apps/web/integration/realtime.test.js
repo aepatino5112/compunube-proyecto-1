@@ -61,11 +61,13 @@ function browser(origin, name, jar = { cookie: null }) {
   return { name, jar, backend, profile, client, seen, sockets, get race() { return race; }, get cookie() { return jar.cookie; } };
 }
 
-async function until(label, predicate, ms = 20000) {
+async function until(label, predicate, ms = 20000, describe = () => '') {
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) { if (predicate()) return; await wait(50); }
-  throw new Error(`timeout: ${label}`);
+  throw new Error(`timeout: ${label} ${describe()}`);
 }
+const describe = b => () => JSON.stringify({ status: b.client.state.status, error: b.client.state.error,
+  statuses: b.seen.statuses, sockets: b.sockets.map(s => s.readyState), snapshots: b.seen.snapshots.length });
 
 test('two web clients race on Go: E43 flow, reentry with monotonic inputs, leave and settlement', async t => {
   const web = await startWeb();
@@ -109,8 +111,8 @@ test('two web clients race on Go: E43 flow, reentry with monotonic inputs, leave
 
   // Reentry: drop the host's socket mid-race; the adapter reopens it inside the window.
   host.sockets.at(-1).close();
-  await until('host reconnecting', () => host.seen.statuses.includes('reconnecting'));
-  await until('host racing again', () => host.client.state.status === 'racing' && host.sockets.length >= 2, 15000);
+  await until('host reconnecting', () => host.seen.statuses.includes('reconnecting'), 20000, describe(host));
+  await until('host racing again', () => host.client.state.status === 'racing' && host.sockets.length >= 2, 15000, describe(host));
   const before = host.seen.snapshots.length;
   await until('fresh snapshot after reentry', () => host.seen.snapshots.length > before);
   const self = host.race.latest.players.find(p => p.playerId === host.client.state.selfPlayerId);
