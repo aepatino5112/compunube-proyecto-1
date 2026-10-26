@@ -44,7 +44,7 @@ jobs:
 
       - name: Prepare environment
         run: |
-          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD; do
+          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD GRAFANA_ADMIN_PASSWORD; do
             value=$(openssl rand -hex 24)
             echo "::add-mask::$value"
             printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
