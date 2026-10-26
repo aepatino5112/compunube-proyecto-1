@@ -39,6 +39,8 @@ function browser(origin, name, jar = { cookie: null }) {
   };
   const backend = createGoBackend({ fetch: fetchLike, realtime: {
     url: origin.replace('http', 'ws') + '/v1/realtime',
+    // Same file a browser fetches relative to the page: served by server.mjs.
+    loadManifest: async version => (await fetch(`${origin}/courses/${encodeURIComponent(version)}.json`)).json(),
     createSocket: (url, protocols) => {
       const socket = new WebSocket(url, { protocols, headers: { Cookie: jar.cookie, Origin: origin } });
       sockets.push(socket); return socket;
