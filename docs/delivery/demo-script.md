@@ -11,7 +11,7 @@ Duración orientativa: 20–25 minutos. Todo se ejecuta localmente; no depende d
 | 2 | Salud y observabilidad | Cinco targets UP, réplicas Rust, Envoy, PostgreSQL | Grafana → Compunube Operations | H68/H69 |
 | 3 | Perfil online | Sesión emitida por Go; perfil y catálogo confirmados por Rust; separados del progreso local | Web → Mi progreso → Online | G57 |
 | 4 | Economía idempotente | Canje/compra confirmados; rechazo por saldo; mismo `requestId` = replay | Web Taller/Tienda; `python -m compunube_client exchange plastic 1 --request-id demo-1` dos veces | G57, G58 |
-| 5 | Sala | Crear sala en un navegador, entrar con el código en el otro, unir el cliente Python | Lobby «Con amigos»; `play --join <código>` | E2E #72 |
+| 5 | Sala | Crear sala en un navegador, entrar con el código en el otro, unir el cliente Python | Lobby «Con amigos»; `play --join <código>` | E2E #72 (dos navegadores + Python) |
 | 6 | Preparación | «¿Qué llevas para hidratarte?» (Reducir) y Listo confirmados por Go; revisión de perfil verificada | Lobby | G59 |
 | 7 | Carrera con varios clientes | Cuenta atrás 3 s, snapshots a 10 Hz, recogidas con un único propietario, salto/impulso como intenciones | Jugar | G58, I72 |
 | 8 | Fallo controlado | Matar rust-1: Envoy hace failover; matar rust-2: la carrera sigue, perfil degradado, Circuit Breaker abierto en Grafana | `docker compose kill player-profile-rust-1` y luego `-2` durante la carrera | H69, I73 |
