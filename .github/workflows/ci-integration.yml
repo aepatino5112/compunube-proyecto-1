@@ -13,10 +13,15 @@ on:
       - "scripts/validation/j83-profile-economy.py"
       - "scripts/validation/j85-compose-readiness.py"
       - "scripts/validation/h68-prometheus.py"
+      - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
       - "scripts/validation/i72-e2e-concurrency.py"
       - "scripts/validation/i73-resilience.py"
       - "apps/client-secondary/**"
+      - "apps/web/src/**"
+      - "apps/web/dist/net/**"
+      - "apps/web/integration/**"
+      - "apps/web/server.mjs"
       - ".github/workflows/ci-integration.yml"
   push:
     branches: [main]
@@ -30,10 +35,15 @@ on:
       - "scripts/validation/j83-profile-economy.py"
       - "scripts/validation/j85-compose-readiness.py"
       - "scripts/validation/h68-prometheus.py"
+      - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
       - "scripts/validation/i72-e2e-concurrency.py"
       - "scripts/validation/i73-resilience.py"
       - "apps/client-secondary/**"
+      - "apps/web/src/**"
+      - "apps/web/dist/net/**"
+      - "apps/web/integration/**"
+      - "apps/web/server.mjs"
       - ".github/workflows/ci-integration.yml"
 
 permissions:
@@ -52,7 +62,7 @@ jobs:
 
       - name: Prepare environment
         run: |
-          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD; do
+          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD GRAFANA_ADMIN_PASSWORD; do
             value=$(openssl rand -hex 24)
             echo "::add-mask::$value"
             printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
@@ -132,6 +142,19 @@ jobs:
         env:
           G58_SKIP_BUILD: "1"
         run: python3 scripts/validation/g58-python-client.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Validate web profile and economy against Go (G57)
+        working-directory: apps/web
+        env:
+          COMPUNUBE_GO_URL: http://127.0.0.1:8080
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run test:integration
 
       - name: End-to-end races with concurrent rooms of four clients (I72)
         env:
@@ -152,6 +175,11 @@ jobs:
         env:
           H68_SKIP_BUILD: "1"
         run: python3 scripts/validation/h68-prometheus.py
+
+      - name: Validate provisioned Grafana and operational scenarios (H69)
+        env:
+          H69_SKIP_BUILD: "1"
+        run: python3 scripts/validation/h69-grafana.py
 
       - name: Logs on failure
         if: failure()

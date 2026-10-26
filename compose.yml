@@ -38,10 +38,12 @@ services:
     restart: "no"
 
   player-profile-rust-1:
-    image: compunube-player-profile-service:dev
+    image: compunube-player-profile-service:${COMPUNUBE_IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: services/player-profile-service-rust/Dockerfile
+      args:
+        COMPUNUBE_REVISION: ${COMPUNUBE_REVISION:-dev}
     environment:
       SERVICE_ADDR: 0.0.0.0:50051
       INSTANCE_ID: rust-1
@@ -57,10 +59,12 @@ services:
     restart: unless-stopped
 
   player-profile-rust-2:
-    image: compunube-player-profile-service:dev
+    image: compunube-player-profile-service:${COMPUNUBE_IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: services/player-profile-service-rust/Dockerfile
+      args:
+        COMPUNUBE_REVISION: ${COMPUNUBE_REVISION:-dev}
     environment:
       SERVICE_ADDR: 0.0.0.0:50051
       INSTANCE_ID: rust-2
@@ -76,7 +80,7 @@ services:
     restart: unless-stopped
 
   envoy:
-    image: envoyproxy/envoy:v1.31-latest
+    image: envoyproxy/envoy:v1.31.10
     command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--service-cluster", "player-profile-ambassador"]
     volumes:
       - ./infra/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
@@ -91,9 +95,12 @@ services:
     restart: unless-stopped
 
   match-service-go:
+    image: compunube-match-service:${COMPUNUBE_IMAGE_TAG:-dev}
     build:
       context: .
       dockerfile: services/match-service-go/Dockerfile
+      args:
+        COMPUNUBE_REVISION: ${COMPUNUBE_REVISION:-dev}
     environment:
       HTTP_ADDR: 0.0.0.0:8080
       PLAYER_PROFILE_GRPC_ADDR: envoy:50051
@@ -138,7 +145,7 @@ services:
     image: grafana/grafana:11.3.0
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
     volumes:
       - grafana-data:/var/lib/grafana
       - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro

@@ -1,0 +1,90 @@
+@startuml components
+title D32 · Componentes de Compunube Online
+skinparam shadowing false
+skinparam defaultFontName DejaVu Sans
+skinparam componentStyle uml2
+skinparam ArrowColor #356D77
+skinparam component {
+  BackgroundColor #F3F8FA
+  BorderColor #286B75
+}
+skinparam database {
+  BackgroundColor #FBF6EA
+  BorderColor #8A6D2B
+}
+
+package "Clientes (sin autoridad)" {
+  component "Cliente web Surf Club\n(Three.js + módulos TypeScript src/net)" as Web
+  component "server.mjs\n(estáticos + proxy /v1 mismo origen)" as WebServer
+  component "Cliente Python\n(apps/client-secondary)" as Py
+}
+
+node "Go Match Service" as Go {
+  portin "HTTP E45 :8080" as GoHttp
+  portin "WebSocket E43\n/v1/realtime" as GoWs
+  component "sessionhttp\n(sesión opaca, cookie, Origin)" as Sess
+  component "profilehttp\n(perfil, catálogo, mutaciones)" as ProfApi
+  component "roomshttp\n(crear/entrar, realtime)" as RoomsApi
+  component "rooms + roomruntime\n(RoomLoop por sala, tick)" as Rooms
+  component "race\n(simulación autoritativa)" as Race
+  component "inputmailbox / outbox\n(backpressure)" as Mail
+  component "playerprofile\n(port gRPC + Circuit Breaker,\ntimeout, retry seguro)" as Port
+  component "settlement\n(coordinador durable)" as Settle
+  component "matchstore\n(repositorio match.*)" as Store
+  component "metrics / health" as GoObs
+}
+
+component "Envoy\n(Ambassador: round robin,\nhealth check gRPC, failover)" as Envoy
+
+node "Rust Player/Profile" as RustGroup {
+  component "rust-1\n(gRPC :50051, métricas :9100)" as R1
+  component "rust-2\n(gRPC :50051, métricas :9100)" as R2
+}
+
+database "PostgreSQL" as PG {
+  frame "schema match\n(rol compunube_match_runtime)" as MatchSchema
+  frame "schema player\n(rol compunube_player_runtime)" as PlayerSchema
+}
+
+component "Prometheus + Grafana\n(postgres-exporter)" as Mon
+
+Web --> WebServer : HTTP + WebSocket\n(mismo origen)
+WebServer --> GoHttp : HTTP /v1
+WebServer --> GoWs : upgrade /v1/realtime
+Py --> GoHttp : HTTP E45 (Bearer)
+Py --> GoWs : WebSocket E43 (Bearer)
+
+GoHttp --> Sess
+GoHttp --> ProfApi
+GoHttp --> RoomsApi
+GoWs --> RoomsApi
+RoomsApi --> Rooms
+Rooms --> Race
+RoomsApi --> Mail
+Mail --> Rooms
+ProfApi --> Port
+Rooms ..> Port : verificar preparación\n(fuera del RoomLoop)
+Rooms --> Store : resultado (async,\nno por tick)
+Settle --> Store : claim / confirm
+Settle --> Port : SettleRace
+Port --> Envoy : gRPC/Protobuf\ncompunube.player.v1\n(un solo destino lógico)
+Envoy --> R1
+Envoy --> R2
+Store --> MatchSchema : SQL
+R1 --> PlayerSchema : SQL
+R2 --> PlayerSchema : SQL
+Mon ..> GoObs : scrape
+Mon ..> R1 : scrape
+Mon ..> R2 : scrape
+Mon ..> Envoy : scrape admin
+Mon ..> PG : exporter
+
+note bottom of PG
+  Sin claves foráneas entre match y player.
+  Go no escribe player.*; Rust no lee ni escribe match.*.
+end note
+note right of Envoy
+  Go no conoce IPs de réplicas Rust
+  ni elige instancia.
+end note
+@enduml

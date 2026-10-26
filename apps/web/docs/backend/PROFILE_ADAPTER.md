@@ -2,6 +2,8 @@
 
 **15 de octubre de 2026.** El front prepara una cartera online separada del progreso de este navegador. El proveedor continúa desconectado: esta entrega no crea cuentas, endpoints ni una base de datos. Los tipos de [contracts-proposed.ts](contracts-proposed.ts) son una propuesta para acordar con backend.
 
+**Implementación G57 (25 de octubre de 2026):** [`src/net/profile.ts`](../../src/net/profile.ts) implementa este adaptador sobre E45 y `dist/backend-config.js` lo exporta. La sesión es la cookie `HttpOnly` de Go en el mismo origen; `playerId` lo deriva Go. Cada `requestId` queda ligado al cuerpo enviado la primera vez, incluido `catalogVersion`, de modo que un reintento tras `504 MUTATION_OUTCOME_UNKNOWN`, `503 PROFILE_UNAVAILABLE` o un fallo de red repite exactamente la misma operación. Solo los rechazos 4xx de E45 se consideran definitivos. E45 no informa `totalCleaned` ni `races`; el perfil online los deja en `null` y el panel no muestra esas cifras. Las secciones siguientes describen la interfaz original y siguen vigentes salvo esas precisiones.
+
 **Contrato vigente:** [OpenAPI HTTP E45](../../../../contracts/http/README.md) fija sesión, perfil, catálogo y mutaciones, con `requestId` y `catalogVersion`. Este documento refleja la interfaz del adaptador frontal actual; sus envolturas propuestas deben traducirse al contrato público antes de conectar un proveedor.
 
 `dist/online-profile.js` contiene la frontera de datos confirmados. No llama a `localStorage`, no aplica `transact` de la economía local y no calcula premios de carreras. Las pruebas usan proveedores controlados; esos proveedores no forman parte del producto.
