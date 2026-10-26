@@ -146,6 +146,6 @@ chore/*   ─┘
 
 El proyecto usa **Fast Deployment + Kanban**: ramas cortas, integración frecuente y cambios pequeños.
 
-El ruleset `Protect main` exige Pull Request y los checks `go`, `rust`, `validate`, `contracts` y `web`. Actualmente no exige aprobaciones obligatorias.
+El ruleset `Protect main` exige Pull Request y los checks `go`, `rust`, `validate`, `contracts`, `web`, `client-secondary (ubuntu-latest)` y `client-secondary (windows-latest)`. Actualmente no exige aprobaciones obligatorias.
 
 El despliegue se hace con [`scripts/deploy/deploy.sh`](docs/deployment/h66-deploy-procedure.md) (preflight, copia, verificación de versión y rollback), validado en CI Deploy. No hay CD automático al laboratorio y la ejecución en los equipos físicos sigue pendiente de A05; ver [docs/ci-cd.md](docs/ci-cd.md).
