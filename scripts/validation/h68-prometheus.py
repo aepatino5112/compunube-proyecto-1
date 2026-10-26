@@ -20,7 +20,7 @@ for key, port in {
     "ENVOY_ADMIN_PORT": "59068", "PROMETHEUS_PORT": "59069", "GRAFANA_PORT": "53068",
 }.items():
     ENV[key] = os.environ.get("H68_" + key, port)
-for key in ("POSTGRES_PASSWORD", "MATCH_DB_PASSWORD", "PLAYER_DB_PASSWORD", "MONITOR_DB_PASSWORD"):
+for key in ("POSTGRES_PASSWORD", "MATCH_DB_PASSWORD", "PLAYER_DB_PASSWORD", "MONITOR_DB_PASSWORD", "GRAFANA_ADMIN_PASSWORD"):
     if not ENV.get(key):
         ENV[key] = secrets.token_hex(24)
 DC = ["docker", "compose", "-p", PROJECT, "-f", "compose.yml", "-f", "scripts/validation/compose.validation.yml"]

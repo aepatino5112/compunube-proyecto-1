@@ -21,6 +21,10 @@ const FRIENDLY_ERRORS = Object.freeze({
   INVALID_APPEARANCE: 'No pudimos confirmar esa apariencia. Actualiza el perfil antes de continuar.',
   INVALID_REQUEST_ID: 'No pudimos preparar ese cambio. Consulta tu perfil antes de continuar.',
   ACTION_UNCERTAIN: 'El cambio sigue pendiente de confirmación. Puedes volver a consultarlo.',
+  PROFILE_UNAVAILABLE: 'El perfil y la economía online no están disponibles ahora. Tu última confirmación se conserva; vuelve a intentarlo en unos momentos.',
+  INVALID_REQUEST: 'El servicio no aceptó esa solicitud. Actualiza el perfil antes de continuar.',
+  IDEMPOTENCY_CONFLICT: 'Esa operación ya se registró con otros datos. Actualiza el perfil antes de continuar.',
+  INVALID_CATALOG_VERSION: 'El catálogo cambió. Actualiza el perfil y vuelve a elegir.',
 });
 
 const STATUS_TEXT = Object.freeze({
@@ -119,14 +123,17 @@ export function mountProfilePanel({ store, getMode, setMode }) {
                 ? 'Se muestra la última confirmación recibida. Actualiza el perfil antes de hacer otro cambio online.'
                 : 'Consulta tu perfil para usar sus materiales y equipo en el club. Tu progreso local sigue disponible.';
     $('#profile-online-note').textContent = note;
-    const error = localError || (['error', 'ready'].includes(state.status) && state.error ? FRIENDLY_ERRORS[state.error.code] || 'No pudimos confirmar el progreso. Vuelve a consultarlo antes de continuar.' : '');
+    const error = localError || (['error', 'ready', 'uncertain'].includes(state.status) && state.error?.code !== 'ACTION_UNCERTAIN' && state.error ? FRIENDLY_ERRORS[state.error.code] || 'No pudimos confirmar el progreso. Vuelve a consultarlo antes de continuar.' : '');
     $('.pp-error').hidden = !error;
     $('.pp-error').textContent = error;
     summary.hidden = !state.profile;
     if (state.profile) {
       $('.pp-summary-label').textContent = state.status === 'ready' ? 'CONFIRMADO EN EL SERVICIO' : 'ÚLTIMA CONFIRMACIÓN RECIBIDA';
       for (const field of ['coins', 'plastic', 'metal']) $(`[data-pp-value="${field}"]`).textContent = formatCount(state.profile[field]);
-      $('.pp-history').textContent = `${formatCount(state.profile.totalCleaned)} residuos recuperados · ${formatCount(state.profile.races)} carreras`;
+      // The online service does not report history counters; never show invented zeros.
+      const history = state.profile.totalCleaned !== null && state.profile.races !== null;
+      $('.pp-history').hidden = !history;
+      $('.pp-history').textContent = history ? `${formatCount(state.profile.totalCleaned)} residuos recuperados · ${formatCount(state.profile.races)} carreras` : '';
     }
     refresh.hidden = unavailable;
     refresh.disabled = loading;

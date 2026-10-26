@@ -1,0 +1,18 @@
+{
+  // Type-only view of the normative E43 contract. It emits declarations to a
+  // throwaway folder so src/ can import the contract without copying it.
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "../../contracts/realtime",
+    "outDir": ".tsbuild/contracts",
+    "tsBuildInfoFile": ".tsbuild/contracts.tsbuildinfo",
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "files": ["../../contracts/realtime/v1.ts"]
+}

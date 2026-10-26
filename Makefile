@@ -70,5 +70,5 @@ quality-infra:
 	docker compose config
 	docker run --rm \
 		-v "$(CURDIR)/infra/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro" \
-		envoyproxy/envoy:v1.31-latest \
+		envoyproxy/envoy:v1.31.10 \
 		envoy --mode validate -c /etc/envoy/envoy.yaml
