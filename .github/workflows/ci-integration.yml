@@ -15,6 +15,7 @@ on:
       - "scripts/validation/h68-prometheus.py"
       - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
+      - "scripts/validation/i72-e2e-concurrency.py"
       - "apps/client-secondary/**"
       - "apps/web/src/**"
       - "apps/web/dist/net/**"
@@ -35,6 +36,7 @@ on:
       - "scripts/validation/h68-prometheus.py"
       - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
+      - "scripts/validation/i72-e2e-concurrency.py"
       - "apps/client-secondary/**"
       - "apps/web/src/**"
       - "apps/web/dist/net/**"
@@ -151,6 +153,11 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run test:integration
+
+      - name: End-to-end races with concurrent rooms of four clients (I72)
+        env:
+          I72_SKIP_BUILD: "1"
+        run: python3 scripts/validation/i72-e2e-concurrency.py
 
       - name: Validate gRPC Compose readiness and recovery (J85)
         env:
