@@ -76,6 +76,29 @@ export function raceStart(message, room) {
         }),
     };
 }
+/**
+ * After a reload during RACING, Go replays room.state and a full snapshot but
+ * not race.start (E43). The versioned manifest for room.courseVersion plus the
+ * prepared members rebuild an equivalent start for presentation only.
+ */
+export function resumedStart(room, manifest, snapshot) {
+    if (room.state !== 'RACING' || !room.raceId || snapshot.raceId !== room.raceId ||
+        manifest.mapId !== room.mapId || manifest.courseVersion !== room.courseVersion)
+        return null;
+    const racing = new Set(snapshot.players.map(player => player.playerId));
+    const roster = room.members.filter(member => racing.has(member.playerId));
+    if (roster.length !== racing.size || roster.some(member => member.reduceChoice === null))
+        return null;
+    return {
+        type: 'race.start', protocolVersion: 1, roomId: room.roomId, raceId: room.raceId,
+        serverTimeMs: snapshot.serverTimeMs, startedAtMs: snapshot.serverTimeMs - snapshot.elapsedMs,
+        rulesVersion: room.rulesVersion, course: manifest,
+        roster: roster.map((member, index) => ({
+            playerId: member.playerId, startSlotX: manifest.startSlotsX[index] ?? 0,
+            equipment: member.equipment, appearance: member.appearance, reduceChoice: member.reduceChoice ?? 'reusable',
+        })),
+    };
+}
 function player(p) {
     const protection = p.protectionRemainingMs / 1000;
     return {

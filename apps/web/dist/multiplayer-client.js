@@ -121,7 +121,7 @@ export function createMultiplayerClient({adapter = null, callbacks = {}} = {}) {
   let state = freeze({status: configured ? 'idle' : 'unconfigured', selfPlayerId: null, room: null, error: null, result: null});
   const listeners = new Set();
   let generation = 0, pending = null, connection = null, disposed = false;
-  let raceId = null, lastInputSeq = -1, lastJumpSeq = 0, lastProfileRevision = -1;
+  let raceId = null, lastInputSeq = -1, lastJumpSeq = 0, lastProfileRevision = -1, linkStatus = null;
 
   function close(handle) {
     if (!handle || handle.closed) return;
@@ -138,7 +138,7 @@ export function createMultiplayerClient({adapter = null, callbacks = {}} = {}) {
     pending?.abort(); pending = null;
     const previous = connection; connection = null;
     close(previous);
-    raceId = null; lastInputSeq = -1; lastJumpSeq = 0; lastProfileRevision = -1;
+    raceId = null; lastInputSeq = -1; lastJumpSeq = 0; lastProfileRevision = -1; linkStatus = null;
   }
   function update(patch, reportConnection = true) {
     if (disposed) return;
@@ -195,9 +195,20 @@ export function createMultiplayerClient({adapter = null, callbacks = {}} = {}) {
       update({status: 'error', room: null, selfPlayerId: null, error});
     } else update({status: 'disconnected', error});
   }
+  // The transport may reopen the channel inside the reentry window. While it
+  // does, the room keeps running in Go; this client sends nothing.
+  function linkChanged(token, value) {
+    if (disposed || token !== generation || !connection) return;
+    if (value === 'reconnecting' && state.status !== 'reconnecting') {
+      linkStatus = state.status; update({status: 'reconnecting', error: null});
+    } else if (value === 'live' && state.status === 'reconnecting') {
+      const previous = linkStatus || 'room'; linkStatus = null; update({status: previous, error: null});
+    }
+  }
   function receive(message, token) {
     if (disposed || token !== generation || !connection || !record(message)) return;
     if (message.protocolVersion !== 1) { fail({code: 'INCOMPATIBLE_VERSION'}); return; }
+    if (state.status === 'reconnecting' && message.type !== 'error') linkChanged(token, 'live');
     if (message.type === 'room.state') {
       const room = roomState(message.room, state.selfPlayerId);
       if (!room || message.selfPlayerId !== state.selfPlayerId || room.roomId !== state.room.roomId ||
@@ -251,7 +262,8 @@ export function createMultiplayerClient({adapter = null, callbacks = {}} = {}) {
     const handle = {session, unsubscribe: null, closed: false}; connection = handle;
     update({status: 'room', room, selfPlayerId: session.selfPlayerId, error: null, result: null});
     if (token !== generation || disposed) return false;
-    const unsubscribe = session.subscribe(message => receive(message, token), code => disconnected(token, code));
+    const unsubscribe = session.subscribe(message => receive(message, token), code => disconnected(token, code),
+      value => linkChanged(token, value));
     if (typeof unsubscribe !== 'function') { fail(null); return false; }
     if (handle.closed || token !== generation || disposed) unsubscribe();
     else handle.unsubscribe = unsubscribe;
@@ -307,6 +319,28 @@ export function createMultiplayerClient({adapter = null, callbacks = {}} = {}) {
     },
     createRoom(values) { return connect('createRoom', values); },
     joinRoom(values) { return connect('joinRoom', values); },
+    /**
+     * Reattach to a room this session still belongs to (page reload, G61).
+     * prepare() runs after Go confirmed the room and before any message is
+     * delivered, e.g. to load the online profile a resumed race start needs.
+     */
+    async resume(prepare) {
+      if (disposed || !configured || typeof adapter.resume !== 'function' || connection || pending) return false;
+      const token = ++generation, controller = new AbortController();
+      pending = controller;
+      let session;
+      try { session = await adapter.resume({signal: controller.signal}); }
+      catch { if (token === generation) pending = null; return false; }
+      if (token !== generation || disposed) { if (session) close({session, closed: false}); return false; }
+      pending = null;
+      if (!session) return false;
+      const room = roomState(session.room, session.selfPlayerId);
+      if (!room || !id(session.selfPlayerId)) { close({session, closed: false}); return false; }
+      let ready = true;
+      try { ready = typeof prepare === 'function' ? await prepare(session.selfPlayerId) !== false : true; } catch { ready = false; }
+      if (!ready || token !== generation || disposed) { close({session, closed: false}); return false; }
+      return attach(session, room, token);
+    },
     /** E43 ready: true needs the profile revision Go verifies and a Reducir choice. */
     setReady(ready, {profileRevision, reduceChoice} = {}) {
       if (typeof ready !== 'boolean' || state.status !== 'room' || !['waiting', 'countdown'].includes(state.room?.state)) return false;
@@ -330,6 +364,15 @@ export function createMultiplayerClient({adapter = null, callbacks = {}} = {}) {
       invalidate();
       update({status: configured ? 'idle' : 'unconfigured', selfPlayerId: null, room: null, error: null, result: null});
       return true;
+    },
+    /**
+     * Close the channel without room.leave, e.g. on page unload: Go keeps the
+     * membership and the race reentry window so the same session can return.
+     */
+    detach() {
+      if (disposed) return;
+      invalidate();
+      update({status: configured ? 'idle' : 'unconfigured', selfPlayerId: null, room: null, error: null, result: null}, false);
     },
     dispose() {
       if (disposed) return;

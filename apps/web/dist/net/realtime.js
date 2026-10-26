@@ -8,6 +8,15 @@ function defaultUrl() {
     const { protocol, host } = globalThis.location;
     return `${protocol === 'https:' ? 'wss' : 'ws'}://${host}/v1/realtime`;
 }
+async function defaultManifest(courseVersion, signal) {
+    const init = { cache: 'no-store' };
+    if (signal)
+        init.signal = signal;
+    const response = await fetch(`courses/${encodeURIComponent(courseVersion)}.json`, init);
+    if (!response.ok)
+        throw fail('INVALID_RESPONSE');
+    return await response.json();
+}
 function openSocket(url, create, timeoutMs, signal) {
     return new Promise((resolve, reject) => {
         let socket;
@@ -53,8 +62,12 @@ class Link {
     buffer = [];
     onMessage = null;
     onDisconnect = null;
+    onStatus = null;
     closed = false;
+    reconnecting = false;
+    stateTimer = null;
     room = null;
+    snapshot = null;
     stateWaiters = [];
     constructor(selfPlayerId, roomId, options) {
         this.selfPlayerId = selfPlayerId;
@@ -64,9 +77,8 @@ class Link {
     attach(socket) {
         this.socket = socket;
         socket.addEventListener('message', event => this.receive(event.data));
-        // Reentry inside the race window is not implemented yet: a lost channel ends the session.
         socket.addEventListener('close', () => { if (this.socket === socket)
-            this.disconnect('DISCONNECTED'); });
+            void this.lost(); });
     }
     waitForRoom(timeoutMs) {
         if (this.room)
@@ -81,6 +93,11 @@ class Link {
             this.onMessage(message);
         else
             this.buffer.push(message);
+    }
+    /** Insert a message before anything received after the current buffer head. */
+    prepend(message, afterRoomState = true) {
+        const index = afterRoomState ? this.buffer.findIndex(item => item.type === 'room.state') + 1 : 0;
+        this.buffer.splice(index, 0, message);
     }
     receive(data) {
         if (this.closed)
@@ -125,6 +142,10 @@ class Link {
                     return;
                 }
                 this.room = room;
+                if (this.stateTimer) {
+                    clearTimeout(this.stateTimer);
+                    this.stateTimer = null;
+                }
                 this.emit({ type: 'room.state', protocolVersion: 1, selfPlayerId: message.selfPlayerId, room: translate.roomState(room) });
                 for (const resolve of this.stateWaiters.splice(0))
                     resolve(room);
@@ -134,6 +155,7 @@ class Link {
                 this.emit(translate.raceStart(message, this.room));
                 return;
             case 'race.snapshot':
+                this.snapshot = message.snapshot;
                 this.emit({ type: 'race.snapshot', protocolVersion: 1, snapshot: translate.raceSnapshot(message.snapshot) });
                 return;
             case 'race.event':
@@ -152,6 +174,39 @@ class Link {
                 return;
         }
     }
+    async lost() {
+        if (this.closed || this.reconnecting)
+            return;
+        if (!this.room) {
+            this.disconnect('DISCONNECTED');
+            return;
+        }
+        this.reconnecting = true;
+        this.onStatus?.('reconnecting');
+        const deadline = Date.now() + this.options.reentryWindowMs;
+        let delay = 250;
+        while (!this.closed && Date.now() < deadline) {
+            try {
+                const socket = await openSocket(this.options.url(), this.options.createSocket, Math.min(this.options.openTimeoutMs, Math.max(500, deadline - Date.now())));
+                if (this.closed) {
+                    socket.close(1000);
+                    return;
+                }
+                this.reconnecting = false;
+                this.attach(socket);
+                // Go rebinds the identity and replays room.state (+ snapshot or result).
+                this.stateTimer = setTimeout(() => this.disconnect('NOT_A_MEMBER'), this.options.stateTimeoutMs);
+                this.onStatus?.('live');
+                return;
+            }
+            catch {
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay = Math.min(2000, delay * 2);
+            }
+        }
+        this.reconnecting = false;
+        this.disconnect('DISCONNECTED');
+    }
     disconnect(code) {
         if (this.closed)
             return;
@@ -162,6 +217,8 @@ class Link {
         if (this.closed)
             return;
         this.closed = true;
+        if (this.stateTimer)
+            clearTimeout(this.stateTimer);
         const socket = this.socket;
         this.socket = null;
         try {
@@ -174,14 +231,19 @@ class Link {
             selfPlayerId: this.selfPlayerId,
             room,
             send: message => {
-                if (this.closed || this.socket?.readyState !== OPEN)
+                if (this.closed)
                     return false;
+                // While the channel is being reopened, intents are dropped: Go keeps the
+                // last valid intent, and readiness is confirmed only by a later room.state.
+                if (this.reconnecting || this.socket?.readyState !== OPEN)
+                    return undefined;
                 this.socket.send(JSON.stringify(message));
                 return true;
             },
-            subscribe: (onMessage, onDisconnect) => {
+            subscribe: (onMessage, onDisconnect, onStatus) => {
                 this.onMessage = onMessage;
                 this.onDisconnect = onDisconnect;
+                this.onStatus = onStatus ?? null;
                 for (const message of this.buffer.splice(0)) {
                     if (this.onMessage !== onMessage)
                         break;
@@ -191,6 +253,7 @@ class Link {
                     if (this.onMessage === onMessage) {
                         this.onMessage = null;
                         this.onDisconnect = null;
+                        this.onStatus = null;
                     }
                 };
             },
@@ -204,7 +267,10 @@ export function createRoomsAdapter(http, options = {}) {
         url: () => options.url ?? defaultUrl(),
         createSocket: options.createSocket ?? ((url, protocols) => new WebSocket(url, protocols)),
         openTimeoutMs: options.openTimeoutMs ?? 8000,
+        reentryWindowMs: options.reentryWindowMs ?? 15000,
+        stateTimeoutMs: options.stateTimeoutMs ?? 3000,
     };
+    const loadManifest = options.loadManifest ?? defaultManifest;
     async function connect(membership, signal) {
         const link = new Link(membership.playerId, membership.roomId, settings);
         link.attach(await openSocket(settings.url(), settings.createSocket, settings.openTimeoutMs, signal));
@@ -226,6 +292,49 @@ export function createRoomsAdapter(http, options = {}) {
             await http.ensureSession(signal);
             const membership = await http.request('POST', `/v1/rooms/${encodeURIComponent(intent.roomId)}/memberships`, undefined, signal);
             return connect(membership, signal);
+        },
+        /**
+         * Reentry after a reload: with a still-valid session, Go rebinds the identity
+         * to its room and replays room.state (+ snapshot during RACING, + result in
+         * RESULTS). Resolves null when there is no session or no room to recover.
+         */
+        async resume({ signal } = {}) {
+            let playerId;
+            try {
+                playerId = (await http.request('GET', '/v1/sessions/current', undefined, signal)).playerId;
+            }
+            catch (error) {
+                if (error instanceof GoApiError && (error.code === 'SESSION_REQUIRED' || error.status === 503))
+                    return null;
+                throw error;
+            }
+            const link = new Link(playerId, null, settings);
+            try {
+                link.attach(await openSocket(settings.url(), settings.createSocket, settings.openTimeoutMs, signal));
+            }
+            catch {
+                return null;
+            }
+            const room = await link.waitForRoom(settings.stateTimeoutMs);
+            const internal = room && translate.roomState(room);
+            if (!room || !internal) {
+                link.close();
+                return null;
+            }
+            if (room.state === 'RACING') {
+                const deadline = Date.now() + settings.stateTimeoutMs;
+                while (!link.snapshot && Date.now() < deadline)
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                const snapshot = link.snapshot;
+                const manifest = snapshot && await loadManifest(room.courseVersion, signal).catch(() => null);
+                const start = snapshot && manifest && translate.resumedStart(room, manifest, snapshot);
+                if (!start) {
+                    link.close();
+                    return null;
+                }
+                link.prepend(translate.raceStart(start, room));
+            }
+            return link.session(internal);
         },
     };
 }

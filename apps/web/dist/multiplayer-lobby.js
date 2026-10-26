@@ -188,7 +188,7 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
     if (readyPending && (state.status !== 'room' || state.room?.roomId !== readyPending.roomId || selfMember()?.ready === readyPending.ready)) clearReadyPending();
     const service = $('.ol-service');
     service.dataset.state = state.status;
-    service.querySelector('span').textContent = unavailable ? 'Con amigos · Próximamente' : state.status === 'connecting' ? 'Buscando su próxima ola…' : state.status === 'disconnected' ? 'Conexión interrumpida' : hasRoom && activeRoom ? 'Están en la misma sala' : state.status === 'error' ? 'No pudimos entrar' : 'Listos para encontrarse';
+    service.querySelector('span').textContent = unavailable ? 'Con amigos · Próximamente' : state.status === 'connecting' ? 'Buscando su próxima ola…' : state.status === 'reconnecting' ? 'Reconectando con la sala…' : state.status === 'disconnected' ? 'Conexión interrumpida' : hasRoom && activeRoom ? 'Están en la misma sala' : state.status === 'error' ? 'No pudimos entrar' : 'Listos para encontrarse';
     $('.ol-notice').hidden = !unavailable;
     const error = localError || (state.error ? errorText(state.error) : state.status === 'disconnected' ? hasRoom ? 'Se perdió la conexión. Sal de esta sala para volver a entrar.' : 'Se perdió la conexión. Puedes volver a entrar con el código de la sala.' : '');
     $('.ol-error').hidden = !error;
@@ -241,7 +241,7 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
       readyButton.setAttribute('aria-pressed', String(!!self?.ready));
       readyButton.replaceChildren(document.createTextNode(ended ? 'Esta ola terminó' : countdown ? 'Preparando la salida…' : readyPending ? 'Confirmando…' : self?.ready ? 'Listo para salir' : 'Estoy listo'));
       const mark = document.createElement('span'); mark.setAttribute('aria-hidden', 'true'); mark.textContent = self?.ready ? '✓' : '↗'; readyButton.append(mark);
-      $('.ol-room-note').textContent = ended ? 'Esta ola ya terminó. Sal de la sala para preparar otra.' : countdown ? 'Su próxima ola está por comenzar. Espera la salida.' : self?.ready ? 'Todo listo de tu lado. Puedes pulsar otra vez si necesitas esperar.' : 'Cuando todos estén listos, la sala preparará la salida.';
+      $('.ol-room-note').textContent = state.status === 'reconnecting' ? 'Reconectando… la sala te espera durante unos segundos.' : ended ? 'Esta ola ya terminó. Sal de la sala para preparar otra.' : countdown ? 'Su próxima ola está por comenzar. Espera la salida.' : self?.ready ? 'Todo listo de tu lado. Puedes pulsar otra vez si necesitas esperar.' : 'Cuando todos estén listos, la sala preparará la salida.';
     }
   }
 

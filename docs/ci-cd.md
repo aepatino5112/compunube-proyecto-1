@@ -160,6 +160,8 @@ G57 compila en CI Web los módulos TypeScript de `apps/web/src/net` y comprueba 
 
 G59 extiende `npm run test:integration` con dos clientes web (cookies separadas) que crean y entran a una sala, confirman Listo con la revisión verificada por Go, juegan con inputs monotónicos, ven a un participante salir y esperan el `race.ended` con settlement confirmado y el perfil acreditado una vez; también comprueba que el WebSocket rechaza un handshake con cookie desde otro `Origin`. Después, `npm run test:e2e` (Playwright fijado, dos procesos Chromium independientes) recorre la UI real junto al cliente Python: crear sala en un navegador, entrar con el código en el otro, unir el cliente Python por la API pública, elegir Reducir, marcar Listo, carrera y resultado con acreditación; las capturas se publican como artefacto `web-e2e-results`.
 
+G60/G61 añaden al mismo test de integración la caída del WebSocket de un jugador durante la carrera (reconexión dentro de la ventana, el snapshot conserva `lastProcessedInputSeq` y el cliente no reenvía una secuencia ya procesada) y la recarga de otra página con la misma cookie, que recupera la carrera con el manifiesto versionado y coincide en la propiedad de recogidas. CI Web comprueba que `dist/courses` es copia exacta de los manifiestos de Go.
+
 Los checks separados de GitHub mantienen errores fáciles de localizar: un fallo de Go, Rust, Web, Contracts o Infrastructure aparece en su job correspondiente. No se reemplazan por un único job monolítico.
 
 ## Ejecución local equivalente

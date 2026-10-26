@@ -152,7 +152,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
 
-      - name: Validate web profile, economy and realtime against Go (G57/G59)
+      - name: Validate web profile, economy and realtime against Go (G57/G59/G61)
         working-directory: apps/web
         env:
           COMPUNUBE_GO_URL: http://127.0.0.1:8080
