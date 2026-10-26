@@ -81,9 +81,9 @@ Las réplicas Rust no deben conservar estado crítico exclusivo en memoria. El d
 
 ## Clientes
 
-El cliente principal es la web Surf Club en `apps/web/`: conserva hoy JavaScript y Three.js, con **TypeScript como lenguaje objetivo de migración gradual**. La segunda interfaz será un cliente **Python** en `apps/client-secondary/`; su implementación corresponde a G58. La elección y sus límites están en [ADR 0002](docs/adr/0002-client-language-strategy.md). La existencia actual de tipos propuestos no implica que la web ya cumpla materialmente el requisito TypeScript.
+El cliente principal es la web Surf Club en `apps/web/`: conserva Three.js y su JavaScript, y la integración online (HTTP E45, WebSocket E43, traducción a la presentación, reentrada) está en **TypeScript** (`apps/web/src/net`, compilado y verificado en CI Web). La segunda interfaz es el cliente **Python** de `apps/client-secondary/` (G58). La elección y sus límites están en [ADR 0002](docs/adr/0002-client-language-strategy.md).
 
-Ambos clientes envían intención a la frontera pública de Go mediante HTTP y el canal realtime que se acuerde en E43. Presentan estado confirmado, usan el mismo contrato público cuando quede definido y no acceden directamente a Rust, al gRPC interno ni a PostgreSQL.
+Ambos clientes envían intención a la frontera pública de Go mediante HTTP E45 y el WebSocket E43. Presentan estado confirmado, usan el mismo contrato público cuando quede definido y no acceden directamente a Rust, al gRPC interno ni a PostgreSQL.
 
 Nunca son autoridad de:
 
@@ -131,7 +131,7 @@ Una sola instancia PostgreSQL con ownership lógico:
 - schema `match`: Go, para historia de sala/carrera, resultados y coordinación durable de settlement;
 - schema `player`: Rust, para perfil, catálogo, propiedad, economía e idempotencia.
 
-No hay claves foráneas cruzadas entre schemas ni persistencia por tick. E41 define roles runtime separados como objetivo; el Compose actual sigue usando una credencial compartida de bootstrap hasta E42/H62.
+No hay claves foráneas cruzadas entre schemas ni persistencia por tick. Desde J84, Go, Rust y postgres-exporter usan roles runtime distintos (`compunube_match_runtime`, `compunube_player_runtime`, `compunube_monitor_runtime`) creados por `db-migrate`; CI comprueba la denegación cruzada.
 
 ## Restricciones
 
@@ -140,3 +140,15 @@ No hay claves foráneas cruzadas entre schemas ni persistencia por tick. E41 def
 3. El frontend no declara premios ni resultados.
 4. Direcciones y secretos no se hardcodean.
 5. Una caída de Rust no destruye una partida activa.
+
+## Vistas UML y despliegue
+
+Componentes (D32), despliegue (D33) y secuencias críticas (D34) están en [docs/uml](docs/uml/README.md); la topología física (D31) y el procedimiento de despliegue (H66) en [docs/deployment](docs/deployment/).
+
+## Limitaciones conocidas
+
+- **Sesiones en memoria (F48):** `identity.Registry` vive en el proceso Go; reiniciar Go invalida todas las sesiones y el jugador no puede volver a su perfil online anterior, aunque los datos sigan en `player.*`.
+- **Repetir carrera (RF-035):** Go implementa `RESULTS → LOBBY` (`rooms.Manager.Repeat`), pero E43/E45 no definen quién lo dispara; hoy la sala permanece en `RESULTS` hasta que salen los miembros.
+- **Resultado pendiente de persistir:** Go reintenta cada segundo guardar el resultado mientras PostgreSQL no está disponible; si Go se reiniciara durante esa caída, el resultado aún no persistido se perdería.
+- **Navegadores remotos:** la cookie de sesión es `Secure`; desde otro equipo, el cliente web necesita HTTPS hasta Go. El cliente Python usa `Bearer` y no está afectado.
+

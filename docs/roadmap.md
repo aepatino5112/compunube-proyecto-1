@@ -1,6 +1,8 @@
 # Roadmap de ejecución del proyecto
 
 > Snapshot de planificación basado en el tablero Trello **Compunube - Proyecto 1** al 17-10-2026.
+>
+> **Actualización 26-10-2026:** el equipo activo es Ángel Patiño y Ricardo Beltrán. Ralph Antar y Santiago Rivera ya no forman parte del equipo; las tareas de frontend/UX y segunda interfaz que este snapshot les asignaba (G56–G61, G58) las lidera Ángel. Las menciones a ambos se conservan como historial del plan. El estado real de cada tarjeta está en Trello y la evidencia de pruebas en [docs/testing/traceability-matrix.md](testing/traceability-matrix.md).
 
 Este documento define **el orden técnico recomendado de trabajo hasta la entrega final**, quién lidera cada bloque, qué puede ejecutarse en paralelo y qué dependencias bloquean cada tarea. **Trello sigue siendo la fuente operativa de estado Kanban**; este archivo sirve como mapa de dependencias y secuencia de ejecución dentro del repositorio.
 
@@ -282,7 +284,7 @@ C25 -> D26/D27 -> D29
 
 Responsabilidad dominante: Rust Player/Profile Service, dominio persistente, economía, idempotencia, settlement y apoyo al failover.
 
-### Ralph Antar + Santiago Rivera
+### Ralph Antar + Santiago Rivera (histórico; ya no forman parte del equipo activo)
 
 Ruta principal:
 
