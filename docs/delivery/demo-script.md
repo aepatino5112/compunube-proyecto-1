@@ -24,5 +24,5 @@ Duración orientativa: 20–25 minutos. Todo se ejecuta localmente; no depende d
 ## Riesgos de la demo
 
 - Navegadores en equipos distintos del servidor: web por HTTPS con `PUBLIC_ORIGINS` en Go ([guía](../deployment/https-lab.md)); sin eso, navegadores en el mismo equipo que Go y el cliente Python desde los demás.
-- Reiniciar Go durante la demo invalida las sesiones (limitación F48); no se incluye ese paso.
+- Reiniciar Go ya no invalida las sesiones (se guardan en `match.sessions`, [ADR 0005](../adr/0005-persistent-go-sessions.md)), pero corta la carrera en curso: si se muestra, solo entre carreras.
 - Tras el resultado acreditado la sala vuelve sola a LOBBY en ~10 s (RF-035): «Otra ola con la sala» en la web o Listo en la ventana Python para otra carrera.
