@@ -27,14 +27,14 @@ test('Swagger UI documents every E45 operation and Try it out reaches Go', async
     await create.locator('.opblock-summary').click();
     await create.getByRole('button', { name: 'Try it out' }).click();
     await create.getByRole('button', { name: 'Execute' }).click();
-    await expect(create.locator('.live-responses-table .response-col_status').first()).toHaveText('201', { timeout: 20_000 });
+    await expect(create.locator('.live-responses-table tbody td.response-col_status:not(.col_header)').first()).toHaveText('201', { timeout: 20_000 });
 
     // The cookie from that call authenticates the next one on the same origin.
     const current = page.locator('#operations-Session-getCurrentSession');
     await current.locator('.opblock-summary').click();
     await current.getByRole('button', { name: 'Try it out' }).click();
     await current.getByRole('button', { name: 'Execute' }).click();
-    await expect(current.locator('.live-responses-table .response-col_status').first()).toHaveText('200', { timeout: 20_000 });
+    await expect(current.locator('.live-responses-table tbody td.response-col_status:not(.col_header)').first()).toHaveText('200', { timeout: 20_000 });
     await page.screenshot({ path: info.outputPath('api-docs.png'), fullPage: false });
     expect(errors).toEqual([]);
   } finally {
