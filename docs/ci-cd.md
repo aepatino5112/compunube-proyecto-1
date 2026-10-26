@@ -46,6 +46,14 @@ Se ejecuta en **todos los Pull Requests** y en pushes a `main` cuando cambia el 
 
 Instala las dependencias fijadas de `apps/client-secondary/requirements-dev.txt`, compila el paquete y ejecuta `pytest` del cliente Python en Ubuntu y Windows. Como CI Web, se publica en todos los PR.
 
+### CI Docs — `.github/workflows/ci-docs.yml`
+
+En PR que tocan `docs/uml/`, renderiza todas las fuentes PlantUML con la imagen fijada por digest, publica el artefacto `uml-svg` y falla si un SVG versionado no coincide o falta.
+
+### CI Deploy — `.github/workflows/ci-deploy.yml`
+
+Ejercita [H66](deployment/h66-deploy-procedure.md) en un runner limpio: rechaza un archivo de entorno con un secreto vacío, despliega la revisión A, despliega B (con copia de PostgreSQL) y revierte a A verificando la etiqueta de revisión de Go y ambas Rust.
+
 ### CI Go — `.github/workflows/ci-go.yml`
 
 Valida:
@@ -204,7 +212,7 @@ No se desactiva un check solo para hacer pasar un PR.
 
 ## CD al laboratorio — pendiente
 
-El CD se implementará cuando se cierre cómo GitHub Actions alcanzará las máquinas Windows 10.
+El despliegue repetible ya existe como procedimiento manual verificado en CI ([H66](deployment/h66-deploy-procedure.md): `scripts/deploy/deploy.sh` y `rollback.sh`). Falta automatizarlo hacia el laboratorio: se implementará cuando se cierre cómo GitHub Actions alcanzará las máquinas Windows 10 (A05).
 
 Opciones a evaluar:
 

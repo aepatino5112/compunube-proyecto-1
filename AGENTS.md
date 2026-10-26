@@ -120,17 +120,39 @@ cargo test
 
 `Cargo.lock` se versiona.
 
+### Web (`apps/web`)
+
+```bash
+npm ci
+npm run build   # TypeScript de src/net → dist/net (versionado) y manifiestos → dist/courses
+npm run check
+npm test
+```
+
+Los módulos nuevos de integración se escriben en TypeScript en `src/net`; no editar `dist/net` a mano.
+
+### Cliente Python (`apps/client-secondary`)
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
 ### Infra
 
 ```bash
 docker compose config
 ```
 
+Las pruebas con stack real están en `scripts/validation/` y se ejecutan en CI Integration; ninguna prueba de base de datos debe omitirse en CI (`*_TEST_REQUIRE_DB=1`).
+
 ## CI/CD
 
 La documentación humana y operativa vive en `docs/ci-cd.md`.
 
-No asumir que existe CD automático al laboratorio hasta que ese documento indique que está implementado.
+No asumir que existe CD automático al laboratorio hasta que ese documento indique que está implementado. El despliegue manual verificado está en `scripts/deploy/` (H66).
+
+Preparar commits con rutas explícitas (`git add <rutas>`), no con `git add -A`: los scripts de validación generan cachés locales.
 
 ## Git
 
