@@ -56,6 +56,10 @@ def rust_up():
     return h68.scalar('sum(up{job="player-profile-rust"})')
 
 
+def sample_sum(expression):
+    return sum(float(row["value"][1]) for row in h68.vector(expression))
+
+
 def main():
     started = time.monotonic()
     h68.run("docker", "compose", "version", timeout=10)
@@ -104,7 +108,7 @@ def main():
         h68.check(status == 200, "public profile call reaches Rust through Envoy")
     h68.wait_for("room and Rust RPC series reflect public traffic", 45,
                  lambda: h68.scalar("compunube_match_rooms_active") >= 1 and
-                 h68.scalar("sum(player_profile_rpc_requests_total)") >= 6)
+                 sample_sum("player_profile_rpc_requests_total") >= 6)
     h68.check({row["metric"]["instance_id"] for row in
                h68.vector("player_profile_rpc_duration_seconds_count")} == {"rust-1", "rust-2"},
               "Rust panels can distinguish both instance_id values")
