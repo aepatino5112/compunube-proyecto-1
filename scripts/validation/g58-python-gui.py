@@ -118,7 +118,7 @@ def main():
         window.on_autopilot()
         window.ready_button.invoke()
 
-        drawn = {"players": 0, "pickups": 0, "hud": ""}
+        drawn = {"players": 0, "pickups": 0, "hud": "", "saved": False}
         evidence = os.environ.get("G58_GUI_EVIDENCE")
 
         def racing_drawn():
@@ -127,9 +127,10 @@ def main():
             pickups = len(canvas.find_withtag("plastic")) + len(canvas.find_withtag("metal"))
             if players > drawn["players"] or (players == drawn["players"] and pickups > drawn["pickups"]):
                 drawn.update(players=players, pickups=pickups, hud=window.hud.get())
-                snap = controller.game.view.snapshot
-                if evidence and snap and snap["elapsedMs"] > 5000 and players >= 4:
-                    canvas.postscript(file=evidence, colormode="color")
+            snap = controller.game.view.snapshot
+            if evidence and not drawn["saved"] and snap and snap["elapsedMs"] > 5000 and players >= 4:
+                canvas.postscript(file=evidence, colormode="color")
+                drawn["saved"] = True
             return controller.game.view.result is not None
 
         pump_until(root, "race ended in the window", 240, racing_drawn)
