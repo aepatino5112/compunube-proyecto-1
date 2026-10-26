@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Generate ephemeral database credentials
         run: |
-          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD; do
+          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD GRAFANA_ADMIN_PASSWORD; do
             value=$(openssl rand -hex 24)
             echo "::add-mask::$value"
             printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
@@ -33,7 +33,7 @@ jobs:
         run: |
           docker run --rm \
             -v "$PWD/infra/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro" \
-            envoyproxy/envoy:v1.31-latest \
+            envoyproxy/envoy:v1.31.10 \
             envoy --mode validate -c /etc/envoy/envoy.yaml
       - name: Validate Prometheus configuration and rules
         run: |
@@ -42,3 +42,5 @@ jobs:
             -v "$PWD/infra/monitoring/prometheus/rules:/etc/prometheus/rules:ro" \
             --entrypoint promtool prom/prometheus:v2.55.1 \
             check config /etc/prometheus/prometheus.yml
+      - name: Validate versioned Grafana dashboard JSON
+        run: python3 -m json.tool infra/monitoring/grafana/provisioning/dashboards/json/compunube-operations.json >/dev/null

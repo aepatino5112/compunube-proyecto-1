@@ -1,0 +1,27 @@
+@startuml seq-reconnection
+!include seq-common.iuml
+title D34.6 · Desconexión y reentrada (ventana de 15 s)
+participant "Cliente que se desconecta" as C
+participant "Go realtime" as Api
+participant "Go RoomLoop" as Room
+participant "Otros clientes" as O
+
+C -x Api : se corta el WebSocket
+Api -> Room : Disconnect(playerId, conexión)
+Room -> Room : RACING: participante → reconnecting,\nintención neutral; la carrera sigue
+Room --> O : room.state / snapshots (no se pausa)
+alt vuelve antes de 15 s (misma sesión)
+  C -> Api : WebSocket /v1/realtime (misma cookie o Bearer)
+  Api -> Room : Bind → Rebind(playerId)
+  Room --> C : room.state actual
+  Room --> C : race.snapshot completo (sin repetir eventos)
+  C -> C : seq/jumpSeq = máx(locales, lastProcessed*)\ny reanuda inputs
+  opt recarga de página
+    C -> C : sin race.start: reconstruye la escena con el\nmanifiesto versionado de room.courseVersion
+  end
+else vence la ventana
+  Room -> Room : participante → left (sin crédito)
+  Room --> O : race.event player.left
+end
+note over Room : En LOBBY/COUNTDOWN la desconexión elimina la membresía.\nEn RESULTS, reatar repite room.state + race.ended.
+@enduml

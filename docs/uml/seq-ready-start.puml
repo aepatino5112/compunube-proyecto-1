@@ -1,0 +1,28 @@
+@startuml seq-ready-start
+!include seq-common.iuml
+title D34.3 · Ready, Reducir e inicio de carrera
+participant "Cliente\n(cada miembro)" as C
+participant "Go realtime" as Api
+participant "Go RoomLoop" as Room
+participant "Go playerprofile\n(verificador)" as V
+participant "Envoy → Rust" as R
+
+C -> C : elegir «¿Qué llevas para hidratarte?»\n(reutilizable | desechable)
+C -> Api : room.ready {ready:true, profileRevision, reduceChoice}
+Api -> Room : Ready(playerId, revision, choice)
+Room -> V : Verify(playerId, revision)\n(fuera del bucle de la sala)
+V -> R : GetProfile
+alt revisión y equipamiento válidos
+  R --> V : perfil
+  V --> Room : preparación (equipo, apariencia)
+  Room --> C : room.state (miembro ready, reduceChoice)
+else revisión distinta / perfil no disponible
+  Room --> C : error INVALID_READY | PROFILE_UNAVAILABLE (no fatal)
+end
+note over Room : 2–4 miembros listos → COUNTDOWN 3 s;\nun cambio de roster o preparación vuelve a LOBBY.
+Room --> C : room.state (COUNTDOWN, countdownEndsAtMs)
+Room -> Room : fija roster, reglas surf-mvp-1\ny manifiesto versionado
+Room --> C : room.state (RACING, raceId)
+Room --> C : race.start {raceId, course, roster}
+C -> C : valida manifiesto (54/103/10)\ny cambia a la escena de carrera
+@enduml

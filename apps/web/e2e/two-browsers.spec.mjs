@@ -1,9 +1,13 @@
-// G56/G59 browser E2E: Chromium and Firefox play one room on the real Go stack
-// through the unchanged Surf Club UI. Requires COMPUNUBE_GO_URL.
-import { test, expect, chromium, firefox } from '@playwright/test';
+// G56/G59 E2E: two independent browsers and the Python client race in one
+// room on the real Go stack, through the unchanged Surf Club UI and the Python
+// CLI. Requires COMPUNUBE_GO_URL and the Python client's pinned dependencies.
+// Headless Firefox on the CI runner cannot create a WebGL context, which the
+// game needs, so both browsers are separate Chromium processes.
+import { test, expect, chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 const GO = process.env.COMPUNUBE_GO_URL;
 if (!GO) throw new Error('COMPUNUBE_GO_URL is required for browser E2E (no silent skip)');
@@ -20,10 +24,7 @@ async function startWeb() {
 
 async function openClub(browserType, origin, name, info) {
   // Software WebGL so headless CI runners (no GPU) can render Three.js.
-  const browser = await browserType.launch(browserType === chromium
-    ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }
-    : { firefoxUserPrefs: { 'webgl.force-enabled': true, 'webgl.disabled': false, 'gfx.webrender.software': true,
-      'webgl.disable-fail-if-major-performance-caveat': true } });
+  const browser = await browserType.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const errors = [], consoleLines = [];
   page.on('pageerror', error => errors.push(String(error)));
@@ -48,10 +49,22 @@ async function openClub(browserType, origin, name, info) {
 
 const shot = (client, info, label) => client.page.screenshot({ path: info.outputPath(`${client.name}-${label}.png`) });
 
-test('Chromium host and Firefox guest share a real Go race from the lobby to the confirmed result', async ({}, info) => {
+function startPythonClient(roomId) {
+  const cwd = path.resolve(fileURLToPath(new URL('../../client-secondary/', import.meta.url)));
+  const child = spawn(process.env.PYTHON || 'python3', ['-m', 'compunube_client', '--server', GO, 'play', '--join', roomId, '--reduce', 'reusable'],
+    { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  child.stdout.on('data', chunk => { output += chunk; });
+  child.stderr.on('data', chunk => { output += chunk; });
+  const done = new Promise(resolve => child.once('exit', code => resolve({ code, output })));
+  return { done, stop: () => child.kill(), get output() { return output; } };
+}
+
+test('two browsers and the Python client share a real Go race from the lobby to the confirmed result', async ({}, info) => {
   const web = await startWeb();
-  const host = await openClub(chromium, web.origin, 'chromium-host', info);
-  const guest = await openClub(firefox, web.origin, 'firefox-guest', info);
+  const host = await openClub(chromium, web.origin, 'browser-host', info);
+  const guest = await openClub(chromium, web.origin, 'browser-guest', info);
+  let python = null;
   try {
     // Host: "Con amigos" loads the Go profile (session cookie) and creates a room.
     await host.page.click('#play-friends');
@@ -68,7 +81,9 @@ test('Chromium host and Firefox guest share a real Go race from the lobby to the
     await guest.page.fill('#online-room-code', roomId);
     await guest.page.click('#online-lobby .ol-enter');
     await expect(guest.page.locator('#online-share-code')).toHaveValue(roomId, { timeout: 20_000 });
-    for (const client of [host, guest]) await expect(client.page.locator('#online-lobby .ol-count')).toHaveText('2 / 4 surfistas');
+    // The secondary client joins the same room through Go's public API only.
+    python = startPythonClient(roomId);
+    for (const client of [host, guest]) await expect(client.page.locator('#online-lobby .ol-count')).toHaveText('3 / 4 surfistas', { timeout: 30_000 });
 
     // Ready needs the Reducir choice; Go confirms it through room.state.
     for (const client of [host, guest]) await expect(client.page.locator('#online-lobby .ol-ready')).toBeDisabled();
@@ -104,7 +119,13 @@ test('Chromium host and Firefox guest share a real Go race from the lobby to the
       await shot(client, info, 'result');
       expect(client.errors).toEqual([]);
     }
+    const py = await python.done;
+    info.annotations.push({ type: 'python-client', description: py.output.slice(-1500) });
+    expect(py.code, py.output).toBe(0);
+    expect(py.output).toContain('Resultado de la carrera');
+    expect(py.output).toMatch(/Settlement de tu participación: (confirmed|pending)/);
   } finally {
+    python?.stop();
     await host.browser.close();
     await guest.browser.close();
     web.stop();

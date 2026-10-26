@@ -13,6 +13,9 @@ on:
       - "scripts/validation/j83-profile-economy.py"
       - "scripts/validation/j85-compose-readiness.py"
       - "scripts/validation/h68-prometheus.py"
+      - "scripts/validation/h69-grafana.py"
+      - "scripts/validation/g58-python-client.py"
+      - "apps/client-secondary/**"
       - "apps/web/src/**"
       - "apps/web/dist/net/**"
       - "apps/web/integration/**"
@@ -32,6 +35,9 @@ on:
       - "scripts/validation/j83-profile-economy.py"
       - "scripts/validation/j85-compose-readiness.py"
       - "scripts/validation/h68-prometheus.py"
+      - "scripts/validation/h69-grafana.py"
+      - "scripts/validation/g58-python-client.py"
+      - "apps/client-secondary/**"
       - "apps/web/src/**"
       - "apps/web/dist/net/**"
       - "apps/web/integration/**"
@@ -56,7 +62,7 @@ jobs:
 
       - name: Prepare environment
         run: |
-          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD; do
+          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD GRAFANA_ADMIN_PASSWORD; do
             value=$(openssl rand -hex 24)
             echo "::add-mask::$value"
             printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
@@ -129,6 +135,13 @@ jobs:
       - name: Validate public profile and economy path (J83)
         run: python3 scripts/validation/j83-profile-economy.py
 
+      - name: Install Python client dependencies (G58)
+        run: python3 -m pip install -r apps/client-secondary/requirements.txt
+
+      - name: Validate the Python client against a real race (G58)
+        env:
+          G58_SKIP_BUILD: "1"
+        run: python3 scripts/validation/g58-python-client.py
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -145,9 +158,9 @@ jobs:
 
       - name: Install Playwright browsers (G59)
         working-directory: apps/web
-        run: npx playwright install --with-deps chromium firefox
+        run: npx playwright install --with-deps chromium
 
-      - name: Race in Chromium and Firefox against Go (G56/G59)
+      - name: Race with two browsers and the Python client against Go (G56/G59)
         working-directory: apps/web
         env:
           COMPUNUBE_GO_URL: http://127.0.0.1:8080
@@ -170,6 +183,11 @@ jobs:
         env:
           H68_SKIP_BUILD: "1"
         run: python3 scripts/validation/h68-prometheus.py
+
+      - name: Validate provisioned Grafana and operational scenarios (H69)
+        env:
+          H69_SKIP_BUILD: "1"
+        run: python3 scripts/validation/h69-grafana.py
 
       - name: Logs on failure
         if: failure()
