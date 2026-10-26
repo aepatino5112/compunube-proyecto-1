@@ -53,6 +53,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Evidencias de validación](docs/evidence/)
 - [Cliente Python (G58)](apps/client-secondary/README.md)
 - [Diagnóstico de problemas frecuentes](docs/operations/troubleshooting.md)
+- [Runbook operativo del Rust Player/Profile Service](docs/runbooks/rust-player-profile-service.md)
 - [Requisitos funcionales del MVP online (C21)](docs/requirements/functional-requirements.md)
 - [Fast Deployment + Kanban](docs/project-management/fast-deployment-kanban.md)
 - [CI/CD](docs/ci-cd.md)

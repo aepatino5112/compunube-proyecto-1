@@ -79,7 +79,7 @@ docker compose up -d --wait
 ## Runbooks y diagnóstico
 
 - [Diagnóstico de problemas frecuentes](../operations/troubleshooting.md).
-- Servicio Rust: runbook I74-R1 (Ricardo Beltrán), pendiente de integrar.
+- Servicio Rust: [runbook operativo](../runbooks/rust-player-profile-service.md) (I74-R1, Ricardo Beltrán).
 - Resiliencia y degradación: [E38](../architecture/resilience-failover-degraded-mode.md), [H69](../evidence/h69-grafana.md).
 
 ## Detener
