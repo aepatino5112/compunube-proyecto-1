@@ -24,7 +24,7 @@ Con el stack levantado (`docker compose up -d --build --wait` en la raíz), arra
 COMPUNUBE_GO_URL=http://127.0.0.1:8080 npm start
 ```
 
-`server.mjs` reenvía `/v1` (HTTP y la actualización WebSocket de `/v1/realtime`) a Go conservando el `Host` de la página. Así el navegador queda en un único origen: Go emite la cookie de sesión `HttpOnly; Secure; SameSite=Strict` y comprueba `Origin` en mutaciones y en el WebSocket. Sin `COMPUNUBE_GO_URL`, `/v1` responde `503 SERVICE_UNAVAILABLE` y el modo local sigue funcionando. Los navegadores aceptan la cookie `Secure` en `http://127.0.0.1`/`localhost`; desde otro equipo por `http://<IP>` la rechazan, por lo que el acceso en el laboratorio necesita HTTPS (pendiente de H66/D31).
+`server.mjs` reenvía `/v1` (HTTP y la actualización WebSocket de `/v1/realtime`) a Go conservando el `Host` de la página. Así el navegador queda en un único origen: Go emite la cookie de sesión `HttpOnly; Secure; SameSite=Strict` y comprueba `Origin` en mutaciones y en el WebSocket. Sin `COMPUNUBE_GO_URL`, `/v1` responde `503 SERVICE_UNAVAILABLE` y el modo local sigue funcionando. Los navegadores aceptan la cookie `Secure` en `http://127.0.0.1`/`localhost`; desde otro equipo por `http://<IP>` la rechazan. Para el laboratorio, `server.mjs` sirve HTTPS con `COMPUNUBE_TLS_CERT` y `COMPUNUBE_TLS_KEY` (certificado de `scripts/deploy/web-tls-cert.sh` o mkcert) y Go acepta ese origen con `PUBLIC_ORIGINS`: ver la [guía HTTPS](../../docs/deployment/https-lab.md).
 
 ### Documentación de la API (Swagger UI)
 

@@ -90,7 +90,7 @@ func run(cfg config.Config, logger *slog.Logger) error {
 		logger.Warn("DATABASE_URL absent; match results are not durable")
 	}
 	identities := identity.NewRegistry()
-	sessions := sessionhttp.New(identities)
+	sessions := sessionhttp.New(identities, cfg.PublicOrigins...)
 	verifier := playerprofile.ProfileVerifier{Port: resilientProfile, Pool: profilePool}
 	roomManager := rooms.NewManager(runtime, verifier, rooms.Options{InputSlots: cfg.RoomInputSlots, JumpEdges: cfg.RoomJumpEdgesPerPlayer, Recorder: recorder, InputObserver: measure})
 	if store != nil {
