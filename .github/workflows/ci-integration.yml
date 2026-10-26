@@ -13,6 +13,7 @@ on:
       - "scripts/validation/j83-profile-economy.py"
       - "scripts/validation/j85-compose-readiness.py"
       - "scripts/validation/h68-prometheus.py"
+      - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
       - "apps/client-secondary/**"
       - ".github/workflows/ci-integration.yml"
@@ -28,6 +29,7 @@ on:
       - "scripts/validation/j83-profile-economy.py"
       - "scripts/validation/j85-compose-readiness.py"
       - "scripts/validation/h68-prometheus.py"
+      - "scripts/validation/h69-grafana.py"
       - "scripts/validation/g58-python-client.py"
       - "apps/client-secondary/**"
       - ".github/workflows/ci-integration.yml"
@@ -138,6 +140,11 @@ jobs:
         env:
           H68_SKIP_BUILD: "1"
         run: python3 scripts/validation/h68-prometheus.py
+
+      - name: Validate provisioned Grafana and operational scenarios (H69)
+        env:
+          H69_SKIP_BUILD: "1"
+        run: python3 scripts/validation/h69-grafana.py
 
       - name: Logs on failure
         if: failure()
