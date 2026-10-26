@@ -57,6 +57,8 @@ Clientes:
   && python -m compunube_client play --create maracaibo)
 ```
 
+Documentación de la API HTTP (Swagger UI, «Try it out» contra Go): `http://127.0.0.1:4173/api-docs/` con el cliente web arrancado como arriba.
+
 Observabilidad: Grafana en `http://127.0.0.1:3000` (usuario `GRAFANA_ADMIN_USER`, contraseña del `.env`), dashboard **Compunube Operations**.
 
 ## Actualización y rollback

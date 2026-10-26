@@ -3,10 +3,14 @@ info:
   title: Compunube public HTTP API
   version: 1.0.0
   description: >-
-    E45 contract for clients talking to the Go Match Service. These routes are
-    contract only until their owning implementation cards are complete.
-    Realtime messages use the separate E43 WebSocket contract; Go-to-Rust RPCs
-    use the internal E43 Protobuf contract.
+    E45 public HTTP contract between clients (web and Python) and the Go Match
+    Service, implemented by Go and verified against the running service in CI
+    Integration (apps/web/integration/openapi-contract.test.js). Go derives the
+    playerId from the session; economic mutations carry requestId and
+    catalogVersion and are idempotent per player + requestId. Realtime messages
+    use the separate E43 WebSocket contract (contracts/realtime/events.md); only
+    its HTTP upgrade is described here. Go-to-Rust RPCs use the internal
+    Protobuf contract and are not part of this API.
 servers:
   - url: /v1
 security:
@@ -14,8 +18,11 @@ security:
   - sessionCookie: []
 tags:
   - name: Session
+    description: Go-issued opaque identity. Browsers use the HttpOnly cookie; other clients the Bearer token.
   - name: Profile
+    description: Profile, catalog and economy, answered by the Rust Player/Profile service through Go and Envoy.
   - name: Rooms
+    description: Create and join rooms; room state, readiness and races continue over the E43 WebSocket.
 paths:
   /sessions:
     post:
@@ -29,6 +36,8 @@ paths:
         expiry time or a refresh token.
       security: []
       responses:
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '201':
           description: Session established
           headers:
@@ -65,7 +74,10 @@ paths:
       tags: [Profile]
       operationId: getProfile
       summary: Read the current player's confirmed profile
+      description: The first read provisions the starter profile in Rust. No query parameters are accepted.
       responses:
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '200':
           description: Confirmed profile
           content:
@@ -88,6 +100,8 @@ paths:
           schema:
             $ref: '#/components/schemas/OpaqueId'
       responses:
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
         '200':
           description: Confirmed catalog and its version
           content:
@@ -245,6 +259,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/BusinessRejected'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /rooms/{roomId}/memberships:
     post:
       tags: [Rooms]
@@ -263,6 +279,37 @@ paths:
           $ref: '#/components/responses/RoomNotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /realtime:
+    get:
+      tags: [Rooms]
+      operationId: openRealtime
+      summary: Upgrade to the E43 realtime WebSocket
+      description: >-
+        WebSocket upgrade for room state, readiness, inputs, snapshots, events
+        and results. The message contract is E43 (contracts/realtime/events.md);
+        this operation documents only the HTTP handshake. Browsers authenticate
+        with the session cookie and must send their own Origin; other clients
+        send Authorization Bearer. Swagger UI cannot open WebSockets.
+      parameters:
+        - in: header
+          name: Sec-WebSocket-Protocol
+          required: true
+          schema:
+            type: string
+            enum: [compunube.realtime.v1]
+      responses:
+        '101':
+          description: Switching Protocols; the subprotocol compunube.realtime.v1 is selected
+        '400':
+          description: INCOMPATIBLE_VERSION when the subprotocol is missing or unsupported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '503':
+          $ref: '#/components/responses/Unavailable'
 components:
   securitySchemes:
     sessionBearer:
@@ -380,6 +427,15 @@ components:
     Profile:
       type: object
       additionalProperties: false
+      example:
+        playerId: p_3fJ8qK1nTzW0xYbC2dE4fA
+        profileRevision: 4
+        coins: 40
+        plastic: 6
+        metal: 2
+        ownedItemIds: [nico, luna, amara, samuel, coral, costero, swept, curls, bun, ponytail, afro, red-base, manglar]
+        equipment: {boardId: manglar, outfitId: costero, netId: red-base, hairId: swept, characterId: nico}
+        appearance: {skinId: medium, hairColorId: brown}
       required: [playerId, profileRevision, coins, plastic, metal, ownedItemIds, equipment, appearance]
       properties:
         playerId: { $ref: '#/components/schemas/OpaqueId' }
@@ -492,6 +548,10 @@ components:
     ApiError:
       type: object
       additionalProperties: false
+      example:
+        code: INSUFFICIENT_COINS
+        message: INSUFFICIENT_COINS
+        requestId: 6b1f0c2e-5f6a-4d0e-9d7b-2a1c3e4f5a6b
       required: [code, message]
       properties:
         code:

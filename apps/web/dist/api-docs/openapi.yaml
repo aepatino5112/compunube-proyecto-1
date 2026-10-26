@@ -1,0 +1,564 @@
+openapi: 3.0.3
+info:
+  title: Compunube public HTTP API
+  version: 1.0.0
+  description: >-
+    E45 public HTTP contract between clients (web and Python) and the Go Match
+    Service, implemented by Go and verified against the running service in CI
+    Integration (apps/web/integration/openapi-contract.test.js). Go derives the
+    playerId from the session; economic mutations carry requestId and
+    catalogVersion and are idempotent per player + requestId. Realtime messages
+    use the separate E43 WebSocket contract (contracts/realtime/events.md); only
+    its HTTP upgrade is described here. Go-to-Rust RPCs use the internal
+    Protobuf contract and are not part of this API.
+servers:
+  - url: /v1
+security:
+  - sessionBearer: []
+  - sessionCookie: []
+tags:
+  - name: Session
+    description: Go-issued opaque identity. Browsers use the HttpOnly cookie; other clients the Bearer token.
+  - name: Profile
+    description: Profile, catalog and economy, answered by the Rust Player/Profile service through Go and Envoy.
+  - name: Rooms
+    description: Create and join rooms; room state, readiness and races continue over the E43 WebSocket.
+paths:
+  /sessions:
+    post:
+      tags: [Session]
+      operationId: createSession
+      summary: Establish a new Go-issued opaque session
+      description: >-
+        Go creates both playerId and credential. The client supplies neither.
+        Store the credential privately and reuse it to resume the same identity.
+        F48 decides persistence and expiry; this contract does not promise an
+        expiry time or a refresh token.
+      security: []
+      responses:
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '201':
+          description: Session established
+          headers:
+            Set-Cookie:
+              description: >-
+                Same-origin browser session for HTTP and the E43 WebSocket
+                handshake: compunube_session=<opaque>; HttpOnly; Secure;
+                SameSite=Strict; Path=/v1. Browser clients should use this
+                cookie; non-browser clients may use the returned bearer token.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /sessions/current:
+    get:
+      tags: [Session]
+      operationId: getCurrentSession
+      summary: Validate a stored credential and recover its playerId
+      responses:
+        '200':
+          description: Current session identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionIdentity'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+  /profile:
+    get:
+      tags: [Profile]
+      operationId: getProfile
+      summary: Read the current player's confirmed profile
+      description: The first read provisions the starter profile in Rust. No query parameters are accepted.
+      responses:
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '200':
+          description: Confirmed profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '503':
+          $ref: '#/components/responses/ProfileUnavailable'
+  /catalog:
+    get:
+      tags: [Profile]
+      operationId: getCatalog
+      summary: Read the active catalog or a requested version
+      parameters:
+        - in: query
+          name: catalogVersion
+          description: Omit for the active version; an unknown version is rejected.
+          schema:
+            $ref: '#/components/schemas/OpaqueId'
+      responses:
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '200':
+          description: Confirmed catalog and its version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalog'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '422':
+          $ref: '#/components/responses/BusinessRejected'
+        '503':
+          $ref: '#/components/responses/ProfileUnavailable'
+  /profile/purchases:
+    post:
+      tags: [Profile]
+      operationId: buyItem
+      summary: Buy one catalog item
+      requestBody:
+        $ref: '#/components/requestBodies/ItemMutation'
+      responses:
+        '200':
+          $ref: '#/components/responses/MutationAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/BusinessRejected'
+        '503':
+          $ref: '#/components/responses/ProfileUnavailable'
+        '504':
+          $ref: '#/components/responses/MutationOutcomeUnknown'
+  /profile/crafts:
+    post:
+      tags: [Profile]
+      operationId: craftItem
+      summary: Craft one catalog item
+      requestBody:
+        $ref: '#/components/requestBodies/ItemMutation'
+      responses:
+        '200':
+          $ref: '#/components/responses/MutationAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/BusinessRejected'
+        '503':
+          $ref: '#/components/responses/ProfileUnavailable'
+        '504':
+          $ref: '#/components/responses/MutationOutcomeUnknown'
+  /profile/exchanges:
+    post:
+      tags: [Profile]
+      operationId: exchangeMaterials
+      summary: Exchange owned materials for coins under catalog rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExchangeRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/MutationAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/BusinessRejected'
+        '503':
+          $ref: '#/components/responses/ProfileUnavailable'
+        '504':
+          $ref: '#/components/responses/MutationOutcomeUnknown'
+  /profile/equipment:
+    post:
+      tags: [Profile]
+      operationId: equipItem
+      summary: Equip an item already owned by the session's player
+      requestBody:
+        $ref: '#/components/requestBodies/ItemMutation'
+      responses:
+        '200':
+          $ref: '#/components/responses/MutationAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/BusinessRejected'
+        '503':
+          $ref: '#/components/responses/ProfileUnavailable'
+        '504':
+          $ref: '#/components/responses/MutationOutcomeUnknown'
+  /profile/appearance:
+    put:
+      tags: [Profile]
+      operationId: setAppearance
+      summary: Set both appearance options
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppearanceRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/MutationAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/BusinessRejected'
+        '503':
+          $ref: '#/components/responses/ProfileUnavailable'
+        '504':
+          $ref: '#/components/responses/MutationOutcomeUnknown'
+  /rooms:
+    post:
+      tags: [Rooms]
+      operationId: createRoom
+      summary: Create a room in LOBBY for the session's player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mapId]
+              properties:
+                mapId:
+                  $ref: '#/components/schemas/MapId'
+      responses:
+        '201':
+          $ref: '#/components/responses/RoomConfirmed'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/BusinessRejected'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /rooms/{roomId}/memberships:
+    post:
+      tags: [Rooms]
+      operationId: joinRoom
+      summary: Join an existing LOBBY by its opaque room code
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+      responses:
+        '200':
+          $ref: '#/components/responses/RoomConfirmed'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '404':
+          $ref: '#/components/responses/RoomNotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /realtime:
+    get:
+      tags: [Rooms]
+      operationId: openRealtime
+      summary: Upgrade to the E43 realtime WebSocket
+      description: >-
+        WebSocket upgrade for room state, readiness, inputs, snapshots, events
+        and results. The message contract is E43 (contracts/realtime/events.md);
+        this operation documents only the HTTP handshake. Browsers authenticate
+        with the session cookie and must send their own Origin; other clients
+        send Authorization Bearer. Swagger UI cannot open WebSockets.
+      parameters:
+        - in: header
+          name: Sec-WebSocket-Protocol
+          required: true
+          schema:
+            type: string
+            enum: [compunube.realtime.v1]
+      responses:
+        '101':
+          description: Switching Protocols; the subprotocol compunube.realtime.v1 is selected
+        '400':
+          description: INCOMPATIBLE_VERSION when the subprotocol is missing or unsupported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          $ref: '#/components/responses/SessionRequired'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    sessionBearer:
+      type: http
+      scheme: bearer
+      description: >-
+        Go-issued opaque session token. Send only in Authorization; never in
+        query strings or realtime payloads. This is not specified as a JWT.
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: compunube_session
+      description: >-
+        Same-origin browser credential; Go must validate Origin on WebSocket
+        upgrades and on cookie-authenticated state changes.
+  parameters:
+    RoomId:
+      in: path
+      name: roomId
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+  requestBodies:
+    ItemMutation:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ItemMutationRequest'
+  responses:
+    MutationAccepted:
+      description: Confirmed mutation; replayed is true if the key was already resolved
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MutationResult'
+    RoomConfirmed:
+      description: Membership confirmed; room.state on WebSocket is authoritative thereafter
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RoomMembership'
+    InvalidRequest:
+      $ref: '#/components/responses/ErrorResponse'
+    SessionRequired:
+      $ref: '#/components/responses/ErrorResponse'
+    RoomNotFound:
+      $ref: '#/components/responses/ErrorResponse'
+    Conflict:
+      $ref: '#/components/responses/ErrorResponse'
+    BusinessRejected:
+      $ref: '#/components/responses/ErrorResponse'
+    ProfileUnavailable:
+      $ref: '#/components/responses/ErrorResponse'
+    Unavailable:
+      $ref: '#/components/responses/ErrorResponse'
+    MutationOutcomeUnknown:
+      $ref: '#/components/responses/ErrorResponse'
+    ErrorResponse:
+      description: Error envelope; code identifies the specific failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+  schemas:
+    OpaqueId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[^\x00-\x1F\x7F]+$'
+      description: Opaque, nonempty identifier without control characters
+    MapId:
+      type: string
+      enum: [maracaibo, orinoco]
+    SafeCount:
+      type: integer
+      format: int64
+      minimum: 0
+      maximum: 9007199254740991
+    Session:
+      type: object
+      additionalProperties: false
+      required: [playerId, token]
+      properties:
+        playerId:
+          $ref: '#/components/schemas/OpaqueId'
+        token:
+          type: string
+          minLength: 1
+          description: Opaque secret; returned at establishment, never logged
+    SessionIdentity:
+      type: object
+      additionalProperties: false
+      required: [playerId]
+      properties:
+        playerId:
+          $ref: '#/components/schemas/OpaqueId'
+    Equipment:
+      type: object
+      additionalProperties: false
+      required: [boardId, outfitId, netId, hairId, characterId]
+      properties:
+        boardId: { $ref: '#/components/schemas/OpaqueId' }
+        outfitId: { $ref: '#/components/schemas/OpaqueId' }
+        netId: { $ref: '#/components/schemas/OpaqueId' }
+        hairId: { $ref: '#/components/schemas/OpaqueId' }
+        characterId: { $ref: '#/components/schemas/OpaqueId' }
+    Appearance:
+      type: object
+      additionalProperties: false
+      required: [skinId, hairColorId]
+      properties:
+        skinId: { $ref: '#/components/schemas/OpaqueId' }
+        hairColorId: { $ref: '#/components/schemas/OpaqueId' }
+    Profile:
+      type: object
+      additionalProperties: false
+      example:
+        playerId: p_3fJ8qK1nTzW0xYbC2dE4fA
+        profileRevision: 4
+        coins: 40
+        plastic: 6
+        metal: 2
+        ownedItemIds: [nico, luna, amara, samuel, coral, costero, swept, curls, bun, ponytail, afro, red-base, manglar]
+        equipment: {boardId: manglar, outfitId: costero, netId: red-base, hairId: swept, characterId: nico}
+        appearance: {skinId: medium, hairColorId: brown}
+      required: [playerId, profileRevision, coins, plastic, metal, ownedItemIds, equipment, appearance]
+      properties:
+        playerId: { $ref: '#/components/schemas/OpaqueId' }
+        profileRevision: { $ref: '#/components/schemas/SafeCount' }
+        coins: { $ref: '#/components/schemas/SafeCount' }
+        plastic: { $ref: '#/components/schemas/SafeCount' }
+        metal: { $ref: '#/components/schemas/SafeCount' }
+        ownedItemIds:
+          type: array
+          items: { $ref: '#/components/schemas/OpaqueId' }
+        equipment: { $ref: '#/components/schemas/Equipment' }
+        appearance: { $ref: '#/components/schemas/Appearance' }
+    CatalogItem:
+      type: object
+      additionalProperties: false
+      required: [itemId, itemType, name, description, enabled, purchasable, priceCoins, craftable, recipePlastic, recipeMetal]
+      properties:
+        itemId: { $ref: '#/components/schemas/OpaqueId' }
+        itemType:
+          type: string
+          enum: [character, board, outfit, net, hair]
+        name: { type: string }
+        description: { type: string }
+        enabled: { type: boolean }
+        purchasable: { type: boolean }
+        priceCoins: { $ref: '#/components/schemas/SafeCount' }
+        craftable: { type: boolean }
+        recipePlastic: { $ref: '#/components/schemas/SafeCount' }
+        recipeMetal: { $ref: '#/components/schemas/SafeCount' }
+        metadata:
+          type: object
+          additionalProperties: { type: string }
+    AppearanceOption:
+      type: object
+      additionalProperties: false
+      required: [optionId, name, color]
+      properties:
+        optionId: { $ref: '#/components/schemas/OpaqueId' }
+        name: { type: string }
+        color: { type: string }
+    Catalog:
+      type: object
+      additionalProperties: false
+      required: [catalogVersion, items, skinTones, hairColors]
+      properties:
+        catalogVersion: { $ref: '#/components/schemas/OpaqueId' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CatalogItem' }
+        skinTones:
+          type: array
+          items: { $ref: '#/components/schemas/AppearanceOption' }
+        hairColors:
+          type: array
+          items: { $ref: '#/components/schemas/AppearanceOption' }
+    MutationKey:
+      type: object
+      required: [requestId, catalogVersion]
+      properties:
+        requestId: { $ref: '#/components/schemas/OpaqueId' }
+        catalogVersion: { $ref: '#/components/schemas/OpaqueId' }
+    ItemMutationRequest:
+      allOf:
+        - $ref: '#/components/schemas/MutationKey'
+        - type: object
+          required: [itemId]
+          properties:
+            itemId: { $ref: '#/components/schemas/OpaqueId' }
+    ExchangeRequest:
+      allOf:
+        - $ref: '#/components/schemas/MutationKey'
+        - type: object
+          required: [material, amount]
+          properties:
+            material:
+              type: string
+              enum: [plastic, metal]
+            amount:
+              type: integer
+              format: int64
+              minimum: 1
+              maximum: 9007199254740991
+    AppearanceRequest:
+      allOf:
+        - $ref: '#/components/schemas/MutationKey'
+        - type: object
+          required: [skinId, hairColorId]
+          properties:
+            skinId: { $ref: '#/components/schemas/OpaqueId' }
+            hairColorId: { $ref: '#/components/schemas/OpaqueId' }
+    MutationResult:
+      type: object
+      additionalProperties: false
+      required: [requestId, replayed, profile]
+      properties:
+        requestId: { $ref: '#/components/schemas/OpaqueId' }
+        replayed: { type: boolean }
+        profile: { $ref: '#/components/schemas/Profile' }
+    RoomMembership:
+      type: object
+      additionalProperties: false
+      required: [roomId, mapId, state, playerId]
+      properties:
+        roomId: { $ref: '#/components/schemas/OpaqueId' }
+        mapId: { $ref: '#/components/schemas/MapId' }
+        state:
+          type: string
+          enum: [LOBBY]
+        playerId: { $ref: '#/components/schemas/OpaqueId' }
+    ApiError:
+      type: object
+      additionalProperties: false
+      example:
+        code: INSUFFICIENT_COINS
+        message: INSUFFICIENT_COINS
+        requestId: 6b1f0c2e-5f6a-4d0e-9d7b-2a1c3e4f5a6b
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable code, e.g. SESSION_REQUIRED
+        message:
+          type: string
+          description: Safe human-readable explanation without internal details
+        requestId:
+          $ref: '#/components/schemas/OpaqueId'

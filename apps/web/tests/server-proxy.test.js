@@ -68,3 +68,19 @@ test('/v1 is forwarded with the browser Host, Origin and cookie; WebSocket upgra
   assert.match(echoed, /^HTTP\/1\.1 101/);
   assert.deepEqual(seen[1], { upgrade: '/v1/realtime', host: `127.0.0.1:${web.port}`, protocol: 'compunube.realtime.v1' });
 });
+
+test('/api-docs serves Swagger UI and the unmodified E45 contract without a backend', async t => {
+  const web = await startWeb({ COMPUNUBE_GO_URL: '' });
+  t.after(web.stop);
+  const origin = `http://127.0.0.1:${web.port}`;
+  const redirect = await fetch(`${origin}/api-docs`, { redirect: 'manual' });
+  assert.equal(redirect.status, 301);
+  assert.equal(redirect.headers.get('location'), '/api-docs/');
+  const page = await fetch(`${origin}/api-docs/`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /swagger-ui-bundle\.js/);
+  const spec = await fetch(`${origin}/api-docs/openapi.yaml`);
+  assert.match(spec.headers.get('content-type'), /yaml/);
+  const { readFile } = await import('node:fs/promises');
+  assert.equal(await spec.text(), await readFile(new URL('../../../contracts/http/openapi.yaml', import.meta.url), 'utf8'));
+});
