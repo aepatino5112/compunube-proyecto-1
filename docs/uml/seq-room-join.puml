@@ -1,0 +1,33 @@
+@startuml seq-room-join
+!include seq-common.iuml
+title D34.2 · Crear y entrar a una sala
+actor "Anfitrión" as A
+participant "Cliente A" as CA
+participant "Cliente B" as CB
+actor "Invitado" as B
+participant "Go\nroomshttp" as Api
+participant "Go RoomLoop\n(sala)" as Room
+
+A -> CA : Crear sala (mapa)
+CA -> Api : POST /v1/rooms {mapId}
+Api -> Room : Create(mapId, playerId)
+Room --> Api : membresía LOBBY
+Api --> CA : 201 {roomId, mapId, state: LOBBY, playerId}
+CA -> Api : WebSocket /v1/realtime\nSec-WebSocket-Protocol: compunube.realtime.v1
+Api -> Api : sesión válida + Origin + subprotocolo
+Api -> Room : Bind(playerId, conexión)
+Room --> CA : room.state (selfPlayerId, room)
+A -> B : comparte roomId
+B -> CB : Unirme (roomId)
+CB -> Api : POST /v1/rooms/{roomId}/memberships
+alt sala LOBBY con plaza
+  Api -> Room : Join
+  Api --> CB : 200 RoomMembership
+  CB -> Api : WebSocket /v1/realtime
+  Api -> Room : Bind
+  Room --> CA : room.state (2 miembros)
+  Room --> CB : room.state (2 miembros)
+else
+  Api --> CB : 404 ROOM_NOT_FOUND | 409 ROOM_FULL / INVALID_STATE
+end
+@enduml
