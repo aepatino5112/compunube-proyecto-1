@@ -54,7 +54,12 @@ function browser(origin, name, jar = { cookie: null }) {
       race = createNetworkRace({ start: data.start, selfPlayerId: data.selfPlayerId });
       seen.starts.push(data.start); return true;
     },
-    onSnapshot(snapshot) { assert.equal(race.push(snapshot), true, `${name}: ${race.error}`); seen.snapshots.push(snapshot); },
+    onSnapshot(snapshot) {
+      // After a rebind Go sends the current snapshot, which can repeat the last
+      // tick; network-race rejects it and the game ignores it. Anything else fails.
+      if (!race.push(snapshot)) assert.match(race.error, /tick: estado atrasado o repetido/, `${name}: ${race.error}`);
+      seen.snapshots.push(snapshot);
+    },
     onEvent(event) { seen.events.push(event); },
     onResult(result) { seen.results.push(result); },
     onSettlement(result) { seen.settlements.push(result); },
