@@ -14,6 +14,7 @@ on:
       - "scripts/validation/j85-compose-readiness.py"
       - "scripts/validation/h68-prometheus.py"
       - "scripts/validation/g58-python-client.py"
+      - "scripts/validation/i72-e2e-concurrency.py"
       - "apps/client-secondary/**"
       - ".github/workflows/ci-integration.yml"
   push:
@@ -29,6 +30,7 @@ on:
       - "scripts/validation/j85-compose-readiness.py"
       - "scripts/validation/h68-prometheus.py"
       - "scripts/validation/g58-python-client.py"
+      - "scripts/validation/i72-e2e-concurrency.py"
       - "apps/client-secondary/**"
       - ".github/workflows/ci-integration.yml"
 
@@ -128,6 +130,11 @@ jobs:
         env:
           G58_SKIP_BUILD: "1"
         run: python3 scripts/validation/g58-python-client.py
+
+      - name: End-to-end races with concurrent rooms of four clients (I72)
+        env:
+          I72_SKIP_BUILD: "1"
+        run: python3 scripts/validation/i72-e2e-concurrency.py
 
       - name: Validate gRPC Compose readiness and recovery (J85)
         env:
