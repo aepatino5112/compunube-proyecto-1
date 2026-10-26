@@ -22,6 +22,7 @@ const FRIENDLY_ERRORS = Object.freeze({
   INVALID_REQUEST_ID: 'No pudimos preparar ese cambio. Consulta tu perfil antes de continuar.',
   ACTION_UNCERTAIN: 'El cambio sigue pendiente de confirmación. Puedes volver a consultarlo.',
   PROFILE_UNAVAILABLE: 'El perfil y la economía online no están disponibles ahora. Tu última confirmación se conserva; vuelve a intentarlo en unos momentos.',
+  SERVICE_UNAVAILABLE: 'El servicio online no está disponible ahora. Tu progreso local sigue disponible; vuelve a intentarlo más tarde.',
   INVALID_REQUEST: 'El servicio no aceptó esa solicitud. Actualiza el perfil antes de continuar.',
   IDEMPOTENCY_CONFLICT: 'Esa operación ya se registró con otros datos. Actualiza el perfil antes de continuar.',
   INVALID_CATALOG_VERSION: 'El catálogo cambió. Actualiza el perfil y vuelve a elegir.',

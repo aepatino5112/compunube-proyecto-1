@@ -214,7 +214,7 @@ let state = 'ready', cameraMode = 'third', countdown = 3, elapsed = 0, visualTim
 let menuActive = true, suspended = false, raceId = '', onFinish = () => {};
 let networkRace=null,networkPresentation=null,networkConnected=false,networkResultReceived=false,onInput=()=>false;
 let inputSeq=0,jumpSeq=0,requestedNetSide=1,lastInputAt=-Infinity;
-let networkWasLive=false;
+let networkWasLive=false,networkReconnecting=false;
 const frameClock = createFrameClock();
 let pausedFrom = 'running';
 const cameraTarget = new THREE.Vector3(), lookTarget = new THREE.Vector3();
@@ -626,7 +626,7 @@ function setSurferName(s,name) {
   s.nameLabel=nameSprite(name,s.color);s.group.add(s.nameLabel);
 }
 function clearNetworkRace() {
-  networkRace=null;networkPresentation=null;networkConnected=false;networkResultReceived=false;networkWasLive=false;
+  networkRace=null;networkPresentation=null;networkConnected=false;networkResultReceived=false;networkWasLive=false;networkReconnecting=false;
   networkNote.hidden=true;$('restart').hidden=false;chaseView.setPursuitVisible(true);
   for(const s of surfers){s.networkHidden=false;s.playerId=null;s.controller=s.index?'bot':'human';s.shadow.visible=true;}
 }
@@ -643,7 +643,7 @@ function updateNetworkFrame(now,dt) {
     inputSeq=Math.max(inputSeq,self.lastProcessedInputSeq);jumpSeq=Math.max(jumpSeq,self.lastProcessedJumpSeq);
     $('countdown').hidden=state!=='countdown';$('countdown').textContent=String(Math.max(1,Math.ceil(countdown)));
   }
-  const message=!networkConnected?'Se perdió la conexión. Puedes volver al club.':!snapshot?'Conectando con la carrera…':!networkLive(now)?'Esperando la conexión con la carrera…':state==='finished'?'Esperando el resultado confirmado de la sala…':player.finishTime!==null?'Llegaste. Esperando a los demás surfistas…':player.disqualified?'Sin vidas. Esperando el resultado de la sala…':'';
+  const message=networkReconnecting?'Reconectando… La carrera sigue para los demás; tienes 15 s para volver.':!networkConnected?'Se perdió la conexión. Puedes volver al club.':!snapshot?'Conectando con la carrera…':!networkLive(now)?'Esperando la conexión con la carrera…':state==='finished'?'Esperando el resultado confirmado de la sala…':player.finishTime!==null?'Llegaste. Esperando a los demás surfistas…':player.disqualified?'Sin vidas. Esperando el resultado de la sala…':'';
   networkNote.hidden=!message;networkNote.textContent=message;
   sendNetworkInput(now);
 }
@@ -876,7 +876,11 @@ export const game = {
   },
   setConnectionState(status) {
     if(!networkRace||networkResultReceived)return;
-    networkConnected=status==='racing';if(!networkConnected){keys.clear();networkNote.hidden=false;networkNote.textContent='Se perdió la conexión. Puedes volver al club.';}
+    networkConnected=status==='racing';networkReconnecting=status==='reconnecting';
+    if(!networkConnected){
+      keys.clear();networkNote.hidden=false;
+      networkNote.textContent=status==='reconnecting'?'Reconectando… La carrera sigue para los demás; tienes 15 s para volver.':'Se perdió la conexión. Puedes volver al club.';
+    }
     renderDirty=true;
   },
   exit() { clearNetworkRace();onlineResult=null;menuActive = true; suspended = false; reset(); },

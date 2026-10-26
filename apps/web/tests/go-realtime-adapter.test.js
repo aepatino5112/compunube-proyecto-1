@@ -7,7 +7,7 @@ import * as translate from '../dist/net/translate.js';
 import { createNetworkRace } from '../dist/network-race.js';
 import { createMultiplayerClient } from '../dist/multiplayer-client.js';
 
-const manifest = JSON.parse(await readFile(new URL('../../../services/match-service-go/internal/race/courses/maracaibo-surf-mvp-1.json', import.meta.url)));
+const manifest = JSON.parse(await readFile(new URL('../dist/courses/maracaibo-surf-mvp-1.json', import.meta.url)));
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -113,19 +113,63 @@ test('a server without the subprotocol is an incompatible version', async () => 
   await assert.rejects(h.adapter.joinRoom({ roomId: 'r/1' }), { code: 'INCOMPATIBLE_VERSION' });
 });
 
-test('a lost channel or a closed room ends the session with a reason', async () => {
-  for (const [scenario, expected] of [['lost', 'DISCONNECTED'], ['closed', 'ROOM_CLOSED']]) {
-    const h = harness({ routes: { ...session(), 'POST /v1/rooms': [[201, { roomId: 'room-1', mapId: 'maracaibo', state: 'LOBBY', playerId: 'p1' }]] } });
+test('a dropped channel reconnects inside the window and recovers room.state and the snapshot', async () => {
+  const h = harness({ routes: { ...session(), 'POST /v1/rooms': [[201, { roomId: 'room-1', mapId: 'maracaibo', state: 'LOBBY', playerId: 'p1' }]] },
+    plan: [{}, { fail: true }, {}], options: { reentryWindowMs: 2000, stateTimeoutMs: 500 } });
+  const pending = h.adapter.createRoom({ mapId: 'maracaibo' });
+  await tick(); await tick(); await tick();
+  h.sockets[0].receive(roomState('RACING', [prepared('p1'), prepared('p2')]));
+  const s = await pending, statuses = [], received = [];
+  let lost = null;
+  s.subscribe(message => received.push(message.type), code => { lost = code; }, status => statuses.push(status));
+  h.sockets[0].close();
+  assert.deepEqual(statuses, ['reconnecting']);
+  assert.equal(s.send({ type: 'race.input' }), undefined, 'intents are dropped, not faked, while reopening');
+  await wait(400);
+  assert.equal(h.sockets.length, 3); assert.deepEqual(statuses, ['reconnecting', 'live']);
+  h.sockets[2].receive(roomState('RACING', [prepared('p1', { participantState: 'racing' }), prepared('p2')]));
+  h.sockets[2].receive({ type: 'race.snapshot', protocolVersion: 1, snapshot: snapshot(40) });
+  assert.deepEqual(received, ['room.state', 'room.state', 'race.snapshot']);
+  await wait(600);
+  assert.equal(lost, null, 'room.state arrived before the state timeout');
+  s.close();
+});
+
+test('the reentry window expiring, a closed room or a lost membership end the session with a reason', async () => {
+  for (const [scenario, expected] of [['expire', 'DISCONNECTED'], ['closed', 'ROOM_CLOSED'], ['silent', 'NOT_A_MEMBER']]) {
+    const h = harness({ routes: { ...session(), 'POST /v1/rooms': [[201, { roomId: 'room-1', mapId: 'maracaibo', state: 'LOBBY', playerId: 'p1' }]] },
+      plan: scenario === 'expire' ? [{}, { fail: true }, { fail: true }, { fail: true }, { fail: true }] : [{}, {}],
+      options: { reentryWindowMs: 300, stateTimeoutMs: 100 } });
     const pending = h.adapter.createRoom({ mapId: 'maracaibo' });
     await tick(); await tick(); await tick();
     h.sockets[0].receive(roomState());
     const s = await pending;
     let lost = null;
     s.subscribe(() => {}, code => { lost = code; });
-    if (scenario === 'closed') h.sockets[0].receive(roomState('CLOSED')); else h.sockets[0].close();
+    if (scenario === 'closed') h.sockets[0].receive(roomState('CLOSED'));
+    else h.sockets[0].close();
+    await wait(scenario === 'expire' ? 900 : 300);
     assert.equal(lost, expected, scenario);
-    assert.equal(s.send({ type: 'room.leave' }), false, 'a closed session never fakes a send');
   }
+});
+
+test('resume without a session does not create one, and a racing room is rebuilt from the versioned manifest', async () => {
+  const none = harness({ routes: { 'GET /v1/sessions/current': [[401, { code: 'SESSION_REQUIRED', message: 'x' }]] } });
+  assert.equal(await none.adapter.resume(), null);
+  assert.equal(none.sockets.length, 0); assert.deepEqual(none.calls, ['GET /v1/sessions/current']);
+
+  const h = harness({ routes: session(), options: { loadManifest: async version => { assert.equal(version, 'maracaibo-surf-mvp-1'); return manifest; } } });
+  const pending = h.adapter.resume();
+  await tick(); await tick(); await tick();
+  h.sockets[0].receive(roomState('RACING', [prepared('p1', { participantState: 'racing' }), prepared('p2', { participantState: 'racing' })]));
+  h.sockets[0].receive({ type: 'race.snapshot', protocolVersion: 1, snapshot: snapshot(300) });
+  const s = await pending;
+  const received = [];
+  s.subscribe(message => received.push(message), () => {});
+  assert.deepEqual(received.map(m => m.type), ['room.state', 'race.start', 'race.snapshot']);
+  const race = createNetworkRace({ start: received[1], selfPlayerId: 'p1', now: () => 0 });
+  assert.equal(race.push(received[2].snapshot, 1), true, race.error);
+  s.close();
 });
 
 test('through multiplayer-client: ready carries the verified revision, results and a later settlement confirmation', async () => {
@@ -144,7 +188,12 @@ test('through multiplayer-client: ready carries the verified revision, results a
   h.sockets[0].receive(roomState('COUNTDOWN', [prepared('p1'), prepared('p2')]));
   h.sockets[0].receive(raceStart());
   assert.equal(client.state.status, 'racing'); assert.equal(calls.start, 1);
-  h.sockets[0].receive({ type: 'race.snapshot', protocolVersion: 1, snapshot: snapshot(2) });
+  h.sockets[0].close();
+  assert.equal(client.state.status, 'reconnecting');
+  assert.equal(client.sendInput({ type: 'race.input', protocolVersion: 1, raceId: 'race-1', seq: 1, steer: 0, netSide: 1, boost: false, jumpSeq: 0 }), false);
+  await wait(300);
+  h.sockets.at(-1).receive(roomState('RACING', [prepared('p1', { participantState: 'racing' }), prepared('p2')]));
+  assert.equal(client.state.status, 'racing');
   h.sockets.at(-1).receive(ended('pending'));
   assert.equal(client.state.status, 'room'); assert.equal(calls.results, 1);
   assert.deepEqual(client.state.result, { raceId: 'race-1', outcome: 'finished', rank: 1, credited: { plastic: 1, metal: 0 }, reduceChoice: 'reusable', settlementState: 'pending' });
@@ -152,6 +201,6 @@ test('through multiplayer-client: ready carries the verified revision, results a
   h.sockets.at(-1).receive(ended('confirmed'));
   assert.equal(client.state.result.settlementState, 'confirmed');
   assert.deepEqual(calls.settlements, ['race-1'], 'confirmation is reported once and nothing is credited locally');
-  client.leave();
-  assert.equal(h.sockets.at(-1).sent.at(-1).type, 'room.leave');
+  client.detach();
+  assert.equal(h.sockets.at(-1).sent.some(m => m.type === 'room.leave'), false, 'unloading keeps the membership for reentry');
 });

@@ -40,7 +40,7 @@ test('a race cannot start with different room versions or unconfirmed participan
 
 test('unconfigured default never creates a pretend connection and subscribers receive current state immediately', async () => {
   // The shipped configuration is the real Go adapter (G59); without one, nothing is faked.
-  for (const method of ['createRoom', 'joinRoom']) assert.equal(typeof backendAdapter[method], 'function');
+  for (const method of ['createRoom', 'joinRoom', 'resume']) assert.equal(typeof backendAdapter[method], 'function');
   const client = createMultiplayerClient(), states = [];
   const unsubscribe = client.subscribe(value => states.push(value));
   assert.equal(states.length, 1); assert.equal(states[0].status, 'unconfigured');

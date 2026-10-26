@@ -28,7 +28,7 @@ function fixture() {
   const c = {
     state: 'running', menuActive: false, suspended: false, raceId: 'race-online',
     elapsed: 12, countdown: 2, pausedFrom: 'running', networkRace: {receivedAt: 100},
-    networkConnected: true, networkWasLive: false, networkResultReceived: false,
+    networkConnected: true, networkWasLive: false, networkReconnecting: false, networkResultReceived: false,
     networkNote: {hidden: true, textContent: ''}, networkPresentation: {frame() {return null;}},
     chaseView: {setPursuitVisible() {}}, chase: {},
     inputSeq: 0, jumpSeq: 0, requestedNetSide: 1, lastInputAt: -Infinity,

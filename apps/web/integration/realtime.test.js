@@ -1,4 +1,4 @@
-// G59 integration: two web clients (separate cookie jars) use the compiled
+// G59/G61 integration: two web clients (separate cookie jars) use the compiled
 // adapters and multiplayer-client against the real Go Match Service through
 // server.mjs. Requires COMPUNUBE_GO_URL and a running stack.
 import test from 'node:test';
@@ -67,7 +67,7 @@ async function until(label, predicate, ms = 20000) {
   throw new Error(`timeout: ${label}`);
 }
 
-test('two web clients race on Go: E43 flow, monotonic inputs, leave and settlement', async t => {
+test('two web clients race on Go: E43 flow, reentry with monotonic inputs, leave and settlement', async t => {
   const web = await startWeb();
   t.after(web.stop);
   const host = browser(web.origin, 'host'), guest = browser(web.origin, 'guest');
@@ -107,12 +107,45 @@ test('two web clients race on Go: E43 flow, monotonic inputs, leave and settleme
   for (let i = 0; i < 5; i++) { assert.equal(send(host, i === 2 ? { jumpSeq: ++jumpSeq } : {}), true); await wait(60); }
   await until('Go processed host inputs', () => host.race.latest.players.find(p => p.playerId === host.client.state.selfPlayerId).lastProcessedInputSeq >= 5);
 
+  // Reentry: drop the host's socket mid-race; the adapter reopens it inside the window.
+  host.sockets.at(-1).close();
+  await until('host reconnecting', () => host.seen.statuses.includes('reconnecting'));
+  await until('host racing again', () => host.client.state.status === 'racing' && host.sockets.length >= 2, 15000);
+  const before = host.seen.snapshots.length;
+  await until('fresh snapshot after reentry', () => host.seen.snapshots.length > before);
+  const self = host.race.latest.players.find(p => p.playerId === host.client.state.selfPlayerId);
+  assert.ok(self.lastProcessedInputSeq >= 5, 'Go kept the processed sequence across reentry');
+  assert.equal(host.client.sendInput({ type: 'race.input', protocolVersion: 1, raceId, seq: self.lastProcessedInputSeq, steer: 0, netSide: 1, boost: false, jumpSeq }), false,
+    'a sequence Go already processed is never sent again');
+  assert.equal(send(host), true);
+
+  // Reload (G61): the guest page unloads without room.leave; a new page with the
+  // same session cookie resumes the race from room.state, a full snapshot and
+  // the versioned course manifest, loading the online profile first.
+  guest.client.detach();
+  const reloaded = browser(web.origin, 'guest-reloaded', guest.jar);
+  const resumedAt = Date.now();
+  assert.equal(await reloaded.client.resume(async playerId =>
+    (await reloaded.profile.load()) && reloaded.profile.state.playerId === playerId), true);
+  await until('reloaded guest racing with the current snapshot', () => reloaded.client.state.status === 'racing' && reloaded.race?.latest);
+  console.log(`  guest resumed the race ${Date.now() - resumedAt} ms after reload`);
+  const guestId = guest.profile.state.playerId;
+  assert.equal(reloaded.client.state.selfPlayerId, guestId, 'same identity after reload');
+  assert.equal(reloaded.race.start.raceId, raceId);
+  assert.equal(reloaded.race.start.course.trash.length, 103, 'course rebuilt from the versioned manifest');
+  assert.ok(['racing', 'reconnecting'].includes(reloaded.race.latest.players.find(p => p.playerId === guestId).state),
+    'the participation survived the reload inside the reentry window');
+  const owned = race => new Map(race.latest.trash.map(item => [item.itemId, item.collectedBy]));
+  await until('both pages agree on pickup ownership', () => {
+    const a = owned(host.race), b = owned(reloaded.race);
+    return [...a].every(([id, owner]) => b.get(id) === owner);
+  }, 5000);
+
   // The guest leaves voluntarily: Go marks the participant left and the race continues.
-  guest.client.leave();
+  reloaded.client.leave();
   await until('race ended for host', () => host.seen.results.length === 1, 120000);
   const result = host.seen.results[0];
   const byId = Object.fromEntries(result.participants.map(p => [p.playerId, p]));
-  const guestId = guest.profile.state.playerId;
   assert.equal(byId[guestId].outcome, 'left');
   assert.deepEqual(byId[guestId].credited, { plastic: 0, metal: 0 });
   assert.equal(byId[guestId].rank, null);
