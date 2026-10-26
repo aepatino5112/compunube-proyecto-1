@@ -118,3 +118,6 @@
   #online-lobby .ol-member-status{font-size:8px;max-width:64px}
 }
 @media(prefers-reduced-motion:reduce){#online-lobby,#online-lobby *{scroll-behavior:auto}}
+#online-lobby .ol-reduce{border:0;padding:0;margin:0 0 14px;min-width:0}
+#online-lobby .ol-reduce .ol-modes{margin-bottom:8px}
+#online-lobby .ol-result{margin:0 0 14px;padding:10px 12px;border-radius:10px;background:#eef4ea;color:#244c42;font-size:13px;line-height:1.45}

@@ -684,14 +684,21 @@ function enterOnline({start,selfPlayerId}) {
   networkNote.hidden=false;networkNote.textContent='Conectando con la carrera…';chaseView.setPursuitVisible(false);
   audio.unlock();resize();updateUi();renderDirty=true;cameraChanged=true;host.focus({preventScroll:true});return true;
 }
+function settlementText(local) {
+  if(local.outcome!=='finished')return 'Esta carrera no acredita materiales. Tu equipo anterior se conserva.';
+  const amount=`${local.credited.plastic} de plástico y ${local.credited.metal} de chatarra`;
+  return `Recuperaste ${local.collected.plastic} de plástico y ${local.collected.metal} de chatarra. `+(local.settlementState==='confirmed'
+    ?`Tu perfil online ya recibió ${amount}.`:`La sala registró ${amount} para tu perfil online; la acreditación está pendiente y se confirmará sin duplicarse.`);
+}
+let onlineResult=null;
 function applyOnlineResult(result) {
-  const local=networkPresentation?.result(result);if(!local)return false;
+  const local=networkPresentation?.result(result);if(!local)return false;onlineResult=local;
   networkResultReceived=true;state='finished';keys.clear();player.boosting=false;player.speed=0;networkNote.hidden=true;
   $('card').hidden=false;$('countdown').hidden=true;$('start').hidden=true;
   $('card-label').textContent=local.outcome==='finished'?`CARRERA CON AMIGOS · ${local.rank}º LUGAR`:'CARRERA CON AMIGOS · FINALIZADA';
   $('card-title').textContent=local.outcome==='finished'?'Una buena ola compartida.':'La próxima ola es tuya.';
-  $('card-text').textContent=local.outcome==='finished'?`Recuperaste ${local.collected.plastic} de plástico y ${local.collected.metal} de chatarra. La sala confirmó ${local.credited.plastic} de plástico y ${local.credited.metal} de chatarra para tu perfil online.`:'Esta carrera no acredita materiales. Tu equipo anterior se conserva.';
-  $('result-save-note').textContent='Resultado confirmado por la sala. El progreso online lo gestiona el servicio de partidas.';
+  $('card-text').textContent=settlementText(local);
+  $('result-save-note').textContent=local.settlementState==='confirmed'?'Resultado de la sala y acreditación confirmados por el servicio.':'Resultado confirmado por la sala. La acreditación del perfil online está pendiente.';
   $('results-menu').focus({preventScroll:true});renderDirty=true;updateUi();return true;
 }
 // Menu and race share models and named material slots, so previews match equipment.
@@ -859,12 +866,20 @@ export const game = {
   },
   applyEvent(event) {return networkPresentation?.event(event)??false;},
   applyResult:applyOnlineResult,
+  /** A later race.ended only moves settlementState pending -> confirmed. */
+  applySettlement(result) {
+    const own=result?.participants?.find(item=>item.playerId===onlineResult?.playerId);
+    if(!onlineResult||result.raceId!==networkRace?.start.raceId||own?.settlementState!=='confirmed')return false;
+    onlineResult={...onlineResult,settlementState:'confirmed'};
+    $('card-text').textContent=settlementText(onlineResult);
+    $('result-save-note').textContent='Resultado de la sala y acreditación confirmados por el servicio.';return true;
+  },
   setConnectionState(status) {
     if(!networkRace||networkResultReceived)return;
     networkConnected=status==='racing';if(!networkConnected){keys.clear();networkNote.hidden=false;networkNote.textContent='Se perdió la conexión. Puedes volver al club.';}
     renderDirty=true;
   },
-  exit() { clearNetworkRace();menuActive = true; suspended = false; reset(); },
+  exit() { clearNetworkRace();onlineResult=null;menuActive = true; suspended = false; reset(); },
   suspend(value) { if(networkRace){keys.clear();sendNetworkInput(performance.now(),true,true);return;}suspended = value; frameClock.reset(); audio.update(value?'menu':state); keys.clear(); },
 };
 reset(); requestAnimationFrame(animate);

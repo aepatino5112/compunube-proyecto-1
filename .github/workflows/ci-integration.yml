@@ -21,6 +21,8 @@ on:
       - "apps/web/src/**"
       - "apps/web/dist/net/**"
       - "apps/web/integration/**"
+      - "apps/web/e2e/**"
+      - "apps/web/dist/*.js"
       - "apps/web/server.mjs"
       - ".github/workflows/ci-integration.yml"
   push:
@@ -43,6 +45,8 @@ on:
       - "apps/web/src/**"
       - "apps/web/dist/net/**"
       - "apps/web/integration/**"
+      - "apps/web/e2e/**"
+      - "apps/web/dist/*.js"
       - "apps/web/server.mjs"
       - ".github/workflows/ci-integration.yml"
 
@@ -56,7 +60,7 @@ concurrency:
 jobs:
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -148,13 +152,31 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
 
-      - name: Validate web profile and economy against Go (G57)
+      - name: Validate web profile, economy and realtime against Go (G57/G59)
         working-directory: apps/web
         env:
           COMPUNUBE_GO_URL: http://127.0.0.1:8080
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run test:integration
+
+      - name: Install Playwright browsers (G59)
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Race with two browsers and the Python client against Go (G56/G59)
+        working-directory: apps/web
+        env:
+          COMPUNUBE_GO_URL: http://127.0.0.1:8080
+        run: npm run test:e2e
+
+      - name: Upload browser E2E evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-results
+          path: apps/web/e2e-results
+          if-no-files-found: ignore
 
       - name: End-to-end races with concurrent rooms of four clients (I72)
         env:
