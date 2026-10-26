@@ -342,7 +342,7 @@ Las series sin eventos aún (por RPC, operación, resultado de settlement, pool,
 
 **Logs.** Una línea JSON por RPC, mensaje `rpc completed`, con `service`, `instance_id`, `rpc`, `outcome`, `code`, `error_class` (`none`, `business`, `client`, `server`, `cancelled`) y `latency_ms`. Nivel `info` para éxitos y rechazos de negocio, `warn` para errores de cliente, cancelaciones y fallos de servidor, `error` para `INTERNAL`. No incluye `player_id`, `request_id`, `race_id`, payloads, SQL ni `DATABASE_URL`; el detalle saneado de un `INTERNAL` se registra aparte, sin esos campos.
 
-**Correlación.** No existe hoy un identificador de correlación en `proto/` ni en Go, así que Rust no captura ninguno; añadirlo es una decisión de contrato (E43) que no forma parte de H67.
+**Correlación (H67-Final).** Go acepta o genera `X-Request-ID` y envía el valor seguro como metadata gRPC `x-correlation-id` para los ocho RPC. Rust acepta solo 1–64 caracteres ASCII alfanuméricos, `-` y `_`; un valor ausente o inválido se registra como cadena vacía en `correlation_id` sin reflejar su contenido. El log estructurado `rpc completed` contiene ese campo junto al método, outcome, código y latencia. La metadata no modifica `proto/` ni reemplaza `requestId` de idempotencia; no se usa como label Prometheus.
 
 **Scrape para H68** (Prometheus, red de Compose; los servicios se llaman `player-profile-rust-1` y `-2`):
 
@@ -358,7 +358,7 @@ Las etiquetas `service` e `instance_id` ya vienen en cada serie, así que no hac
 
 ### Pendiente
 
-- Deadlines y correlación propagados por operación: dependen de un identificador de correlación que el contrato aún no define (ver [Observabilidad](#observabilidad-h67)). Las métricas de deduplicación/settlement, pool y health ya se exponen en `/metrics`.
+- Deadlines y correlación propagados por operación: Go transmite el ID por metadata gRPC sin ampliar el contrato protobuf (ver [Observabilidad](#observabilidad-h67)). Las métricas de deduplicación/settlement, pool y health ya se exponen en `/metrics`.
 - Credenciales LOGIN separadas por rol runtime (H62) y TLS hacia PostgreSQL cuando haya un requisito concreto.
 
 ## Límites de D29

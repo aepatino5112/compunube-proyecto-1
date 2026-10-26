@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/config"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/correlation"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/health"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/metrics"
 )
@@ -38,7 +39,7 @@ func New(cfg config.Config, logger *slog.Logger, register RouteRegistrar, regist
 		state:  state,
 		http: &http.Server{
 			Addr:              cfg.HTTPAddr,
-			Handler:           mux,
+			Handler:           correlation.HTTP(logger, mux),
 			ReadHeaderTimeout: 5 * time.Second,
 		},
 	}
