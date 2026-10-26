@@ -41,6 +41,18 @@ func TestParseDefaultsAndOverrides(t *testing.T) {
 	}
 }
 
+func TestParsePublicOrigins(t *testing.T) {
+	cfg, err := Parse(from(map[string]string{"PUBLIC_ORIGINS": "https://10.0.0.5:4173, https://lab.local"}))
+	if err != nil || len(cfg.PublicOrigins) != 2 || cfg.PublicOrigins[0] != "https://10.0.0.5:4173" || cfg.PublicOrigins[1] != "https://lab.local" {
+		t.Fatalf("public origins: %v %v", cfg.PublicOrigins, err)
+	}
+	for _, bad := range []string{"http://10.0.0.5:4173", "https://10.0.0.5:4173/", "https://user@lab", "lab:4173", "https://LAB.local"} {
+		if _, err := Parse(from(map[string]string{"PUBLIC_ORIGINS": bad})); err == nil {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+}
+
 func TestParseRejectsInvalidWithoutLeakingSecrets(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

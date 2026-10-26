@@ -39,6 +39,7 @@ Ninguna serie usa IDs, tokens, mensajes de error o URLs como label. Las métrica
 | `ROOM_COMMAND_QUEUE_CAPACITY` | `32` | Capacidad acotada de comandos por loop; baseline interno E39 configurable |
 | `MAX_ACTIVE_ROOMS` / `MAX_CONNECTIONS` | `5` / `20` | Rechazo de admisión global, sin desalojar admitidos |
 | `ROOM_MAX_COMMANDS_PER_TICK` | `16` | Presupuesto de control entre ticks |
+| `PUBLIC_ORIGINS` | vacío | Orígenes `https://host[:puerto]` de un proxy TLS (cliente web en el laboratorio) aceptados en `Origin` además del directo; [guía HTTPS](../../docs/deployment/https-lab.md) |
 | `ROOM_INPUT_SLOTS` / `ROOM_JUMP_EDGES_PER_PLAYER` | `4` / `4` | Mailbox acotada de carrera |
 | `CONNECTION_INPUT_RATE` / `CONNECTION_INPUT_BURST` | `20` / `4` | Token bucket por WebSocket, antes del loop |
 | `CONNECTION_SNAPSHOT_SLOTS` | `1` | Invariante latest-only; valores distintos se rechazan |
@@ -55,7 +56,7 @@ Compose suministra las direcciones y `DATABASE_URL` por entorno. Estos defaults 
 
 Con `DATABASE_URL`, cada sesión se guarda en `match.sessions` como **hash SHA-256 del token** y `playerId` ([ADR 0005](../../docs/adr/0005-persistent-go-sessions.md)): tras reiniciar Go, un token desconocido para el proceso se resuelve una vez desde PostgreSQL y el jugador conserva su identidad. Si la base no responde al crear, la sesión vale solo en este proceso (log `session_persist_failed`); al buscar, falla cerrada como `401` (log `session_restore_failed`). Sin `DATABASE_URL` las sesiones viven solo en memoria. No hay expiración temporal, cuenta, contraseña, JWT ni llamada a Rust; `ActivePlayer` (conexión y sala) sigue en memoria. El registro conserva hashes de tokens, identifica una conexión por ID generado por Go y permite rebind sin que un cierre tardío desconecte la nueva conexión. `RoomID` es una asociación opcional; `internal/rooms` decide membresía y reglas.
 
-`sessionhttp.Require` pone el `playerId` confirmado en el contexto para handlers. En operaciones mutantes autenticadas solo por cookie exige `Origin` idéntico al origen directo; `AuthenticateUpgrade` aplica esa comprobación también al handshake WebSocket. No se confía en cabeceras forwarded del cliente. Si se añade terminación TLS externa, el proxy deberá preservar esta propiedad de origen. El flag `Secure` se mantiene incluso en desarrollo: el navegador necesita HTTPS o una excepción local para enviar la cookie; clientes de desarrollo pueden usar Bearer.
+`sessionhttp.Require` pone el `playerId` confirmado en el contexto para handlers. En operaciones mutantes autenticadas solo por cookie exige `Origin` idéntico al origen directo; `AuthenticateUpgrade` aplica esa comprobación también al handshake WebSocket. No se confía en cabeceras forwarded del cliente. Con terminación TLS en un proxy (el `server.mjs` del cliente web en el laboratorio), Go ve la petición sin TLS; `PUBLIC_ORIGINS` (lista de orígenes `https://host[:puerto]` exactos) declara qué origen público se acepta además del directo ([guía](../../docs/deployment/https-lab.md)). El flag `Secure` se mantiene incluso en desarrollo: el navegador necesita HTTPS o una excepción local para enviar la cookie; clientes de desarrollo pueden usar Bearer.
 
 ## Runtime por sala (F50)
 
