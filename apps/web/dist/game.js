@@ -288,7 +288,7 @@ function reset() {
   for (const item of lifesavers) { item.collectedBy = null; item.object.visible = true; }
   for (const item of trash) { item.collectedBy = null; item.object.visible = true; }
   $('collection-hud').classList.remove('collected');
-  $('card').hidden = false; $('card-label').textContent = 'UNA CARRERA POR EL AGUA MÁS LIMPIA'; $('card-title').textContent = 'Surfea y recoge.';
+  $('card').hidden = false; $('results-room').hidden = true; $('card-label').textContent = 'UNA CARRERA POR EL AGUA MÁS LIMPIA'; $('card-title').textContent = 'Surfea y recoge.';
   $('card-text').innerHTML = 'Z: red izquierda · X: red derecha.<br>Cada residuo carga tu impulso. Úsalo con Shift.';
   $('start').innerHTML = 'Probar la carrera <span>↗</span>';
   $('race-hud').hidden = true; $('boost').hidden = true; $('countdown').hidden = true; $('toast').hidden = true;
@@ -694,7 +694,7 @@ let onlineResult=null;
 function applyOnlineResult(result) {
   const local=networkPresentation?.result(result);if(!local)return false;onlineResult=local;
   networkResultReceived=true;state='finished';keys.clear();player.boosting=false;player.speed=0;networkNote.hidden=true;
-  $('card').hidden=false;$('countdown').hidden=true;$('start').hidden=true;
+  $('card').hidden=false;$('countdown').hidden=true;$('start').hidden=true;$('results-room').hidden=false;
   $('card-label').textContent=local.outcome==='finished'?`CARRERA CON AMIGOS · ${local.rank}º LUGAR`:'CARRERA CON AMIGOS · FINALIZADA';
   $('card-title').textContent=local.outcome==='finished'?'Una buena ola compartida.':'La próxima ola es tuya.';
   $('card-text').textContent=settlementText(local);

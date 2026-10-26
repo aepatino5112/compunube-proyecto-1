@@ -32,11 +32,14 @@ func TestParseDefaultsAndOverrides(t *testing.T) {
 	if cfg.HTTPAddr != "127.0.0.1:9090" || cfg.PlayerProfileGRPCAddr != "proxy:50051" || cfg.LogLevel != slog.LevelDebug || cfg.ShutdownTimeout != 250*time.Millisecond || cfg.RoomCommandQueueCapacity != 8 {
 		t.Fatalf("unexpected overrides: %+v", cfg)
 	}
-	cfg, err = Parse(from(map[string]string{"MAX_ACTIVE_ROOMS": "7", "MAX_CONNECTIONS": "30", "PROFILE_CONCURRENCY": "2", "SETTLEMENT_QUEUE_CAPACITY": "3", "PROFILE_JOB_TIMEOUT": "400ms"}))
+	if cfg.RoomResultsLobbyDelay != 10*time.Second {
+		t.Fatalf("RF-035 default: %v", cfg.RoomResultsLobbyDelay)
+	}
+	cfg, err = Parse(from(map[string]string{"MAX_ACTIVE_ROOMS": "7", "MAX_CONNECTIONS": "30", "PROFILE_CONCURRENCY": "2", "SETTLEMENT_QUEUE_CAPACITY": "3", "PROFILE_JOB_TIMEOUT": "400ms", "ROOM_RESULTS_LOBBY_DELAY": "3s"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.MaxActiveRooms != 7 || cfg.MaxConnections != 30 || cfg.ProfileConcurrency != 2 || cfg.SettlementQueueCapacity != 3 || cfg.ProfileJobTimeout != 400*time.Millisecond {
+	if cfg.MaxActiveRooms != 7 || cfg.MaxConnections != 30 || cfg.ProfileConcurrency != 2 || cfg.SettlementQueueCapacity != 3 || cfg.ProfileJobTimeout != 400*time.Millisecond || cfg.RoomResultsLobbyDelay != 3*time.Second {
 		t.Fatalf("E39 overrides: %+v", cfg)
 	}
 }
@@ -72,6 +75,7 @@ func TestParseRejectsInvalidWithoutLeakingSecrets(t *testing.T) {
 		{"cb probes", map[string]string{"PLAYER_PROFILE_CB_HALF_OPEN_PROBES": "2"}},
 		{"read retries", map[string]string{"PLAYER_PROFILE_READ_MAX_RETRIES": "-1"}},
 		{"retry cap", map[string]string{"PLAYER_PROFILE_RETRY_CAP": "1ms"}},
+		{"results lobby delay", map[string]string{"ROOM_RESULTS_LOBBY_DELAY": "0s"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Parse(from(tc.values))

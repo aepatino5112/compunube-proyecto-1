@@ -39,6 +39,7 @@ Ninguna serie usa IDs, tokens, mensajes de error o URLs como label. Las métrica
 | `ROOM_COMMAND_QUEUE_CAPACITY` | `32` | Capacidad acotada de comandos por loop; baseline interno E39 configurable |
 | `MAX_ACTIVE_ROOMS` / `MAX_CONNECTIONS` | `5` / `20` | Rechazo de admisión global, sin desalojar admitidos |
 | `ROOM_MAX_COMMANDS_PER_TICK` | `16` | Presupuesto de control entre ticks |
+| `ROOM_RESULTS_LOBBY_DELAY` | `10s` | Espera en `RESULTS` tras el settlement confirmado antes de volver a `LOBBY` (RF-035, ADR 0004) |
 | `PUBLIC_ORIGINS` | vacío | Orígenes `https://host[:puerto]` de un proxy TLS (cliente web en el laboratorio) aceptados en `Origin` además del directo; [guía HTTPS](../../docs/deployment/https-lab.md) |
 | `ROOM_INPUT_SLOTS` / `ROOM_JUMP_EDGES_PER_PLAYER` | `4` / `4` | Mailbox acotada de carrera |
 | `CONNECTION_INPUT_RATE` / `CONNECTION_INPUT_BURST` | `20` / `4` | Token bucket por WebSocket, antes del loop |

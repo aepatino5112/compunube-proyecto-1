@@ -396,9 +396,13 @@ class Window:
     def draw(self, game_view):
         canvas = self.canvas
         canvas.delete("all")
-        if not game_view or not game_view.start or not game_view.snapshot:
-            canvas.create_text(self.CANVAS_W / 2, self.CANVAS_H / 2, fill="white",
-                               text="La carrera aparecerá aquí cuando Go la inicie.")
+        waiting = game_view and game_view.room and game_view.room["state"] in ("LOBBY", "COUNTDOWN")
+        if not game_view or not game_view.start or not game_view.snapshot or waiting:
+            # After the settled result Go returns the room to LOBBY (RF-035).
+            text = ("La sala volvió al lobby: elige qué llevas y pulsa Listo para otra carrera."
+                    if waiting and game_view.result else "La carrera aparecerá aquí cuando Go la inicie.")
+            canvas.create_text(self.CANVAS_W / 2, self.CANVAS_H / 2, fill="white", text=text,
+                               width=self.CANVAS_W - 40, tags="placeholder")
             self.hud.set("")
             return
         shapes = view.race_shapes(game_view.start, game_view.snapshot, game_view.self_player_id,

@@ -161,5 +161,14 @@ def test_window_renders_profile_catalog_room_and_race():
         window.autopilot.set(True)
         window.on_autopilot()
         assert controller.controls.autopilot is True
+
+        # RF-035: back in LOBBY after the settled result, the old race is not drawn.
+        game.view.result = {"participants": [{"playerId": "p_me", "outcome": "finished", "rank": 1,
+                                              "finishTimeMs": 40000, "credited": {"plastic": 1, "metal": 0},
+                                              "settlementState": "confirmed", "reduceChoice": "reusable"}]}
+        game.view.room = {**game.view.room, "state": "LOBBY"}
+        window.refresh()
+        assert window.canvas.find_withtag("placeholder") and not window.canvas.find_withtag("player")
+        assert "volvió al lobby" in window.canvas.itemcget(window.canvas.find_withtag("placeholder")[0], "text")
     finally:
         root.destroy()
