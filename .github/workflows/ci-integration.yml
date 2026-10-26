@@ -158,9 +158,9 @@ jobs:
 
       - name: Install Playwright browsers (G59)
         working-directory: apps/web
-        run: npx playwright install --with-deps chromium firefox
+        run: npx playwright install --with-deps chromium
 
-      - name: Race in Chromium and Firefox against Go (G56/G59)
+      - name: Race with two browsers and the Python client against Go (G56/G59)
         working-directory: apps/web
         env:
           COMPUNUBE_GO_URL: http://127.0.0.1:8080
