@@ -103,11 +103,8 @@ test('two browsers and the Python client share a real Go race from the lobby to 
     await host.page.waitForTimeout(4000);
     await shot(host, info, 'race');
     await shot(guest, info, 'race');
-    // Steering is only an intent; the guest jumps and turns for a while.
-    await guest.page.keyboard.down('ArrowLeft');
-    await guest.page.keyboard.press('Space');
-    await guest.page.waitForTimeout(800);
-    await guest.page.keyboard.up('ArrowLeft');
+    // No key presses here: once the result arrives the card focuses
+    // "Visitar el club", and Space would activate it.
 
     // Authoritative result in both browsers, then the settlement confirmation.
     for (const client of [host, guest]) {
@@ -127,6 +124,7 @@ test('two browsers and the Python client share a real Go race from the lobby to 
     expect(py.output).toContain('Resultado de la carrera');
     expect(py.output).toMatch(/Settlement de tu participación: (confirmed|pending)/);
   } finally {
+    if (python) console.log(`python client output:\n${python.output.slice(-3000)}`);
     python?.stop();
     await host.browser.close();
     await guest.browser.close();
