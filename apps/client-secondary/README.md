@@ -48,7 +48,7 @@ python -m compunube_client play --join <código> --manual     # otro jugador, co
 ## Garantías del cliente
 
 - **Sesión:** Go emite `playerId` y token; el token viaja solo en `Authorization: Bearer`, nunca en la URL ni en mensajes realtime.
-- **Idempotencia:** cada mutación lleva `requestId` y `catalogVersion`. Si el resultado es incierto (`504 MUTATION_OUTCOME_UNKNOWN` o fallo de transporte), el cliente reintenta la **misma** operación con el mismo `requestId`. Si se agotan los reintentos, imprime el `requestId` para repetir la orden con `--request-id` en lugar de crear una operación nueva. Los rechazos definitivos (`4xx`, `503 PROFILE_UNAVAILABLE`) no se reintentan.
+- **Idempotencia:** cada mutación lleva `requestId` y `catalogVersion`. Si el resultado es incierto (`504 MUTATION_OUTCOME_UNKNOWN` o fallo de transporte), el cliente reintenta la **misma** operación con el mismo `requestId`. Si se agotan los reintentos, imprime el `requestId` para repetir la orden con `--request-id` en lugar de crear una operación nueva. Solo los rechazos `4xx` de E45 son definitivos y no se reintentan; un `503 PROFILE_UNAVAILABLE` en una mutación puede llegar después de que Rust la aplicara, así que también se reintenta con el mismo `requestId`.
 - **Secuencias:** `seq` y `jumpSeq` son monotónicas por carrera. Tras una reconexión dentro de la ventana de 15 s, el cliente espera el snapshot completo y continúa por encima de `lastProcessedInputSeq`/`lastProcessedJumpSeq`.
 - **Estado autoritativo:** cada `race.snapshot` completo reemplaza el anterior; ticks atrasados o de otra carrera se ignoran; los eventos se deduplican por `eventId` y solo informan. Un `race.ended` repetido solo actualiza `settlementState`.
 

@@ -95,12 +95,21 @@ def test_exhausted_uncertain_mutation_surfaces_for_a_later_same_id_retry(server)
     assert mutation.body["requestId"] == recorder.requests[0][3]["requestId"] == recorder.requests[1][3]["requestId"]
 
 
-def test_profile_unavailable_is_a_definitive_degraded_error(server):
+def test_profile_unavailable_on_a_mutation_is_retried_with_the_same_request_id(server):
+    recorder, url = server
+    mutation = GoApi.appearance_mutation("dark", "black", "c")
+    recorder.responses += [(503, {"code": "PROFILE_UNAVAILABLE", "message": "down"}),
+                           (200, {"requestId": mutation.request_id, "replayed": True, "profile": profile(3)})]
+    assert GoApi(url, token="t").mutate(mutation, sleep=lambda _: None)["replayed"] is True
+    assert [body for *_, body in recorder.requests] == [mutation.body, mutation.body]
+
+
+def test_profile_unavailable_on_a_read_is_raised_as_degraded(server):
     recorder, url = server
     recorder.responses += [(503, {"code": "PROFILE_UNAVAILABLE", "message": "down"})]
     with pytest.raises(ApiError) as error:
         GoApi(url, token="t").profile()
-    assert error.value.code == "PROFILE_UNAVAILABLE" and not error.value.uncertain
+    assert error.value.code == "PROFILE_UNAVAILABLE" and len(recorder.requests) == 1
 
 
 def test_room_requests_follow_e45(server):

@@ -33,8 +33,10 @@ class ApiError(Exception):
 
     @property
     def uncertain(self) -> bool:
-        # Status 0 marks a transport failure after the request may have been sent.
-        return self.code == UNCERTAIN or self.status == 0
+        # Only E45 4xx answers prove a mutation was not applied. Status 0 is a
+        # transport failure, and Go may answer 503 PROFILE_UNAVAILABLE after the
+        # call already reached Rust, so 5xx keeps the same requestId for a retry.
+        return self.code == UNCERTAIN or self.status == 0 or self.status >= 500
 
 
 @dataclass(frozen=True)
@@ -139,7 +141,7 @@ class GoApi:
                sleep=time.sleep) -> dict:
         """Send a mutation; an uncertain outcome is retried with the same requestId.
 
-        Definitive rejections (4xx, 503) are raised immediately. After the last
+        Definitive rejections (4xx) are raised immediately. After the last
         attempt the uncertain ApiError is raised and the caller can retry the
         same Mutation later; it must not build a new one for the same intent.
         """
