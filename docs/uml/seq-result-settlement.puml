@@ -1,0 +1,36 @@
+@startuml seq-result-settlement
+!include seq-common.iuml
+title D34.5 · Resultado y settlement durable
+participant "Clientes" as C
+participant "Go RoomLoop" as Room
+participant "matchstore\n(async)" as Store
+database "PostgreSQL\nmatch.*" as M
+participant "settlement\ncoordinator" as S
+participant "Go port\n(Circuit Breaker)" as Port
+participant "Envoy → Rust" as R
+database "PostgreSQL\nplayer.*" as P
+
+Room -> Room : todos terminales o 45 s tras la primera meta\n(activos → dnf)
+Room --> C : room.state (RESULTS)
+Room --> C : race.ended {participants[], settlementState: pending}
+Room -> Store : Offer(resultado inmutable)
+Store -> M : una transacción: rooms, races,\nrace_participants, settlement_delivery = pending
+Store -> S : aviso de dato durable
+loop por entrega pendiente
+  S -> M : ClaimDue (lease, intento + 1)
+  S -> Port : SettleRace(raceId, playerId, credited, reduceChoice)
+  Port -> R : gRPC con deadline
+  R -> P : transacción idempotente por (raceId, playerId):\nacreditar materiales solo a finished
+  alt confirmado (o ya acreditado)
+    R --> Port : OK
+    S -> M : Confirm(entrega)
+  else fallo transitorio / Rust caído
+    S -> M : Retry con backoff (sigue pending)
+  else rechazo de negocio
+    S -> M : Fail (registrado)
+  end
+end
+S -> Room : todas las entregas de la carrera confirmadas
+Room --> C : race.ended repetido: solo settlementState = confirmed
+C -> C : recarga el perfil confirmado (GET /v1/profile);\nnunca suma recursos localmente
+@enduml
