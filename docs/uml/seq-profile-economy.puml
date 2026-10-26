@@ -1,0 +1,49 @@
+@startuml seq-profile-economy
+!include seq-common.iuml
+title D34.1 · Sesión, perfil y economía (E45)
+actor Jugador
+participant "Cliente\n(web o Python)" as C
+participant "Go Match Service" as Go
+participant "Envoy" as E
+participant "Rust rust-1 | rust-2" as R
+database "PostgreSQL\nplayer.*" as P
+
+Jugador -> C : abrir perfil online
+C -> Go : GET /v1/sessions/current
+alt sin sesión válida
+  Go --> C : 401 SESSION_REQUIRED
+  C -> Go : POST /v1/sessions
+  Go --> C : 201 {playerId, token}\n+ cookie HttpOnly; SameSite=Strict
+else sesión válida
+  Go --> C : 200 {playerId}
+end
+C -> Go : GET /v1/profile (cookie o Bearer)
+Go -> E : GetProfile(playerId de la sesión) + deadline
+E -> R : réplica sana (round robin)
+R -> P : leer/provisionar perfil
+R --> Go : Profile (revision)
+Go --> C : 200 Profile
+C -> Go : GET /v1/catalog
+Go --> C : 200 Catalog {catalogVersion}
+
+Jugador -> C : comprar / fabricar / canjear / equipar / apariencia
+C -> C : requestId nuevo, ligado al cuerpo exacto
+C -> Go : POST /v1/profile/purchases\n{requestId, catalogVersion, itemId}\n(Origin del mismo sitio si es cookie)
+Go -> E : BuyItem(playerId, requestId, catalogVersion, itemId)
+E -> R
+R -> P : transacción: validar, aplicar,\nguardar resultado por (playerId, requestId)
+alt confirmado
+  R --> Go : resultado
+  Go --> C : 200 {requestId, replayed:false, profile}
+else regla de negocio
+  Go --> C : 422 INSUFFICIENT_COINS / NOT_OWNED / ...\n(sin cambios)
+else plazo vencido tras enviar
+  Go --> C : 504 MUTATION_OUTCOME_UNKNOWN
+  C -> Go : reintento con el MISMO requestId y cuerpo
+  Go -> E : BuyItem(mismo requestId)
+  E -> R
+  R -> P : clave ya resuelta: devolver resultado guardado
+  Go --> C : 200 {replayed:true, profile}
+end
+note over C : El cliente muestra solo saldos confirmados;\nlocalStorage es exclusivo del modo local.
+@enduml

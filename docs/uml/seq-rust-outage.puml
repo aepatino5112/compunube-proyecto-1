@@ -1,0 +1,39 @@
+@startuml seq-rust-outage
+!include seq-common.iuml
+title D34.7 · Caída y recuperación de Rust
+participant "Clientes" as C
+participant "Go\n(sala activa)" as Room
+participant "Go port\n(Circuit Breaker)" as Port
+participant "Envoy" as E
+participant "rust-1" as R1
+participant "rust-2" as R2
+
+== Cae rust-1 ==
+R1 -x E : health check gRPC falla (2 intentos)
+E -> E : saca rust-1 de la rotación
+C -> Port : GET /v1/profile
+Port -> E : GetProfile
+E -> R2 : failover a la réplica sana
+R2 --> C : 200 (vía Go)
+
+== Caen ambas réplicas ==
+R2 -x E : health check falla
+C -> Port : GET /v1/profile
+Port -> E : GetProfile
+E --> Port : sin hosts sanos
+Port -> Port : fallos consecutivos ≥ umbral → Circuit Breaker abierto
+Port --> C : 503 PROFILE_UNAVAILABLE (rechazo rápido)
+Room -> Room : las carreras activas continúan:\nel tick no depende de Rust
+Room -> Room : resultados nuevos quedan\nsettlement_delivery = pending (durable)
+
+== Recuperación ==
+R1 -> E : health check OK
+Port -> Port : tras el periodo abierto, sonda half-open
+Port -> E : GetProfile (sonda)
+E -> R1
+R1 --> Port : OK → Circuit Breaker cerrado
+Port -> E : SettleRace pendientes (mismas claves)
+E -> R1 : acreditación idempotente: sin doble crédito
+Port --> Room : entregas confirmadas
+Room --> C : race.ended (confirmed); el perfil vuelve a responder
+@enduml
