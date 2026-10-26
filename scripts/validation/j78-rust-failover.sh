@@ -41,7 +41,7 @@ set -uo pipefail
 
 cd "$(dirname "$0")/../.." || exit 2
 
-for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD; do
+for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD GRAFANA_ADMIN_PASSWORD; do
   if [ -z "${!key:-}" ]; then
     printf -v "$key" '%s' "$(openssl rand -hex 24)"
     export "$key"

@@ -13,6 +13,9 @@ on:
       - "scripts/validation/j83-profile-economy.py"
       - "scripts/validation/j85-compose-readiness.py"
       - "scripts/validation/h68-prometheus.py"
+      - "scripts/validation/h69-grafana.py"
+      - "scripts/validation/g58-python-client.py"
+      - "apps/client-secondary/**"
       - ".github/workflows/ci-integration.yml"
   push:
     branches: [main]
@@ -26,6 +29,9 @@ on:
       - "scripts/validation/j83-profile-economy.py"
       - "scripts/validation/j85-compose-readiness.py"
       - "scripts/validation/h68-prometheus.py"
+      - "scripts/validation/h69-grafana.py"
+      - "scripts/validation/g58-python-client.py"
+      - "apps/client-secondary/**"
       - ".github/workflows/ci-integration.yml"
 
 permissions:
@@ -44,7 +50,7 @@ jobs:
 
       - name: Prepare environment
         run: |
-          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD; do
+          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD GRAFANA_ADMIN_PASSWORD; do
             value=$(openssl rand -hex 24)
             echo "::add-mask::$value"
             printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
@@ -117,6 +123,14 @@ jobs:
       - name: Validate public profile and economy path (J83)
         run: python3 scripts/validation/j83-profile-economy.py
 
+      - name: Install Python client dependencies (G58)
+        run: python3 -m pip install -r apps/client-secondary/requirements.txt
+
+      - name: Validate the Python client against a real race (G58)
+        env:
+          G58_SKIP_BUILD: "1"
+        run: python3 scripts/validation/g58-python-client.py
+
       - name: Validate gRPC Compose readiness and recovery (J85)
         env:
           J85_SKIP_BUILD: "1"
@@ -126,6 +140,11 @@ jobs:
         env:
           H68_SKIP_BUILD: "1"
         run: python3 scripts/validation/h68-prometheus.py
+
+      - name: Validate provisioned Grafana and operational scenarios (H69)
+        env:
+          H69_SKIP_BUILD: "1"
+        run: python3 scripts/validation/h69-grafana.py
 
       - name: Logs on failure
         if: failure()

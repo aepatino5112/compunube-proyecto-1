@@ -42,6 +42,10 @@ Valida el frontend importado en `apps/web/` con Node.js 24:
 
 Se ejecuta en **todos los Pull Requests** y en pushes a `main` cuando cambia el frontend o su workflow, y permite ejecución manual. Ejecutarlo siempre en PR evita que el estado `web` desaparezca por filtros de rutas y permite usarlo de forma estable en la protección de `main`. Usa permisos de lectura y un timeout de diez minutos. Este check no demuestra partidas con backend real ni reemplaza los checks de Go, Rust, infraestructura o contratos.
 
+### CI Client Secondary — `.github/workflows/ci-client-secondary.yml`
+
+Instala las dependencias fijadas de `apps/client-secondary/requirements-dev.txt`, compila el paquete y ejecuta `pytest` del cliente Python en Ubuntu y Windows. Como CI Web, se publica en todos los PR.
+
 ### CI Go — `.github/workflows/ci-go.yml`
 
 Valida:
@@ -137,6 +141,7 @@ La tarea **H65 · Automatizar calidad para habilitar Fast Deployment** formaliza
 | Go | `gofmt`, `go vet`, `go test ./...`, `go test -race ./...` | `make quality-go` |
 | Rust | `cargo fmt --check`, Clippy con warnings como error, `cargo test --locked` | `make quality-rust` |
 | Cliente web | instalación bloqueada, syntax check y regresiones | `make quality-web` |
+| Cliente Python | dependencias fijadas, compilación y `pytest` (Ubuntu y Windows) | `make quality-client-secondary` |
 | Contratos | compilación de todos los Protobuf | `make quality-contracts` |
 | Infraestructura | validación de Compose y configuración Envoy | `make quality-infra` |
 | Base de datos actual | schemas `match` y `player` verificados en CI Integration | CI Integration |
@@ -146,6 +151,10 @@ El comando `make quality` ejecuta el conjunto local de calidad de Go, Rust, Web,
 E42 añade migraciones versionadas y un smoke de permisos/backup/restauración a `CI Integration`. J84 ejecuta las migraciones y el provisioning de LOGIN con un servicio administrativo one-shot de Compose antes de iniciar Go/Rust; CI comprueba aislamiento real de ambos usuarios y no usa contraseñas runtime fijas. J85 verifica que el healthcheck de Compose consulta gRPC Health `player_profile` y que Docker y Envoy reaccionan a la caída y recuperación de PostgreSQL y del schema.
 
 H68 añade validación de la configuración y reglas Prometheus con `promtool check config` en CI Infrastructure. CI Integration ejecuta [h68-prometheus.py](../scripts/validation/h68-prometheus.py) después de J85: comprueba targets Go, ambas Rust, Envoy y postgres-exporter, consultas y alertas, y caída/recuperación de rust-1 y PostgreSQL en un proyecto Compose aislado.
+
+H69 provisiona desde Git el datasource y el dashboard operacional de Grafana. CI Integration ejecuta [h69-grafana.py](../scripts/validation/h69-grafana.py) después de H68: valida provisioning y consultas, genera tráfico Go/Rust y comprueba indicadores/alertas durante la caída de una y ambas Rust, PostgreSQL y su recuperación.
+
+G58 añade [g58-python-client.py](../scripts/validation/g58-python-client.py) a CI Integration: en un proyecto Compose aislado, dos clientes Python juegan una carrera real contra Go solo con HTTP E45 y WebSocket E43, y se verifican resultado, propiedad única de recogidas, settlement confirmado, perfil acreditado una vez y el replay del CLI con el mismo `requestId`.
 
 Los checks separados de GitHub mantienen errores fáciles de localizar: un fallo de Go, Rust, Web, Contracts o Infrastructure aparece en su job correspondiente. No se reemplazan por un único job monolítico.
 

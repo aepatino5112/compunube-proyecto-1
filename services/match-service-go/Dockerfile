@@ -1,8 +1,8 @@
 FROM golang:1.24-alpine AS build
 
 WORKDIR /src
-COPY services/match-service-go/go.mod ./
-RUN go mod download
+COPY services/match-service-go/go.mod services/match-service-go/go.sum ./
+RUN go mod download && go mod verify
 
 COPY services/match-service-go ./
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/match-service ./cmd/server

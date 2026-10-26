@@ -1,0 +1,9 @@
+skinparam shadowing false
+skinparam defaultFontName DejaVu Sans
+skinparam sequenceMessageAlign left
+skinparam ArrowColor #356D77
+skinparam sequence {
+  ParticipantBackgroundColor #F3F8FA
+  ParticipantBorderColor #286B75
+  LifeLineBorderColor #8FB3B8
+}
