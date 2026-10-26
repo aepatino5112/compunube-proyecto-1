@@ -152,7 +152,7 @@ def test_window_renders_profile_catalog_room_and_race():
         assert window.create_button.instate(["disabled"]) and not window.ready_button.instate(["disabled"])
         assert len(window.canvas.find_withtag("player")) == 4  # two ovals and two labels
         assert window.canvas.find_withtag("obstacle") and window.canvas.find_withtag("plastic")
-        assert "puesto 1" in window.hud.get()
+        assert "puesto 2" in window.hud.get()  # p_other (z=-8) is ahead
 
         window.on_key("left", True)
         window.on_jump()
