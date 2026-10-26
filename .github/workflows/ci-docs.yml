@@ -26,10 +26,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Render every UML source with the pinned PlantUML image
+        working-directory: docs/uml
         run: |
-          docker run --rm -v "$PWD/docs/uml:/work" -w /work \
+          sources=$(ls *.puml)
+          docker run --rm -v "$PWD:/work" -w /work \
             plantuml/plantuml@sha256:9b5071ab56a4192aac458ab4b0d42261c22c8109695894ae5be6013c3be6cac1 \
-            -tsvg *.puml
+            -failfast2 -tsvg $sources
+          for source in $sources; do
+            test -s "${source%.puml}.svg" || { echo "missing SVG for $source"; exit 1; }
+          done
       - name: Upload rendered SVG
         if: always()
         uses: actions/upload-artifact@v4
