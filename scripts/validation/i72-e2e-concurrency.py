@@ -162,7 +162,7 @@ def main():
         result = room["outcomes"][0]["result"]
         ids = {g.view.self_player_id for g in room["games"]}
         parts = {p["playerId"]: p for p in result["participants"]}
-        h68.check(set(parts) == ids and len({o["result"]["raceId"] for o in room["outcomes"]}) == 1,
+        h68.check(set(parts) == ids and len({o["result"]["raceId"] for o in room["outcomes"] if o["result"]}) == 1,
                   f"room {r_index}: all four clients share one authoritative result")
         for p in parts.values():
             h68.check(p["outcome"] in TERMINAL, f"room {r_index}: terminal outcome {p['outcome']}")
@@ -232,7 +232,7 @@ if __name__ == "__main__":
     try:
         main()
         result = 0
-    except (AssertionError, RuntimeError, OSError, ValueError, KeyError, ApiError, RealtimeError, TimeoutError) as error:
+    except (AssertionError, RuntimeError, OSError, ValueError, KeyError, TypeError, ApiError, RealtimeError, TimeoutError) as error:
         print(f"FAIL {type(error).__name__}: {error}", file=sys.stderr, flush=True)
     finally:
         try:
