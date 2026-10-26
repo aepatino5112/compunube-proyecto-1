@@ -4,7 +4,7 @@ Proyecto de Computación en la Nube orientado a un videojuego multijugador educa
 
 ## Arquitectura base
 
-- **Frontend / clientes:** web Surf Club con TypeScript como objetivo de migración gradual desde el JavaScript actual y segunda interfaz en Python ([ADR 0002](docs/adr/0002-client-language-strategy.md)); ambos envían intención a Go y representan estado confirmado.
+- **Clientes:** web Surf Club (Three.js; la integración online está en módulos TypeScript compilados en CI, `apps/web/src/net`) y segunda interfaz **Python** de terminal (`apps/client-secondary`), según [ADR 0002](docs/adr/0002-client-language-strategy.md). Ambos envían solo intenciones a Go por HTTP E45 y WebSocket E43 y presentan el estado confirmado.
 - **Go Match Service:** salas, jugadores activos, simulación autoritativa, red realtime, goroutines/channels y resiliencia.
 - **Rust Player/Profile Service:** perfil persistente, inventario, catálogo, economía, crafting, equipamiento y settlement de carreras.
 - **gRPC + Protobuf:** comunicación interna Go ↔ Rust.
@@ -46,6 +46,13 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [Actores y casos de uso online (C19)](docs/requirements/online-use-cases.md)
 - [UML de casos de uso online (C20)](docs/uml/README.md)
 - [UML de estados de sala y participante (D35)](docs/uml/README.md)
+- [UML de componentes (D32), despliegue (D33) y secuencias críticas (D34)](docs/uml/README.md)
+- [Topología física (D31)](docs/deployment/d31-topology.md) y [auditoría del laboratorio (A05)](docs/deployment/a05-lab-audit.md)
+- [Despliegue, actualización y rollback (H66)](docs/deployment/h66-deploy-procedure.md)
+- [Matriz de trazabilidad y plan de pruebas (I70/C24)](docs/testing/traceability-matrix.md)
+- [Evidencias de validación](docs/evidence/)
+- [Cliente Python (G58)](apps/client-secondary/README.md)
+- [Diagnóstico de problemas frecuentes](docs/operations/troubleshooting.md)
 - [Requisitos funcionales del MVP online (C21)](docs/requirements/functional-requirements.md)
 - [Fast Deployment + Kanban](docs/project-management/fast-deployment-kanban.md)
 - [CI/CD](docs/ci-cd.md)
@@ -65,7 +72,17 @@ cd apps/web
 npm start
 ```
 
-Abrir http://127.0.0.1:4173/. La demo incluye dos mapas y tres rivales de IA. Los adaptadores de salas y perfil siguen sin conectar al backend. Para instalar dependencias y validar el frontend: `npm ci`, `npm run check` y `npm test` desde `apps/web`.
+Abrir http://127.0.0.1:4173/. La demo local incluye dos mapas y tres rivales de IA. Para jugar online contra el stack, arrancar con `COMPUNUBE_GO_URL=http://127.0.0.1:8080 npm start`: `server.mjs` reenvía `/v1` y el WebSocket a Go en el mismo origen y «Con amigos» y «Mi progreso» usan Go → Envoy → Rust → PostgreSQL ([detalles](apps/web/README.md)). Para instalar dependencias y validar el frontend: `npm ci`, `npm run check` y `npm test` desde `apps/web`.
+
+## Cliente Python
+
+```bash
+cd apps/client-secondary
+python -m pip install -r requirements.txt
+python -m compunube_client --server http://127.0.0.1:8080 play --create maracaibo
+```
+
+Ver [apps/client-secondary/README.md](apps/client-secondary/README.md) para perfil, economía, unirse a una sala y controles manuales.
 
 ## Requisitos del stack backend
 
@@ -129,4 +146,4 @@ El proyecto usa **Fast Deployment + Kanban**: ramas cortas, integración frecuen
 
 El ruleset `Protect main` exige Pull Request y los checks `go`, `rust`, `validate`, `contracts` y `web`. Actualmente no exige aprobaciones obligatorias.
 
-El CD hacia las máquinas del laboratorio está planificado pero pendiente; ver [docs/ci-cd.md](docs/ci-cd.md).
+El despliegue se hace con [`scripts/deploy/deploy.sh`](docs/deployment/h66-deploy-procedure.md) (preflight, copia, verificación de versión y rollback), validado en CI Deploy. No hay CD automático al laboratorio y la ejecución en los equipos físicos sigue pendiente de A05; ver [docs/ci-cd.md](docs/ci-cd.md).
