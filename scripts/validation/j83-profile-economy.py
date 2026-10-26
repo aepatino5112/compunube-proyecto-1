@@ -155,6 +155,24 @@ def main():
     check(status == 201 and bool(session.get("playerId")) and bool(session.get("token")),
           "POST /v1/sessions creates a bearer session")
     player, token = session["playerId"], session["token"]
+    correlation_id = "h67-" + uuid4().hex
+    correlated = Request(
+        GO + "/v1/profile", method="GET",
+        headers={"Authorization": f"Bearer {token}", "X-Request-ID": correlation_id},
+    )
+    with urlopen(correlated, timeout=5) as response:
+        check(response.status == 200 and response.headers.get("X-Request-ID") == correlation_id,
+              "Go preserves safe X-Request-ID on public profile response")
+        response.read()
+    def rust_correlated():
+        logs = dc("logs", "--no-color", "--tail", "100",
+                  "player-profile-rust-1", "player-profile-rust-2", quiet=True)
+        return f'"correlation_id":"{correlation_id}"' in logs
+    wait_for("Rust rpc completed log carries public correlation ID", 15, rust_correlated)
+    check(rust_correlated(), "Go -> Envoy -> Rust correlation metadata reaches structured RPC log")
+    go_logs = dc("logs", "--no-color", "--tail", "100", "match-service-go", quiet=True)
+    check(f'"correlation_id":"{correlation_id}"' in go_logs and token not in go_logs,
+          "Go HTTP log carries correlation ID without bearer token")
     # identity.randomID uses unpadded base64url, whose alphabet includes '_'.
     check(bool(re.fullmatch(r"[A-Za-z0-9_-]{1,128}", player)), "server-issued playerId is SQL fixture safe")
     profile = public_profile(token)

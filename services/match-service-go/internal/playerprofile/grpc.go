@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/correlation"
 	pb "github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/playerprofile/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -21,7 +22,7 @@ func NewGRPC(target string) (*Adapter, error) {
 	if target == "" {
 		return nil, &Fault{Kind: Fatal, Code: "INVALID_TARGET"}
 	}
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithUnaryInterceptor(correlation.UnaryClientInterceptor))
 	if err != nil {
 		return nil, &Fault{Kind: Fatal, Code: "INVALID_TARGET"}
 	}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/config"
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/correlation"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/identity"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/inputmailbox"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/metrics"
@@ -203,7 +204,11 @@ func (a *API) realtime(w http.ResponseWriter, r *http.Request) {
 	}
 	defer a.release()
 	u := websocket.Upgrader{Subprotocols: []string{"compunube.realtime.v1"}, CheckOrigin: func(*http.Request) bool { return true }}
-	c, err := u.Upgrade(w, r, nil)
+	responseHeaders := http.Header{}
+	if correlationID := correlation.FromContext(r.Context()); correlationID != "" {
+		responseHeaders.Set(correlation.Header, correlationID)
+	}
+	c, err := u.Upgrade(w, r, responseHeaders)
 	if err != nil {
 		return
 	}

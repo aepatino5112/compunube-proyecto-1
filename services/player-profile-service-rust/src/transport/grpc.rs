@@ -101,7 +101,7 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<GetProfileRequest>,
     ) -> Result<Response<GetProfileResponse>, Status> {
-        let call = self.observer.start(Rpc::GetProfile);
+        let call = self.observer.start(Rpc::GetProfile, &request);
         let command = GetProfileCommand {
             player_id: request.into_inner().player_id,
         };
@@ -120,7 +120,7 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<GetCatalogRequest>,
     ) -> Result<Response<GetCatalogResponse>, Status> {
-        let call = self.observer.start(Rpc::GetCatalog);
+        let call = self.observer.start(Rpc::GetCatalog, &request);
         let command = GetCatalogCommand {
             catalog_version: request.into_inner().catalog_version,
         };
@@ -135,7 +135,7 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<BuyItemRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        let call = self.observer.start(Rpc::BuyItem);
+        let call = self.observer.start(Rpc::BuyItem, &request);
         let result = self.app.buy_item(request.into_inner().into()).await;
         call.finish(RpcResult::from_mutation(&result));
         respond_mutation(result)
@@ -145,7 +145,7 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<CraftItemRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        let call = self.observer.start(Rpc::CraftItem);
+        let call = self.observer.start(Rpc::CraftItem, &request);
         let result = self.app.craft_item(request.into_inner().into()).await;
         call.finish(RpcResult::from_mutation(&result));
         respond_mutation(result)
@@ -155,7 +155,7 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<ExchangeMaterialsRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        let call = self.observer.start(Rpc::ExchangeMaterials);
+        let call = self.observer.start(Rpc::ExchangeMaterials, &request);
         let r = request.into_inner();
         let result = match decode_material(r.material) {
             Ok(material) => {
@@ -178,7 +178,7 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<EquipItemRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        let call = self.observer.start(Rpc::EquipItem);
+        let call = self.observer.start(Rpc::EquipItem, &request);
         let result = self.app.equip_item(request.into_inner().into()).await;
         call.finish(RpcResult::from_mutation(&result));
         respond_mutation(result)
@@ -188,7 +188,7 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<SetAppearanceRequest>,
     ) -> Result<Response<ProfileMutationResponse>, Status> {
-        let call = self.observer.start(Rpc::SetAppearance);
+        let call = self.observer.start(Rpc::SetAppearance, &request);
         let r = request.into_inner();
         let command = SetAppearanceCommand {
             player_id: r.player_id,
@@ -206,7 +206,7 @@ impl PlayerProfileService for PlayerProfileGrpc {
         &self,
         request: Request<SettleRaceRequest>,
     ) -> Result<Response<SettleRaceResponse>, Status> {
-        let call = self.observer.start(Rpc::SettleRace);
+        let call = self.observer.start(Rpc::SettleRace, &request);
         let r = request.into_inner();
         let result = match decode_outcome(r.outcome) {
             Ok(outcome) => {

@@ -8,12 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/correlation"
 	pb "github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/playerprofile/pb"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/roomruntime"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/rooms"
 	"github.com/aepatino5112/compunube-proyecto-1/services/match-service-go/internal/workpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
@@ -121,8 +123,9 @@ func TestRPCErrorClassificationRedactsDetails(t *testing.T) {
 
 type testGRPC struct {
 	pb.UnimplementedPlayerProfileServiceServer
-	settlement *pb.SettleRaceRequest
-	reject     bool
+	settlement  *pb.SettleRaceRequest
+	reject      bool
+	correlation map[string]string
 }
 
 func profilePB(id string) *pb.PlayerProfile {
@@ -162,11 +165,20 @@ func (s *testGRPC) SettleRace(_ context.Context, r *pb.SettleRaceRequest) (*pb.S
 func adapterForTest(t *testing.T, s *testGRPC) *Adapter {
 	t.Helper()
 	listener := bufconn.Listen(1024 * 1024)
-	server := grpc.NewServer()
+	server := grpc.NewServer(grpc.UnaryInterceptor(func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		md, _ := metadata.FromIncomingContext(ctx)
+		if s.correlation == nil {
+			s.correlation = map[string]string{}
+		}
+		if ids := md.Get(correlation.MetadataKey); len(ids) == 1 {
+			s.correlation[info.FullMethod] = ids[0]
+		}
+		return handler(ctx, req)
+	}))
 	pb.RegisterPlayerProfileServiceServer(server, s)
 	go server.Serve(listener)
 	t.Cleanup(server.Stop)
-	conn, err := grpc.DialContext(context.Background(), "bufnet", grpc.WithInsecure(), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }))
+	conn, err := grpc.DialContext(context.Background(), "bufnet", grpc.WithInsecure(), grpc.WithUnaryInterceptor(correlation.UnaryClientInterceptor), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +186,7 @@ func adapterForTest(t *testing.T, s *testGRPC) *Adapter {
 	return &Adapter{client: pb.NewPlayerProfileServiceClient(conn), conn: conn}
 }
 func TestGRPCAdapterMapsEveryRPC(t *testing.T) {
-	ctx := context.Background()
+	ctx := correlation.WithID(context.Background(), "http-ABC_123")
 	server := &testGRPC{}
 	a := adapterForTest(t, server)
 	profile, err := a.GetProfile(ctx, "p")
@@ -209,6 +221,14 @@ func TestGRPCAdapterMapsEveryRPC(t *testing.T) {
 	}
 	if _, err = a.SettleRace(ctx, SettlementCommand{RaceID: "race", PlayerID: "p", Outcome: "dnf", CreditedPlastic: 1}); Kind(err) != Business {
 		t.Fatalf("non-finisher credit accepted: %v", err)
+	}
+	if len(server.correlation) != 8 {
+		t.Fatalf("metadata missing for RPCs: %+v", server.correlation)
+	}
+	for method, id := range server.correlation {
+		if id != "http-ABC_123" {
+			t.Fatalf("%s received %q", method, id)
+		}
 	}
 }
 func TestGRPCUnavailableWithoutRust(t *testing.T) {

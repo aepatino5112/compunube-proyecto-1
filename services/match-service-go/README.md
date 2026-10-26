@@ -1,5 +1,11 @@
 # Go Match Service
 
+## Correlación de logs (H67-Final)
+
+La frontera HTTP acepta `X-Request-ID` si tiene entre 1 y 64 caracteres ASCII `A-Z`, `a-z`, `0-9`, `_` o `-`. Si falta, está repetido o es inválido, Go genera un ID opaco aleatorio de 128 bits. La respuesta devuelve el ID efectivo en `X-Request-ID` sin cambiar el body de E45. Los logs JSON `http request started` y `http request completed` incluyen `correlation_id`, método, y al terminar status y latencia; no registran URL, query, headers, payload, token ni IDs de negocio. El handshake WebSocket usa el mismo ID de la petición, sin crear uno por tick.
+
+El adaptador gRPC envía `x-correlation-id` como metadata en los ocho RPC Player/Profile, usando el ID del contexto HTTP; un trabajo autónomo, como settlement, recibe un ID nuevo por RPC. Rust registra el mismo valor validado en `rpc completed`. Este ID solo enlaza logs: no reemplaza `requestId` de idempotencia ni se usa como label Prometheus. Metadata evita cambios en protobuf.
+
 ## Métricas operativas (J86)
 
 `GET /metrics` expone texto Prometheus en el listener HTTP de Go. Conserva `match_service_up`. H68 puede configurar un target con `metrics_path: /metrics` y la dirección interna de Go en Compose. El scrape lee solo memoria local: no llama a PostgreSQL ni a Rust, no envía comandos al RoomLoop y no altera el Circuit Breaker. Los contadores se reinician al reiniciar el proceso.
