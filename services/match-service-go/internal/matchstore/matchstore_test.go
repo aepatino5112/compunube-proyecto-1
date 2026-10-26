@@ -85,11 +85,24 @@ func TestAsyncKeepsResultUntilDurable(t *testing.T) {
 		t.Fatal("stored wrong result")
 	}
 }
-func TestPostgresRoundTrip(t *testing.T) {
+
+// testDatabaseURL returns the migrated isolated PostgreSQL for this package.
+// With MATCHSTORE_TEST_REQUIRE_DB=1 (CI) a missing database fails the test
+// instead of skipping it, so a skipped DB test can never count as a pass.
+func testDatabaseURL(t *testing.T) string {
+	t.Helper()
 	url := os.Getenv("MATCHSTORE_TEST_DATABASE_URL")
 	if url == "" {
+		if os.Getenv("MATCHSTORE_TEST_REQUIRE_DB") == "1" {
+			t.Fatal("MATCHSTORE_TEST_REQUIRE_DB=1 but MATCHSTORE_TEST_DATABASE_URL is not set")
+		}
 		t.Skip("set MATCHSTORE_TEST_DATABASE_URL for migrated isolated PostgreSQL")
 	}
+	return url
+}
+
+func TestPostgresRoundTrip(t *testing.T) {
+	url := testDatabaseURL(t)
 	ctx := context.Background()
 	store, err := Open(ctx, url, 4)
 	if err != nil {

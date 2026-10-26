@@ -1,0 +1,1001 @@
+{
+  "uid": "compunube-operations",
+  "title": "Compunube Operations",
+  "tags": [
+    "compunube",
+    "operations"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Target health",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "up{job=~\"match-service-go|player-profile-rust|envoy|postgres\"}",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "title": "PostgreSQL available",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "pg_up{job=\"postgres\"} or vector(0)",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Rust replicas unavailable",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "2 - (sum(up{job=\"player-profile-rust\"}) or vector(0))",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Player/Profile unavailable",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "(sum(up{job=\"player-profile-rust\"}) or vector(0)) == bool 0",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Active rooms",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "compunube_match_rooms_active",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Active connections",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "compunube_match_connections_active",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Admission and rejections",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "sum by (kind) (rate(compunube_match_admission_total[5m]))",
+          "refId": "A",
+          "legendFormat": "accepted {{kind}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "sum by (kind) (rate(compunube_match_admission_rejected_total[5m]))",
+          "refId": "B",
+          "legendFormat": "rejected {{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Input drops",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "sum by (reason) (rate(compunube_match_inputs_dropped_total[5m]))",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Input coalescing",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "rate(compunube_match_inputs_coalesced_total[5m])",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Workpool queue depth",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "compunube_match_workpool_queue_depth",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Workpool rejections",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "rate(compunube_match_workpool_rejected_total[5m])",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Circuit breaker state",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "compunube_player_profile_circuit_state",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Circuit fast rejects and read retries",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "rate(compunube_player_profile_fast_rejects_total[5m])",
+          "refId": "A",
+          "legendFormat": "fast rejects"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "rate(compunube_player_profile_read_retries_total[5m])",
+          "refId": "B",
+          "legendFormat": "read retries"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Settlement outcomes",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "sum by (outcome) (rate(compunube_settlement_attempts_total[5m]))",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Rust RPC rate",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "sum by (instance_id,rpc) (rate(player_profile_rpc_requests_total[5m]))",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "title": "Rust RPC errors",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "sum by (instance_id,code) (rate(player_profile_rpc_requests_total{code!=\"OK\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "Rust RPC p95 latency",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 64
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le,instance_id) (rate(player_profile_rpc_duration_seconds_bucket[5m])))",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "title": "Rust readiness",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 64
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "player_profile_health_serving",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "Envoy healthy Rust hosts",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 72
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "sum({__name__=~\"envoy_cluster_.*membership_healthy\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 20,
+      "title": "Envoy upstream 5xx",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 72
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "sum(rate({__name__=~\"envoy_cluster_.*upstream_rq_5xx\"}[5m])) or vector(0)",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "title": "PostgreSQL connections",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 80
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "sum(pg_stat_database_numbackends{job=\"postgres\"})",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "title": "Prometheus operational alerts",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "compunube-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 80
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "compunube-prometheus"
+          },
+          "expr": "ALERTS{alertname=~\"CompunubePostgreSQLDown|CompunubeBothRustDown|CompunubePlayerProfileCircuitOpen|CompunubeTargetDown\",alertstate=\"firing\"}",
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance_id}} {{instance}} {{kind}} {{reason}} {{pool}} {{state}} {{outcome}} {{method}} {{code}} {{alertname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    }
+  ],
+  "annotations": {
+    "list": []
+  }
+}

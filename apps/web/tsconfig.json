@@ -1,0 +1,23 @@
+{
+  // New online integration modules are authored in TypeScript (ADR 0002) and
+  // compiled to dist/net/, which is committed so `npm start` keeps working
+  // without a build. CI rebuilds and fails if dist/net differs from src/net.
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": ".tsbuild/web.tsbuildinfo",
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "newLine": "lf"
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "./tsconfig.contracts.json" }]
+}
