@@ -19,7 +19,7 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 | E-GO | CI Go: Go 1.24, PostgreSQL 17 migrado | `go test ./... && go test -race ./...` (`MATCHSTORE_TEST_*`) |
 | E-RS | CI Rust: Rust 1.99, PostgreSQL 17 migrado | `cargo fmt --check && cargo clippy … && cargo test --locked` (`PLAYER_TEST_*`) |
 | E-WEB | CI Web: Node 24, TypeScript fijado | `npm run build && npm run check && npm test` |
-| E-PY | CI Client Secondary: Python 3.12, Ubuntu y Windows | `python -m pytest -q` |
+| E-PY | CI Client Secondary: Python 3.12, Ubuntu (Xvfb) y Windows, prueba de ventana Tk obligatoria | `python -m pytest -q` |
 | E-CT | CI Contracts | `swagger-cli validate contracts/http/openapi.yaml` + `protoc` |
 | E-INT | CI Integration: `docker compose` en runner Ubuntu (PostgreSQL, migraciones, 2 Rust, Envoy, Go, Prometheus, Grafana) | pasos del workflow y `scripts/validation/*.py`, `npm run test:integration`, `npm run test:e2e` |
 | E-DEP | CI Deploy: runner limpio | `scripts/deploy/deploy.sh` / `rollback.sh` |
@@ -62,7 +62,7 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 | RF-036 compatibilidad de protocolo | Go realtime; clientes | `TestRealtimeHandshakeAndRoomState`; G58 (subprotocolo rechazado); web (`INCOMPATIBLE_VERSION`) | E-GO, E-INT, E-WEB | PASS-CI | #70, #72 |
 | RF-037 `rulesVersion`/`courseVersion` | Go race; web | `TestVersionedCoursesAndWireShape`; `tests/go-realtime-adapter.test.js` con el manifiesto real de Go | E-GO, E-WEB | PASS-CI | #72 |
 | RF-038 `catalogVersion` | Rust; web/Python | `economy_mutations.rs`; adaptador (`INVALID_CATALOG_VERSION`, cuerpo fijo por `requestId`) | E-RS, E-WEB | PASS-CI | #71 |
-| RF-039 web y Python en la misma frontera | clientes | G58; G59 (dos clientes web); E2E dos navegadores + Python en la misma sala | E-INT | PASS-CI | #70, #72 (run 40273539990) |
+| RF-039 web y Python en la misma frontera | clientes | G58 (terminal y ventana Tkinter `g58-python-gui.py`); G59 (dos clientes web); E2E dos navegadores + Python en la misma sala | E-INT, E-PY | PASS-CI | #70, #72 (run 40273539990), #92 (run 40379198875) |
 | RF-040 sin verdad del cliente | Go | `TestStrictBodiesAndErrorMapping`, decodificación estricta E43; los clientes solo envían intenciones | E-GO | PASS-CI | main |
 
 ## Requisitos no funcionales

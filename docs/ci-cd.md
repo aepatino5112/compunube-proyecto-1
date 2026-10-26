@@ -109,7 +109,7 @@ El repositorio público tiene activo el ruleset **Protect main** sobre la defaul
 Actualmente exige:
 
 - cambios hacia `main` mediante Pull Request;
-- **1 aprobación** antes del merge;
+- ninguna aprobación obligatoria (0 revisiones requeridas);
 - branch actualizada antes del merge;
 - checks requeridos:
   - `go`;
@@ -117,10 +117,11 @@ Actualmente exige:
   - `validate`;
   - `contracts`;
   - `web`;
+  - `client-secondary (ubuntu-latest)` y `client-secondary (windows-latest)` (cliente Python, incluida la prueba de la ventana Tkinter);
 - bloqueo de eliminación de `main`;
 - bloqueo de force pushes.
 
-`CI Integration` no es required check global porque usa filtros por rutas y no se ejecuta en todos los PR. Su objetivo es validar el stack completo cuando un cambio puede afectarlo. Los checks Go, Rust, Infrastructure, Contracts y Web constituyen la validación rápida y visible de cada PR.
+`CI Integration` no es required check global porque usa filtros por rutas y no se ejecuta en todos los PR. Su objetivo es validar el stack completo cuando un cambio puede afectarlo. Los checks Go, Rust, Infrastructure, Contracts, Web y Client Secondary constituyen la validación rápida y visible de cada PR.
 
 ## Cobertura de H64 — Fast Deployment
 

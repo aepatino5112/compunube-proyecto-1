@@ -9,7 +9,7 @@ Instalación desde un checkout limpio. Todo funciona sin Internet una vez descar
 | Docker Engine + Compose v2 | runner `ubuntu-latest` | stack completo |
 | Windows 10 | — | WSL2 + Docker Desktop (pendiente de verificar en el laboratorio, A05) |
 | Node.js | 24 | cliente web (`apps/web`) |
-| Python | 3.12 (≥ 3.11) | cliente secundario (`apps/client-secondary`) |
+| Python | 3.12 (≥ 3.11), con Tkinter para la ventana (`python3-tk` en Debian/Ubuntu) | cliente secundario (`apps/client-secondary`) |
 | Go / Rust | 1.24 / 1.99 | solo para desarrollar los servicios fuera de Docker |
 
 ## Variables y puertos
@@ -54,7 +54,7 @@ Clientes:
 ```bash
 (cd apps/web && COMPUNUBE_GO_URL=http://127.0.0.1:8080 npm start)      # http://127.0.0.1:4173
 (cd apps/client-secondary && python -m pip install -r requirements.txt \
-  && python -m compunube_client play --create maracaibo)
+  && python -m compunube_client gui)                                  # o: play --create maracaibo
 ```
 
 Documentación de la API HTTP (Swagger UI, «Try it out» contra Go): `http://127.0.0.1:4173/api-docs/` con el cliente web arrancado como arriba.
