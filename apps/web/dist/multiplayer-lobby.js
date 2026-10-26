@@ -20,13 +20,22 @@ const FRIENDLY_ERRORS = Object.freeze({
   INVALID_ITEM: 'Una pieza de tu equipo aún no está disponible en esta sala. Vuelve al club para cambiarla.',
   INVALID_APPEARANCE: 'No pudimos confirmar tu apariencia. Vuelve al club para cambiarla.',
   TIMEOUT: 'La sala tardó demasiado en responder. Inténtalo de nuevo.',
+  INVALID_STATE: 'Ya perteneces a otra sala o esta no admite el cambio. Recarga la página para recuperarla o sal de ella.',
+  INVALID_READY: 'Elige qué llevas para hidratarte y actualiza tu perfil online antes de estar listo.',
+  PROFILE_STALE: 'Tu perfil online cambió. Actualízalo en Mi progreso y vuelve a marcar Listo.',
+  PROFILE_UNAVAILABLE: 'El perfil online no está disponible ahora. La sala sigue abierta; vuelve a marcar Listo en unos momentos.',
+  ROOM_CLOSED: 'La sala se cerró. Puedes crear otra o entrar con un nuevo código.',
+  SERVICE_UNAVAILABLE: 'El servicio de partidas no está disponible ahora. El modo local sigue disponible.',
+  INTERNAL_ERROR: 'El servicio de partidas tuvo un problema. La sala sigue su curso.',
 });
+const REDUCE_LABELS = Object.freeze({ reusable: 'botella reutilizable', disposable: 'botella desechable' });
+const PARTICIPANT_LABELS = Object.freeze({ reconnecting: 'Reconectando', finished: 'Llegó', disqualified: 'Sin vidas', left: 'Salió', dnf: 'No terminó' });
 
 /**
  * Room UI only. Participants and ready flags always come from client.state;
  * opening this panel never creates local rivals, rewards or an online session.
  */
-export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppearance, getDisplayName, onLocalRace }) {
+export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppearance, getDisplayName, getProfileRevision, onLocalRace }) {
   if (!client || typeof client.subscribe !== 'function') throw new TypeError('A multiplayer client is required.');
   if (document.getElementById('online-lobby')) throw new Error('The multiplayer lobby is already mounted.');
   const dialog = document.createElement('dialog');
@@ -58,9 +67,8 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
           <form class="ol-form" novalidate>
             <fieldset class="ol-fields">
               <legend class="sr-only">Tu entrada al agua</legend>
-              <label for="online-display-name">Tu nombre en la sala <span>OPCIONAL</span></label>
-              <input id="online-display-name" name="displayName" maxlength="24" autocomplete="nickname" placeholder="El nombre de tu surfista" aria-describedby="online-name-hint">
-              <p id="online-name-hint" class="ol-hint">Si lo dejas vacío, usamos el nombre de tu personaje.</p>
+              <input id="online-display-name" name="displayName" type="hidden">
+              <p class="ol-hint">En la sala te verán con el nombre de tu personaje.</p>
               <div class="ol-create-fields">
                 <span class="ol-field-label">Destino de esta sala</span>
                 <div class="ol-destination"><span class="ol-map-mark" aria-hidden="true">≈</span><span><strong class="ol-map-name"></strong><small>El recorrido que elegiste en el club</small></span><span aria-hidden="true">↗</span></div>
@@ -82,6 +90,15 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
           <div class="ol-share"><input id="online-share-code" readonly aria-label="Código para compartir la sala"><button type="button" class="ol-copy">Copiar</button></div>
           <p class="ol-copy-status ol-hint" role="status" aria-live="polite"></p>
           <ul class="ol-members" aria-label="Surfistas en la sala"></ul>
+          <fieldset class="ol-reduce">
+            <legend class="ol-field-label">¿Qué llevas para hidratarte?</legend>
+            <div class="ol-modes" role="group" aria-label="Reducir antes de la carrera">
+              <button type="button" data-ol-reduce="reusable" aria-pressed="false">Botella reutilizable</button>
+              <button type="button" data-ol-reduce="disposable" aria-pressed="false">Botella desechable</button>
+            </div>
+            <p class="ol-hint ol-reduce-note">No cambia la carrera ni da premios. Elige antes de marcar Listo.</p>
+          </fieldset>
+          <p class="ol-result" role="status" aria-live="polite" hidden></p>
           <p class="ol-room-note">Cuando todos estén listos, la sala preparará la salida.</p>
           <button type="button" class="ol-primary ol-ready" aria-pressed="false">Estoy listo <span aria-hidden="true">✓</span></button>
           <button type="button" class="ol-leave">Salir de la sala</button>
@@ -100,7 +117,8 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
   const primary = $('.ol-enter'), readyButton = $('.ol-ready');
   const modeButtons = [...dialog.querySelectorAll('[data-ol-mode]')];
   let state = client.state || { status: 'unconfigured', room: null };
-  let mode = 'create', operation = null, localError = '', readyPending = null, readyTimer = null;
+  let mode = 'create', operation = null, localError = '', readyPending = null, readyTimer = null, reduceChoice = null;
+  const reduceButtons = [...dialog.querySelectorAll('[data-ol-reduce]')];
   let restoreFocus = null, disposed = false, wantsLocalRace = false, confirmExit = false, membersSignature = '';
 
   const currentMap = () => {
@@ -148,8 +166,9 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
         const flag = document.createElement('span');
         flag.className = 'ol-member-status';
         const connected = member.connected !== false;
-        flag.textContent = !connected ? 'Sin conexión' : member.ready ? 'Listo ✓' : 'Preparándose';
-        flag.dataset.state = !connected ? 'offline' : member.ready ? 'ready' : 'waiting';
+        const participant = PARTICIPANT_LABELS[member.participantState];
+        flag.textContent = participant || (!connected ? 'Sin conexión' : member.ready ? 'Listo ✓' : 'Preparándose');
+        flag.dataset.state = member.participantState === 'reconnecting' || !connected ? 'offline' : member.ready ? 'ready' : 'waiting';
         item.append(mark, label, flag);
       } else {
         item.classList.add('ol-member-empty'); mark.textContent = '+';
@@ -169,7 +188,7 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
     if (readyPending && (state.status !== 'room' || state.room?.roomId !== readyPending.roomId || selfMember()?.ready === readyPending.ready)) clearReadyPending();
     const service = $('.ol-service');
     service.dataset.state = state.status;
-    service.querySelector('span').textContent = unavailable ? 'Con amigos · Próximamente' : state.status === 'connecting' ? 'Buscando su próxima ola…' : state.status === 'disconnected' ? 'Conexión interrumpida' : hasRoom && activeRoom ? 'Están en la misma sala' : state.status === 'error' ? 'No pudimos entrar' : 'Listos para encontrarse';
+    service.querySelector('span').textContent = unavailable ? 'Con amigos · Próximamente' : state.status === 'connecting' ? 'Buscando su próxima ola…' : state.status === 'reconnecting' ? 'Reconectando con la sala…' : state.status === 'disconnected' ? 'Conexión interrumpida' : hasRoom && activeRoom ? 'Están en la misma sala' : state.status === 'error' ? 'No pudimos entrar' : 'Listos para encontrarse';
     $('.ol-notice').hidden = !unavailable;
     const error = localError || (state.error ? errorText(state.error) : state.status === 'disconnected' ? hasRoom ? 'Se perdió la conexión. Sal de esta sala para volver a entrar.' : 'Se perdió la conexión. Puedes volver a entrar con el código de la sala.' : '');
     $('.ol-error').hidden = !error;
@@ -202,11 +221,27 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
       const self = selfMember();
       const countdown = state.room.state === 'countdown' || state.room.state === 'running';
       const ended = state.room.state === 'ended';
-      readyButton.disabled = !activeRoom || !self || self.connected === false || state.room.state !== 'waiting' || !!readyPending || pending;
+      const confirmedChoice = self?.reduceChoice || null;
+      if (self?.ready && confirmedChoice) reduceChoice = confirmedChoice;
+      for (const button of reduceButtons) {
+        button.disabled = !activeRoom || state.room.state !== 'waiting' || !!self?.ready || !!readyPending;
+        button.setAttribute('aria-pressed', String(button.dataset.olReduce === reduceChoice));
+      }
+      $('.ol-reduce').hidden = state.room.state === 'ended';
+      $('.ol-reduce-note').textContent = self?.ready && confirmedChoice ? `La sala confirmó tu ${REDUCE_LABELS[confirmedChoice]}.` : 'No cambia la carrera ni da premios. Elige antes de marcar Listo.';
+      const result = state.result;
+      $('.ol-result').hidden = !(ended && result);
+      if (ended && result) {
+        const outcome = result.outcome === 'finished' ? `Llegaste en el puesto ${result.rank}.` : result.outcome === 'disqualified' ? 'Te quedaste sin vidas.' : result.outcome === 'dnf' ? 'No llegaste antes del cierre.' : 'Saliste de la carrera.';
+        const credit = result.outcome === 'finished' ? ` ${result.credited.plastic} de plástico y ${result.credited.metal} de chatarra: ${result.settlementState === 'confirmed' ? 'ya están en tu perfil online.' : 'acreditación pendiente; se confirmará sin duplicarse.'}` : ' Esta carrera no acredita materiales.';
+        const reduce = result.reduceChoice === 'reusable' ? ' Reducir: elegiste una botella reutilizable antes de la carrera.' : result.reduceChoice === 'disposable' ? ' Reducir: esta vez elegiste una botella desechable; prueba una reutilizable en la próxima.' : '';
+        $('.ol-result').textContent = outcome + credit + reduce;
+      }
+      readyButton.disabled = !activeRoom || !self || self.connected === false || state.room.state !== 'waiting' || !!readyPending || pending || (!self.ready && !reduceChoice);
       readyButton.setAttribute('aria-pressed', String(!!self?.ready));
       readyButton.replaceChildren(document.createTextNode(ended ? 'Esta ola terminó' : countdown ? 'Preparando la salida…' : readyPending ? 'Confirmando…' : self?.ready ? 'Listo para salir' : 'Estoy listo'));
       const mark = document.createElement('span'); mark.setAttribute('aria-hidden', 'true'); mark.textContent = self?.ready ? '✓' : '↗'; readyButton.append(mark);
-      $('.ol-room-note').textContent = ended ? 'Esta ola ya terminó. Sal de la sala para preparar otra.' : countdown ? 'Su próxima ola está por comenzar. Espera la salida.' : self?.ready ? 'Todo listo de tu lado. Puedes pulsar otra vez si necesitas esperar.' : 'Cuando todos estén listos, la sala preparará la salida.';
+      $('.ol-room-note').textContent = state.status === 'reconnecting' ? 'Reconectando… la sala te espera durante unos segundos.' : ended ? 'Esta ola ya terminó. Sal de la sala para preparar otra.' : countdown ? 'Su próxima ola está por comenzar. Espera la salida.' : self?.ready ? 'Todo listo de tu lado. Puedes pulsar otra vez si necesitas esperar.' : 'Cuando todos estén listos, la sala preparará la salida.';
     }
   }
 
@@ -289,7 +324,8 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
     readyPending = { ready: !self.ready, roomId: state.room.roomId };
     render();
     try {
-      const accepted = client.setReady(readyPending.ready);
+      // Go verifies this profile revision against Player/Profile before confirming.
+      const accepted = client.setReady(readyPending.ready, { profileRevision: getProfileRevision?.(), reduceChoice });
       if (accepted === false) { clearReadyPending(); if (!state.error) localError = 'No pudimos confirmar que estás listo. Inténtalo de nuevo.'; render(); return; }
       if (readyPending) readyTimer = setTimeout(() => {
         if (disposed) return;
@@ -298,6 +334,10 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
     } catch {
       clearReadyPending(); localError = 'No pudimos confirmar que estás listo. Inténtalo de nuevo.'; render();
     }
+  });
+  for (const button of reduceButtons) button.addEventListener('click', () => {
+    if (button.disabled) return;
+    reduceChoice = button.dataset.olReduce; localError = ''; render();
   });
   $('.ol-copy').addEventListener('click', async () => {
     const value = $('#online-share-code').value;
@@ -324,7 +364,8 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
     const previousError = state.error;
     state = next || client.state;
     if (state.error && state.error !== previousError) clearReadyPending();
-    if (state.status === 'racing') { operation = null; finishClose(); return; }
+    if (state.status === 'racing') { operation = null; reduceChoice = null; finishClose(); return; }
+    if (!state.room) reduceChoice = null;
     render();
   });
   return {

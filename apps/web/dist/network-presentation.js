@@ -13,7 +13,7 @@ export function createNetworkPresentation({race,actors,trash,lifesavers,onEvent=
     for(const source of snapshot.players){
       const actor=byPlayer.get(source.playerId),wasAirborne=actor.jump>0;
       for(const field of fields)actor[field]=source[field];
-      actor.disqualified=source.state==='disqualified'||source.state==='left';
+      actor.disqualified=['disqualified','left','dnf'].includes(source.state);actor.reconnecting=source.state==='reconnecting';
       actor.networkHidden=source.state==='left';actor.finishTime=source.finishTimeSeconds;
       actor.catchTimer=changed&&source.catchTimer!==undefined?source.catchTimer:Math.max(0,(actor.catchTimer||0)-dt);
       actor.landingTimer=changed&&source.landingTimer!==undefined?source.landingTimer:Math.max(0,(actor.landingTimer||0)-dt);
@@ -46,7 +46,8 @@ export function createNetworkPresentation({race,actors,trash,lifesavers,onEvent=
     if(settled||!message||message.raceId!==race.start.raceId||!Array.isArray(message.participants)||message.participants.length!==byPlayer.size)return null;
     const ids=new Set();let totalCollected=0;
     for(const item of message.participants){
-      if(!item||!byPlayer.has(item.playerId)||ids.has(item.playerId)||!['finished','disqualified','left'].includes(item.outcome))return null;
+      if(!item||!byPlayer.has(item.playerId)||ids.has(item.playerId)||!['finished','disqualified','left','dnf'].includes(item.outcome))return null;
+      if(item.settlementState!==undefined&&!['pending','confirmed'].includes(item.settlementState))return null;
       ids.add(item.playerId);
       for(const type of ['plastic','metal'])if(!Number.isSafeInteger(item.collected?.[type])||item.collected[type]<0||item.collected[type]>trash.length||!Number.isSafeInteger(item.credited?.[type])||item.credited[type]<0||item.credited[type]>item.collected[type])return null;
       totalCollected+=item.collected.plastic+item.collected.metal;if(totalCollected>trash.length)return null;

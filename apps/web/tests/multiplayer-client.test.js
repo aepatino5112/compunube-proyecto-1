@@ -39,7 +39,8 @@ test('a race cannot start with different room versions or unconfirmed participan
 });
 
 test('unconfigured default never creates a pretend connection and subscribers receive current state immediately', async () => {
-  assert.equal(backendAdapter, null);
+  // The shipped configuration is the real Go adapter (G59); without one, nothing is faked.
+  for (const method of ['createRoom', 'joinRoom', 'resume']) assert.equal(typeof backendAdapter[method], 'function');
   const client = createMultiplayerClient(), states = [];
   const unsubscribe = client.subscribe(value => states.push(value));
   assert.equal(states.length, 1); assert.equal(states[0].status, 'unconfigured');
@@ -62,8 +63,10 @@ test('adapter confirms room, ready state remains server-authoritative, leave uns
   assert.equal(h.requests[0].request.displayName, 'Nico');
   assert.equal(typeof h.requests[0].request.requestId, 'string');
   assert.ok(h.requests[0].context.signal instanceof AbortSignal);
-  assert.equal(h.client.setReady(true), true);
-  assert.deepEqual(h.sent[0], {type: 'room.ready', protocolVersion: 1, roomId: 'SALA-1', ready: true});
+  assert.equal(h.client.setReady(true), false, 'E43 ready needs the verified profile revision and a Reducir choice');
+  assert.equal(h.client.setReady(true, {profileRevision: 7, reduceChoice: 'plastic'}), false);
+  assert.equal(h.client.setReady(true, {profileRevision: 7, reduceChoice: 'reusable'}), true);
+  assert.deepEqual(h.sent[0], {type: 'room.ready', protocolVersion: 1, roomId: 'SALA-1', ready: true, profileRevision: 7, reduceChoice: 'reusable'});
   assert.equal(h.client.state.room.members[0].ready, false);
   const updated = room(); updated.members[0].ready = true;
   h.emit({type: 'room.state', protocolVersion: 1, selfPlayerId: 'p1', room: updated});
@@ -200,7 +203,7 @@ test('callback rejection and transport failure close safely; disposal cancels an
   asyncBroken.emit({type: 'race.event', protocolVersion: 1, event: {raceId: 'race-1'}});
   await Promise.resolve(); assert.equal(asyncBroken.client.state.error.code, 'CLIENT_CALLBACK');
   const failedSend = harness({send: () => { throw Error('offline'); }});
-  await failedSend.client.createRoom(values); assert.equal(failedSend.client.setReady(true), false);
+  await failedSend.client.createRoom(values); assert.equal(failedSend.client.setReady(true, {profileRevision: 1, reduceChoice: 'disposable'}), false);
   assert.equal(failedSend.client.state.status, 'error'); assert.equal(failedSend.closed, 1);
   let calls = 0;
   const disposed = harness({callbacks: {onStart: () => calls++}});

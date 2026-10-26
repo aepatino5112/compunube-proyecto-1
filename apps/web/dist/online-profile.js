@@ -27,6 +27,7 @@ const MESSAGES = {
   IDEMPOTENCY_CONFLICT: 'Esa operación ya se registró con otros datos. Actualiza el perfil antes de continuar.',
   INVALID_CATALOG_VERSION: 'El catálogo cambió. Actualiza el perfil y vuelve a elegir.',
   PROFILE_UNAVAILABLE: 'El perfil y la economía online no están disponibles ahora. Tu última confirmación se conserva.',
+  SERVICE_UNAVAILABLE: 'El servicio online no está disponible ahora. El modo local sigue funcionando.',
   PROFILE_REQUIRED: 'Carga tu perfil online antes de usarlo.',
   ACTION_PENDING: 'Espera la confirmación de la operación online pendiente.',
   LOAD_FAILED: 'No pudimos cargar el perfil online. Puedes volver a intentarlo.',
@@ -154,7 +155,7 @@ export function createOnlineProfileStore({adapter = null, requestIdFactory = sec
       return true;
     } catch (error) {
       if (disposed || token !== generation) return false;
-      const code = ['PROFILE_UNAVAILABLE', 'SESSION_REQUIRED'].includes(error?.code) ? error.code : 'LOAD_FAILED';
+      const code = ['PROFILE_UNAVAILABLE', 'SERVICE_UNAVAILABLE', 'SESSION_REQUIRED'].includes(error?.code) ? error.code : 'LOAD_FAILED';
       update({status: 'error', error: errorDTO(code, true)});
       return false;
     } finally { if (token === generation) controller = null; }
