@@ -62,8 +62,10 @@ func (s *Server) Serve(ctx context.Context, listener net.Listener) error {
 		return err
 	}
 	errorsCh := make(chan error, 1)
-	go func() { errorsCh <- s.http.Serve(listener) }()
+	// The listener is already bound, so connections wait in its backlog; marking
+	// ready first means no request is ever served while readiness reads false.
 	s.state.MarkReady()
+	go func() { errorsCh <- s.http.Serve(listener) }()
 	s.logger.Info("match service listening", "addr", listener.Addr().String())
 	select {
 	case err := <-errorsCh:
