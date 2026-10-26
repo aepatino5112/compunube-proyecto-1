@@ -100,5 +100,5 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 1. **RF-035** sin disparador contractual para repetir carrera.
 2. **RF-022** sin prueba online específica.
 3. **Navegador Firefox**: en el runner de CI Firefox headless no crea contexto WebGL; el E2E de navegador usa dos procesos Chromium independientes más el cliente Python.
-4. **Sesiones de Go en memoria (F48)**: un reinicio de Go invalida todas las sesiones; el jugador no recupera su perfil online anterior aunque los datos sigan en `player.*` (lo verifica I73).
+4. **Sesiones de Go (F48)**: resuelto por [ADR 0005](../adr/0005-persistent-go-sessions.md); las sesiones sobreviven a un reinicio de Go (I73). Queda abierto definir expiración/revocación.
 5. **Pruebas físicas** (Windows 10, varios equipos, HTTPS para navegadores remotos): BLOQ hasta A05.

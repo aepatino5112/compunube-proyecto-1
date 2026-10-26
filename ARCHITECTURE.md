@@ -147,7 +147,7 @@ Componentes (D32), despliegue (D33) y secuencias críticas (D34) están en [docs
 
 ## Limitaciones conocidas
 
-- **Sesiones en memoria (F48):** `identity.Registry` vive en el proceso Go; reiniciar Go invalida todas las sesiones y el jugador no puede volver a su perfil online anterior, aunque los datos sigan en `player.*`.
+- **Sesiones (F48):** `identity.Registry` guarda en `match.sessions` el hash de cada token ([ADR 0005](docs/adr/0005-persistent-go-sessions.md)); tras reiniciar Go el mismo token sigue identificando al jugador. Si PostgreSQL está caído justo cuando llega un token que el proceso no conoce, Go responde 401 hasta que vuelva.
 - **Repetir carrera (RF-035):** Go implementa `RESULTS → LOBBY` (`rooms.Manager.Repeat`), pero E43/E45 no definen quién lo dispara; hoy la sala permanece en `RESULTS` hasta que salen los miembros.
 - **Resultado pendiente de persistir:** Go reintenta cada segundo guardar el resultado mientras PostgreSQL no está disponible; si Go se reiniciara durante esa caída, el resultado aún no persistido se perdería.
 - **Navegadores remotos:** la cookie de sesión es `Secure`; desde otro equipo, el cliente web necesita HTTPS hasta Go. El cliente Python usa `Bearer` y no está afectado.

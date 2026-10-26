@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -21,13 +22,24 @@ type ActivePlayer struct {
 	RoomID         string
 }
 
-// Registry holds process-lifetime sessions and active-player metadata.
-// Only token hashes are retained; a process restart invalidates every session.
+// SessionStore keeps issued sessions (SHA-256 token hash -> playerId) beyond
+// the process lifetime, in the match schema owned by Go (ADR 0005).
+type SessionStore interface {
+	SaveSession(ctx context.Context, tokenHash []byte, playerID string) error
+	LoadSession(ctx context.Context, tokenHash []byte) (playerID string, found bool, err error)
+}
+
+// Registry holds sessions and active-player metadata. Only token hashes are
+// retained. Without a store a process restart invalidates every session; with
+// one, a token unknown to this process is resolved from the store once.
 type Registry struct {
-	mu       sync.RWMutex
-	sessions map[[sha256.Size]byte]string
-	players  map[string]ActivePlayer
-	now      func() time.Time
+	mu           sync.RWMutex
+	sessions     map[[sha256.Size]byte]string
+	players      map[string]ActivePlayer
+	now          func() time.Time
+	store        SessionStore
+	storeTimeout time.Duration
+	logger       *slog.Logger
 }
 
 func NewRegistry() *Registry {
@@ -36,6 +48,11 @@ func NewRegistry() *Registry {
 		players:  make(map[string]ActivePlayer),
 		now:      time.Now,
 	}
+}
+
+// UseStore enables persistent sessions; call it before serving requests.
+func (r *Registry) UseStore(store SessionStore, timeout time.Duration, logger *slog.Logger) {
+	r.store, r.storeTimeout, r.logger = store, timeout, logger
 }
 
 func (r *Registry) Create(ctx context.Context) (playerID, token string, err error) {
@@ -63,6 +80,7 @@ func (r *Registry) Create(ctx context.Context) (playerID, token string, err erro
 			r.players[id] = ActivePlayer{PlayerID: id}
 			r.sessions[key] = id
 			r.mu.Unlock()
+			r.persist(ctx, key, id)
 			return id, secret, nil
 		}
 		r.mu.Unlock()
@@ -75,12 +93,53 @@ func (r *Registry) Lookup(ctx context.Context, token string) (string, bool) {
 	}
 	key := sha256.Sum256([]byte(token))
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	id, ok := r.sessions[key]
+	r.mu.RUnlock()
 	if ctx.Err() != nil {
 		return "", false
 	}
-	id, ok := r.sessions[key]
-	return id, ok
+	if ok || r.store == nil {
+		return id, ok
+	}
+	return r.restore(ctx, key)
+}
+
+// persist stores a new session. A store failure keeps the session usable in
+// this process (it only would not survive a restart) and is logged.
+func (r *Registry) persist(ctx context.Context, key [sha256.Size]byte, playerID string) {
+	if r.store == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, r.storeTimeout)
+	defer cancel()
+	if err := r.store.SaveSession(ctx, key[:], playerID); err != nil && r.logger != nil {
+		r.logger.Warn("session not persisted; it will not survive a Go restart", "event", "session_persist_failed", "error", err.Error())
+	}
+}
+
+// restore resolves a session issued before this process started. An
+// unavailable store answers like an unknown token, as E45 defines no other
+// outcome for session lookups.
+func (r *Registry) restore(ctx context.Context, key [sha256.Size]byte) (string, bool) {
+	lookupCtx, cancel := context.WithTimeout(ctx, r.storeTimeout)
+	defer cancel()
+	id, found, err := r.store.LoadSession(lookupCtx, key[:])
+	if err != nil {
+		if r.logger != nil {
+			r.logger.Warn("session store unavailable", "event", "session_restore_failed", "error", err.Error())
+		}
+		return "", false
+	}
+	if !found || id == "" {
+		return "", false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sessions[key] = id
+	if _, ok := r.players[id]; !ok {
+		r.players[id] = ActivePlayer{PlayerID: id}
+	}
+	return id, true
 }
 
 // Bind replaces the current connection for the same player. A stale connection
