@@ -32,7 +32,7 @@ El diagrama agrupa UC-01…UC-17 en acceso/perfil, sala/preparación, carrera/co
 
 Los mensajes y estados siguen E43/E45, `proto/player_profile.proto` y el código de `services/match-service-go` (por ejemplo `matchstore.Save`, `ClaimDue`/`Confirm` y `ConfirmSettlement`). `seq-common.iuml` contiene solo el estilo compartido.
 
-**Discrepancia detectada:** D35 muestra `RESULTS → LOBBY` (repetir), y Go implementa `rooms.Manager.Repeat`, pero ningún endpoint HTTP ni mensaje E43 lo invoca: hoy la sala permanece en `RESULTS` hasta que sus miembros salen. Los diagramas D34 describen el comportamiento implementado.
+**`RESULTS → LOBBY` (repetir):** Go la dispara 10 s después de confirmar el settlement, sin mensaje nuevo ([ADR 0004](../adr/0004-results-return-to-lobby.md)); antes no tenía disparador. Los diagramas D34 describen el comportamiento implementado.
 
 ## D33 · Despliegue
 

@@ -148,7 +148,7 @@ Componentes (D32), despliegue (D33) y secuencias críticas (D34) están en [docs
 ## Limitaciones conocidas
 
 - **Sesiones en memoria (F48):** `identity.Registry` vive en el proceso Go; reiniciar Go invalida todas las sesiones y el jugador no puede volver a su perfil online anterior, aunque los datos sigan en `player.*`.
-- **Repetir carrera (RF-035):** Go implementa `RESULTS → LOBBY` (`rooms.Manager.Repeat`), pero E43/E45 no definen quién lo dispara; hoy la sala permanece en `RESULTS` hasta que salen los miembros.
+- **Repetir carrera (RF-035):** la sala vuelve sola de `RESULTS` a `LOBBY` 10 s después del settlement confirmado (`ROOM_RESULTS_LOBBY_DELAY`, [ADR 0004](docs/adr/0004-results-return-to-lobby.md)); con el settlement pendiente se queda en `RESULTS`.
 - **Resultado pendiente de persistir:** Go reintenta cada segundo guardar el resultado mientras PostgreSQL no está disponible; si Go se reiniciara durante esa caída, el resultado aún no persistido se perdería.
 - **Navegadores remotos:** la cookie de sesión es `Secure`; desde otro equipo, el cliente web necesita HTTPS hasta Go. El cliente Python usa `Bearer` y no está afectado.
 

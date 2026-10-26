@@ -40,6 +40,7 @@ type Config struct {
 	PlayerProfileReadMaxRetries     int
 	PlayerProfileRetryBase          time.Duration
 	PlayerProfileRetryCap           time.Duration
+	RoomResultsLobbyDelay           time.Duration
 }
 
 func Load() (Config, error) { return Parse(os.Getenv) }
@@ -60,6 +61,7 @@ func Parse(getenv func(string) string) (Config, error) {
 		ProfileJobTimeout: 750 * time.Millisecond, SettlementJobTimeout: 2 * time.Second,
 		PlayerProfileCBFailureThreshold: 5, PlayerProfileCBOpenDuration: 10 * time.Second, PlayerProfileCBHalfOpenProbes: 1,
 		PlayerProfileReadMaxRetries: 1, PlayerProfileRetryBase: 50 * time.Millisecond, PlayerProfileRetryCap: 200 * time.Millisecond,
+		RoomResultsLobbyDelay: 10 * time.Second,
 	}
 	if err := validateAddress("HTTP_ADDR", c.HTTPAddr); err != nil {
 		return Config{}, err
@@ -131,7 +133,8 @@ func Parse(getenv func(string) string) (Config, error) {
 		name   string
 		target *time.Duration
 	}{{"PROFILE_JOB_TIMEOUT", &c.ProfileJobTimeout}, {"SETTLEMENT_JOB_TIMEOUT", &c.SettlementJobTimeout},
-		{"PLAYER_PROFILE_CB_OPEN_DURATION", &c.PlayerProfileCBOpenDuration}, {"PLAYER_PROFILE_RETRY_BASE", &c.PlayerProfileRetryBase}, {"PLAYER_PROFILE_RETRY_CAP", &c.PlayerProfileRetryCap}} {
+		{"PLAYER_PROFILE_CB_OPEN_DURATION", &c.PlayerProfileCBOpenDuration}, {"PLAYER_PROFILE_RETRY_BASE", &c.PlayerProfileRetryBase}, {"PLAYER_PROFILE_RETRY_CAP", &c.PlayerProfileRetryCap},
+		{"ROOM_RESULTS_LOBBY_DELAY", &c.RoomResultsLobbyDelay}} {
 		if v := getenv(item.name); v != "" {
 			d, err := time.ParseDuration(v)
 			if err != nil || d <= 0 {

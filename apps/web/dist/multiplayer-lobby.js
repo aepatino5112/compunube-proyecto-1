@@ -251,7 +251,7 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
             mark.setAttribute('aria-hidden', 'true');
             mark.textContent = self?.ready ? '✓' : '↗';
             readyButton.append(mark);
-            $('.ol-room-note').textContent = state.status === 'reconnecting' ? 'Reconectando… la sala te espera durante unos segundos.' : ended ? 'Esta ola ya terminó. Sal de la sala para preparar otra.' : countdown ? 'Su próxima ola está por comenzar. Espera la salida.' : self?.ready ? 'Todo listo de tu lado. Puedes pulsar otra vez si necesitas esperar.' : 'Cuando todos estén listos, la sala preparará la salida.';
+            $('.ol-room-note').textContent = state.status === 'reconnecting' ? 'Reconectando… la sala te espera durante unos segundos.' : ended ? 'Esta ola ya terminó. Cuando se confirme la acreditación, la sala volverá a prepararse para otra ola; sal si prefieres terminar aquí.' : countdown ? 'Su próxima ola está por comenzar. Espera la salida.' : self?.ready ? 'Todo listo de tu lado. Puedes pulsar otra vez si necesitas esperar.' : 'Cuando todos estén listos, la sala preparará la salida.';
         }
     }
     function finishClose() {

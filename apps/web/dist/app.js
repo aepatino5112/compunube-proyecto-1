@@ -239,6 +239,12 @@ function leaveRace() {
 game.onFinish = settleLocalRace;
 $('play').addEventListener('click', enterRace);
 $('results-menu').addEventListener('click', leaveRace);
+// RF-035: the room returns to LOBBY after the settled result; staying keeps the
+// membership and reopens the lobby to confirm profile and Reduce again.
+$('results-room').addEventListener('click', () => {
+  game.exit(); $('race').hidden = true; $('menu').hidden = false; document.body.classList.remove('racing'); setPage('home');
+  if (multiplayer.state.status === 'room') lobby.open(); else $('play').focus();
+});
 let cancelDialog = () => {};
 function dialog(title, content, actions = '', onCancel = () => {}) {
   cancelDialog = onCancel; $('dialog-title').textContent = title; $('dialog-content').innerHTML = content; $('dialog-actions').innerHTML = actions; $('info-dialog').showModal();

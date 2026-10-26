@@ -62,7 +62,7 @@ function startPythonClient(roomId) {
   return { done, stop: () => child.kill(), get output() { return output; } };
 }
 
-test('two browsers and the Python client share a real Go race from the lobby to the confirmed result', async ({}, info) => {
+test('two browsers and the Python client share a real Go race from the lobby to the confirmed result and a second race', async ({}, info) => {
   const web = await startWeb();
   const host = await openClub(chromium, web.origin, 'browser-host', info);
   const guest = await openClub(chromium, web.origin, 'browser-guest', info);
@@ -123,6 +123,29 @@ test('two browsers and the Python client share a real Go race from the lobby to 
     expect(py.code, py.output).toBe(0);
     expect(py.output).toContain('Resultado de la carrera');
     expect(py.output).toMatch(/Settlement de tu participación: (confirmed|pending)/);
+
+    // RF-035: once the settlement is confirmed Go returns the room to LOBBY
+    // (10 s later by default) with the same map and members not_ready. Staying
+    // in the room prepares another race with a new Reducir choice.
+    for (const client of [host, guest]) await client.page.click('#results-room');
+    for (const client of [host, guest]) {
+      await expect(client.page.locator('#online-lobby')).toBeVisible();
+      await expect(client.page.locator('#online-share-code')).toHaveValue(roomId);
+      await expect(client.page.locator('#online-lobby [data-ol-reduce="reusable"]')).toBeVisible({ timeout: 60_000 });
+      await expect(client.page.locator('#online-lobby .ol-count')).toHaveText('2 / 4 surfistas');
+      await expect(client.page.locator('#online-lobby .ol-ready')).toBeDisabled();
+    }
+    await shot(host, info, 'lobby-again');
+    await host.page.click('#online-lobby [data-ol-reduce="disposable"]');
+    await guest.page.click('#online-lobby [data-ol-reduce="reusable"]');
+    for (const client of [host, guest]) await client.page.click('#online-lobby .ol-ready');
+    for (const client of [host, guest]) {
+      await expect(client.page.locator('#race')).toBeVisible({ timeout: 30_000 });
+      await expect(client.page.locator('.topbar')).toHaveAttribute('data-race-location', /CON AMIGOS/);
+    }
+    await host.page.waitForTimeout(3000);
+    await shot(host, info, 'second-race');
+    for (const client of [host, guest]) expect(client.errors).toEqual([]);
   } finally {
     if (python) console.log(`python client output:\n${python.output.slice(-3000)}`);
     python?.stop();
