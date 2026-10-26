@@ -12,7 +12,7 @@ Harness: [`scripts/validation/i73-resilience.py`](../../scripts/validation/i73-r
 | `docker kill` rust-1 | El perfil público respondió vía rust-2 en 1,3 s; la carrera siguió |
 | `docker kill` rust-2 | `503 PROFILE_UNAVAILABLE` en 0,8 s; ambos clientes siguieron recibiendo snapshots |
 | Fin de carrera con Rust caído | `race.ended` con `settlementState: pending`; `match.settlement_delivery` = 2 `pending` |
-| `docker compose restart match-service-go` | Las filas siguieron `pending`; los tokens previos dejaron de ser válidos (sesiones en memoria, F48) |
+| `docker compose restart match-service-go` | Las filas siguieron `pending`. En la ejecución original los tokens previos dejaban de ser válidos (sesiones en memoria); desde #94 siguen válidos (ver abajo) |
 | Arranque de rust-1 y rust-2 | Rust sano en 4,5 s; entregas `confirmed` 4,3 s después |
 | Crédito | `player.settlements` 2 filas, 58/27 = crédito de Go; saldos (`player.profiles`) acreditados una sola vez |
 
@@ -26,7 +26,7 @@ Harness: [`scripts/validation/i73-resilience.py`](../../scripts/validation/i73-r
 
 ## Hallazgos y límites
 
-- **Sesiones en memoria (F48):** tras reiniciar Go, el jugador pierde el acceso a su perfil online anterior; los datos permanecen en `player.*`. Decisión de diseño pendiente de revisión.
+- **Sesiones (F48), resuelto en #94 ([ADR 0005](../adr/0005-persistent-go-sessions.md)):** [run 40395099083](https://github.com/aepatino5112/compunube-proyecto-1/actions/runs/40395099083) → tras `docker compose restart match-service-go` las sesiones previas siguen válidas con el mismo `playerId`; `match.sessions` guarda un hash de 32 bytes por jugador (nunca el token); al volver Rust, anfitrión e invitado leen por Go su perfil acreditado con la sesión anterior al reinicio.
 - **Resultado en memoria durante la caída de PostgreSQL:** Go reintenta cada segundo; un reinicio de Go durante esa ventana perdería el resultado. No se forzó.
 - El cliente web cubre la reentrada en su propia integración (G61); esta prueba usa clientes Python.
 - Entorno: runner de GitHub Actions; no es el laboratorio.

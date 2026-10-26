@@ -21,7 +21,7 @@ Requisito de entrega → componente → tarjeta/PR → prueba → evidencia → 
 | UML | casos de uso, estados, componentes, secuencias, despliegue | C20, D35, D32/D34 #75, D33 #81 | CI Docs (render reproducible) | `docs/uml` | Cumplido (D33 con la topología de un host; distribución física pendiente de A05) |
 | Topología física y auditoría de equipos | laboratorio | A05 #80, D31 #81 | — | plantillas | Bloqueado (acceso físico) |
 | Ensayo y release | todo el sistema | I76 | guion completo en laboratorio | — | Bloqueado |
-| Repetir carrera en la misma sala (RF-035) | Go rooms (vuelta a LOBBY tras settlement + 10 s), web «Otra ola con la sala», ventana Python | [ADR 0004](../adr/0004-results-return-to-lobby.md) | `TestResultsReturnToLobbyAfterConfirmedSettlement`; E2E segunda carrera en la misma sala; G58 ventana | CI Go; CI Integration | Cumplido (pendiente run de CI del PR) |
+| Repetir carrera en la misma sala (RF-035) | Go rooms (vuelta a LOBBY tras settlement + 10 s), web «Otra ola con la sala», ventana Python | [ADR 0004](../adr/0004-results-return-to-lobby.md) | `TestResultsReturnToLobbyAfterConfirmedSettlement`; E2E segunda carrera en la misma sala; G58 ventana | CI Go; CI Integration [run 40391173740](https://github.com/aepatino5112/compunube-proyecto-1/actions/runs/40391173740) (PR #93) | Cumplido |
 
 La columna de estado se actualiza al integrar cada PR; Trello conserva el estado operativo de las tarjetas.
 | Pruebas Rust de idempotencia y correlación (I71-R1/R2) | Rust Player/Profile | #86 (cf85c1a), #87 (40975e9) | `economy_mutations.rs`, `grpc_request_log.rs` con PostgreSQL obligatorio | CI Rust de `main` (0 ignoradas) | Cumplido |
