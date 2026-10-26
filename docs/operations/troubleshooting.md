@@ -16,4 +16,4 @@ Síntomas observados durante el desarrollo y la validación, con su causa compro
 | Una prueba de base de datos «pasa» sin ejecutarse | Faltaba la URL de PostgreSQL y la prueba se omitía. | Salida `--- SKIP`. | En CI se usan `PLAYER_TEST_REQUIRE_DB=1` y `MATCHSTORE_TEST_REQUIRE_DB=1`; localmente, exportar `*_TEST_DATABASE_URL`. |
 | `docker run plantuml …` no escribe los SVG en Linux | El contenedor corre con otro usuario. | `Permission denied` al escribir `/work/*.svg`. | Añadir `--user "$(id -u):$(id -g)"` (ver `docs/uml/README.md`). |
 
-Para el servicio Rust, la guía operativa detallada (variables, arranque, salud, recuperación) corresponde a la tarjeta I74-R1 de Ricardo Beltrán.
+Para el servicio Rust (variables, arranque, salud, métricas, diagnóstico de PostgreSQL, migraciones, `NOT_SERVING`, Envoy sin hosts y recuperación), ver el [runbook operativo](../runbooks/rust-player-profile-service.md) (I74-R1, Ricardo Beltrán).

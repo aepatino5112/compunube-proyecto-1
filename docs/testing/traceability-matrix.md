@@ -2,7 +2,7 @@
 
 Conecta cada requisito ([RF](../requirements/functional-requirements.md), [NFR](../requirements/non-functional-requirements.md)) con componente, prueba, comando, entorno, resultado **observado** y evidencia. Trello sigue siendo la fuente operativa de tarjetas; aquí solo se registra qué prueba demuestra qué y con qué resultado real.
 
-**Estado:** actualizada el 26 de octubre de 2026 con `main` en `6e84e9a`. **Leyenda de resultado:**
+**Estado:** actualizada el 26 de octubre de 2026 con `main` en `0cef380`. **Leyenda de resultado:**
 
 - **PASS-CI**: ejecutada en GitHub Actions y aprobada (se cita el PR o la ejecución).
 - **PASS-local**: ejecutada fuera de CI y documentada en `docs/evidence/`.
@@ -57,7 +57,7 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 | RF-031 crédito una sola vez | Go settlement + Rust | `TestSuccessReplayAndGlobalConfirmation`, `economy_settlement.rs`; F54; G58/I72/I73 (`player.settlements` = crédito de Go, perfiles acreditados una vez, también tras caída de Rust/Go/PostgreSQL) | E-GO, E-RS, E-INT | PASS-CI; F54 PASS-local | #70, #77, #78 |
 | RF-032 canje | Rust | `economy_mutations.rs`; G58 (replay del CLI con el mismo `requestId`) | E-RS, E-INT | PASS-CI | #70 |
 | RF-033 fabricación | Rust | `economy_mutations.rs`; G57 (rechazo sin materiales) | E-RS, E-INT | PASS-CI | #71 |
-| RF-034 compra y equipamiento separados | Rust; Go `profilehttp` | `economy_mutations.rs`, `TestStrictBodiesAndErrorMapping`; G57 (`IDEMPOTENCY_CONFLICT`, replay) | E-RS, E-GO, E-INT | PASS-CI | #71 |
+| RF-034 compra y equipamiento separados | Rust; Go `profilehttp` | `economy_mutations.rs` (incluye I71-R1: replay de EquipItem/SetAppearance sin efectos y conflicto de payload sin cambios persistidos en perfil, ledger, propiedad ni ranuras; también CraftItem), `TestStrictBodiesAndErrorMapping`; G57 | E-RS, E-GO, E-INT | PASS-CI | #71, #86 (merge cf85c1a) |
 | RF-035 repetir RESULTS → LOBBY | Go rooms | `rooms.Manager.Repeat` existe pero **ni E43 ni E45 definen el disparador** | — | NO CUBIERTO (decisión de contrato pendiente) | `docs/uml/README.md` |
 | RF-036 compatibilidad de protocolo | Go realtime; clientes | `TestRealtimeHandshakeAndRoomState`; G58 (subprotocolo rechazado); web (`INCOMPATIBLE_VERSION`) | E-GO, E-INT, E-WEB | PASS-CI | #70, #72 |
 | RF-037 `rulesVersion`/`courseVersion` | Go race; web | `TestVersionedCoursesAndWireShape`; `tests/go-realtime-adapter.test.js` con el manifiesto real de Go | E-GO, E-WEB | PASS-CI | #72 |
@@ -82,7 +82,7 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 | NFR-DAT-001 ownership y transacción | J84 (denegación cruzada), E42 smoke, `db_schema.rs` | E-INT, E-RS | PASS-CI | CI Integration de main |
 | NFR-DAT-002 settlement idempotente | `TestSuccessReplayAndGlobalConfirmation`, `economy_settlement.rs`, F54 | E-GO, E-RS | PASS-CI; F54 PASS-local | `docs/evidence/f54-settlement-e2e.md` |
 | NFR-CMP-001 evolución de contratos | CI Contracts; tipos E43 importados por TypeScript (falla la compilación si cambian) | E-CT, E-WEB | PASS-CI | #71 |
-| NFR-OBS-001/002 salud y métricas | `TestHealthReadinessTransitions`, `TestOperationalMetrics`, `grpc_observability.rs`, H67/H68/H69 | E-GO, E-RS, E-INT | PASS-CI | #65, #66, #67 |
+| NFR-OBS-001/002 salud, métricas y correlación | `TestHealthReadinessTransitions`, `TestOperationalMetrics`, `grpc_observability.rs`; I71-R2 `grpc_request_log.rs` (`x-correlation-id` válido registrado, ausente → vacío, inválido/excesivo no reflejado, nunca etiqueta Prometheus); H67/H68/H69 | E-GO, E-RS, E-INT | PASS-CI | #65, #66, #67, #87 (merge 40975e9) |
 | NFR-SEC-001 identidad y confianza | `TestAllRoutesBearerAndCookieMutations`, `TestCookieOriginAndUpgradeSeam`; G57 (`Origin` ajeno → 401); G59 (WebSocket con `Origin` ajeno rechazado) | E-GO, E-INT | PASS-CI | #71, #72 |
 | NFR-SEC-002 configuración y secretos | `TestParseRejectsInvalidWithoutLeakingSecrets`; H62 (Grafana sin `admin` por defecto); H66 preflight (rechaza secreto vacío) | E-GO, E-INT, E-DEP | PASS-CI | #74, #79 |
 | NFR-DEP-001 despliegue y rollback | CI Deploy (A → B con copia → rollback a A); laboratorio | E-DEP, E-LAB | PASS-CI / BLOQ (laboratorio) | #79, `docs/deployment/h66-deploy-procedure.md` |

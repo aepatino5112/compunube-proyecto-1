@@ -24,3 +24,6 @@ Requisito de entrega → componente → tarjeta/PR → prueba → evidencia → 
 | Repetir carrera en la misma sala (RF-035) | Go rooms | — | — | — | No cubierto (falta definir el disparador en E43/E45) |
 
 La columna de estado se actualiza al integrar cada PR; Trello conserva el estado operativo de las tarjetas.
+| Pruebas Rust de idempotencia y correlación (I71-R1/R2) | Rust Player/Profile | #86 (cf85c1a), #87 (40975e9) | `economy_mutations.rs`, `grpc_request_log.rs` con PostgreSQL obligatorio | CI Rust de `main` (0 ignoradas) | Cumplido |
+| Runbook operativo Rust (I74-R1) | documentación | #88 (0cef380) | revisión de variables, puertos y comandos contra el repositorio | `docs/runbooks/rust-player-profile-service.md` | Cumplido |
+
