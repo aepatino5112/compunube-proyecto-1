@@ -70,9 +70,11 @@ test('web profile and economy against real Go, Envoy, Rust and PostgreSQL', asyn
   assert.equal(store.state.profile.equipped.character, 'luna');
   const afterEquip = store.state.profileRevision;
   assert.ok(afterEquip > first.profileRevision);
+  // Rust applies the character's default look when it is equipped.
+  const equippedLook = store.state.profile.appearance;
   assert.equal(await store.transact({ type: 'appearance', field: 'skin', value: 'dark' }), true, JSON.stringify(store.state.error));
   assert.equal(store.state.profile.appearance.skin, 'dark');
-  assert.equal(store.state.profile.appearance.hairColor, first.profile.appearance.hairColor);
+  assert.equal(store.state.profile.appearance.hairColor, equippedLook.hairColor, 'the unchanged option comes from the last confirmed profile');
 
   // Same requestId twice: the adapter resends the same body and Go returns the stored result.
   const requestId = `g57-${Date.now()}`;
