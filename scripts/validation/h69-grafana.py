@@ -98,6 +98,12 @@ def main():
             h68.vector(target["expr"])
     h68.check(True, "all provisioned panel PromQL expressions parse in live Prometheus")
 
+    def panel(title):
+        return sample_sum(panels[title]["targets"][0]["expr"])
+
+    def circuit(state):
+        return h68.scalar(f'compunube_player_profile_circuit_state{{state="{state}"}}')
+
     status, session = go("POST", "/v1/sessions")
     h68.check(status == 201, "public Go session created for dashboard traffic")
     token = session["token"]
@@ -119,10 +125,18 @@ def main():
         h68.run("docker", "update", "--restart=no", container, timeout=15)
     h68.run("docker", "kill", rust1, timeout=15)
     h68.wait_for("one Rust down indicator", 60, lambda: rust_up() == 1)
+    h68.wait_for("dashboard shows one Rust replica down and one Envoy host", 60,
+                 lambda: panel("Rust replicas unavailable") == 1 and
+                 panel("Envoy healthy Rust hosts") == 1)
+    status, _ = go("GET", "/v1/profile", token)
+    h68.check(status == 200, "public profile served by rust-2 through Envoy while rust-1 is down")
     h68.check(h68.rust_health().get("rust-2") == 1,
               "rust-2 remains SERVING while one Rust target is down")
     h68.run("docker", "kill", rust2, timeout=15)
     h68.wait_for("both Rust down indicator", 60, lambda: rust_up() == 0)
+    h68.wait_for("dashboard shows both Rust replicas down and Player/Profile unavailable", 30,
+                 lambda: panel("Rust replicas unavailable") == 2 and
+                 panel("Player/Profile unavailable") == 1)
     for _ in range(12):
         go("GET", "/v1/profile", token)
     h68.wait_for("Go Circuit Breaker opens", 20,
@@ -133,10 +147,23 @@ def main():
     h68.dc("start", "player-profile-rust-1", "player-profile-rust-2", timeout=90)
     h68.wait_for("both Rust targets and health recover", 90,
                  lambda: rust_up() == 2 and h68.rust_health() == {"rust-1": 1, "rust-2": 1})
+    h68.wait_for("public profile succeeds after Circuit Breaker half-open probe", 60,
+                 lambda: go("GET", "/v1/profile", token)[0] == 200)
+    h68.wait_for("Go Circuit Breaker closes after recovery", 30,
+                 lambda: circuit("closed") == 1 and circuit("open") == 0)
+    h68.check(True, "Go Circuit Breaker recovered to closed")
+    h68.wait_for("dashboard shows both Rust replicas and Envoy hosts restored", 60,
+                 lambda: panel("Rust replicas unavailable") == 0 and
+                 panel("Player/Profile unavailable") == 0 and
+                 panel("Envoy healthy Rust hosts") == 2)
+    h68.wait_for("both Rust down alert resolves", 35,
+                 lambda: not h68.alert_firing("CompunubeBothRustDown"))
 
     h68.dc("stop", "postgres", timeout=60)
     h68.wait_for("PostgreSQL down indicator", 90,
                  lambda: h68.scalar('pg_up{job="postgres"}') == 0)
+    h68.wait_for("dashboard PostgreSQL panel shows unavailable", 30,
+                 lambda: panel("PostgreSQL available") == 0)
     h68.wait_for("PostgreSQL alert firing", 75,
                  lambda: h68.alert_firing("CompunubePostgreSQLDown"))
     h68.check(h68.targets().get(("match-service-go", "match-service-go:8080")) == "up",
