@@ -4,7 +4,7 @@
 import { createGoBackend } from './net/backend.js';
 
 const backend = createGoBackend();
-// Rooms and realtime are connected by G59; until then "Con amigos" stays offline.
-export const backendAdapter = null;
+// Rooms over E45 and the E43 WebSocket, with reentry; see FRONT_ADAPTER.md.
+export const backendAdapter = backend.backendAdapter;
 // Same authenticated session as the room adapter; see PROFILE_ADAPTER.md.
 export const profileAdapter = backend.profileAdapter;

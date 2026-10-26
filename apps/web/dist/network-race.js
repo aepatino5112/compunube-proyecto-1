@@ -112,7 +112,7 @@ function player(value, ids, seen, index, totalTrash) {
   const playerId = uniqueId(value.playerId, seen, `${path}.playerId`);
   if (!ids.has(playerId)) fail(`${path}.playerId: participante desconocido.`);
   const clean = {
-    playerId, state: choice(value.state, ['racing', 'finished', 'disqualified', 'left'], `${path}.state`),
+    playerId, state: choice(value.state, ['racing', 'reconnecting', 'finished', 'disqualified', 'left', 'dnf'], `${path}.state`),
     x: number(value.x, `${path}.x`, -COURSE_WIDTH, COURSE_WIDTH), z: number(value.z, `${path}.z`, -COURSE_LENGTH, 50),
     speed: number(value.speed, `${path}.speed`, 0), turn: number(value.turn, `${path}.turn`, -1, 1),
     netSide: choice(value.netSide, [-1, 1], `${path}.netSide`), netAngle: number(value.netAngle, `${path}.netAngle`, 0, NET_LEFT_ANGLE),
@@ -205,7 +205,8 @@ export function createNetworkRace({ start: rawStart, selfPlayerId, now = () => p
         const a = from.snapshot.players[index], b = to.snapshot.players[index];
         // Confirmed terminal actors must already be at their final transform,
         // rather than showing a finished racer airborne or behind the gate.
-        if (b.state !== 'racing') continue;
+        // Go keeps moving a reconnecting participant with a neutral intent.
+        if (b.state !== 'racing' && b.state !== 'reconnecting') continue;
         for (const field of CONTINUOUS) output.players[index][field] = a[field] + (b[field] - a[field]) * alpha;
       }
       return output;

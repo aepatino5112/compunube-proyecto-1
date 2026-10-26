@@ -276,10 +276,14 @@ const multiplayer=createMultiplayerClient({adapter:backendAdapter,callbacks:{
   onResult(result){if(!game.applyResult(result))throw new Error('Resultado incompatible');},
   onConnection:status=>game.setConnectionState(status),
   onProfile:data=>onlineProfiles.accept(data),
+  // Go republishes race.ended once Rust confirmed the credit: show it and read
+  // the confirmed profile instead of adding anything locally.
+  onSettlement(result){game.applySettlement(result);if(onlineProfiles.state.status==='ready')void onlineProfiles.load();},
 }});
 const roomProfile=()=>profileAdapter?onlineProfiles.state.profile:offlineProfile;
 const lobby=mountMultiplayerLobby({client:multiplayer,getEquipment:()=>({...roomProfile()?.equipped}),getAppearance:()=>({...roomProfile()?.appearance}),
-  getDisplayName:()=>findItem(roomProfile()?.equipped.character)?.name||'Surfista',getMap:()=>selectedMap,onLocalRace:enterRace});
+  getDisplayName:()=>findItem(roomProfile()?.equipped.character)?.name||'Surfista',getMap:()=>selectedMap,onLocalRace:enterRace,
+  getProfileRevision:()=>onlineProfiles.state.profileRevision});
 const profilePanel=mountProfilePanel({store:onlineProfiles,getMode:()=>progressMode,setMode:setProgressMode});
 $('profile-open').addEventListener('click',()=>profilePanel.open());
 $('profile-operation-open').addEventListener('click',()=>profilePanel.open());
