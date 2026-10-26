@@ -23,31 +23,34 @@ El flujo y los límites WIP oficiales están en `docs/project-management/fast-de
 
 ## Ownership
 
+El equipo activo está formado por Ángel Patiño y Ricardo Beltrán. Ralph Antar y Santiago Rivera ya no forman parte del equipo activo; su trabajo integrado (por ejemplo, la base de `apps/web/` del PR #7) se conserva como historial, pero no se les asigna trabajo nuevo.
+
 ### Ángel Patiño
 
 - `services/match-service-go/`
-- networking/realtime;
-- PostgreSQL;
+- networking/realtime, HTTP público y WebSocket;
+- PostgreSQL (contexto `match`, migraciones y topología);
 - `infra/`;
-- Docker/Compose;
+- Docker/Compose y despliegue;
 - CI/CD;
-- observabilidad.
+- observabilidad;
+- `apps/web/`: integración del cliente web con Go y TypeScript;
+- `apps/client-secondary/`: cliente Python;
+- pruebas Go, PostgreSQL, contratos y E2E;
+- documentación general y coordinación del laboratorio.
 
 ### Ricardo Beltrán
 
 - `services/player-profile-service-rust/`
-- perfil/economía/inventario;
+- perfil, catálogo, inventario, economía, crafting, equipamiento y apariencia;
 - settlement;
-- persistencia Rust del contexto `player`.
+- persistencia Rust del contexto `player`;
+- pruebas Rust;
+- runbook operativo del servicio Rust.
 
-### Ralph Antar y Santiago Rivera
+### Compartido
 
-- `apps/web/`
-- `apps/client-secondary/`
-- frontend/UX;
-- Game Design;
-- assets e identidad visual;
-- adaptación del prototipo al modo online.
+- Contratos Go ↔ Rust en `proto/`: Ángel + Ricardo.
 
 ## Reglas arquitectónicas
 
