@@ -23,25 +23,43 @@ func near(t *testing.T, got, want float64) {
 		t.Fatalf("got %.12f, want %.12f", got, want)
 	}
 }
+// surf-mvp-1 is a released version: its manifests stay embedded byte for byte
+// (apps/web/tools/generate-course-manifests.mjs --check surf-mvp-1 900).
+func TestReleasedSurfMvp1ManifestsStayUnchanged(t *testing.T) {
+	for _, mapID := range []string{"maracaibo", "orinoco"} {
+		data, err := courseFiles.ReadFile("courses/" + mapID + "-surf-mvp-1.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var c CourseManifest
+		if err := json.Unmarshal(data, &c); err != nil {
+			t.Fatal(err)
+		}
+		if c.CourseVersion != mapID+"-surf-mvp-1" || c.LengthUnits != 900 || len(c.Obstacles) != 54 || len(c.Trash) != 103 || len(c.Lifesavers) != 10 || c.Trash[102].Z != -856.7 {
+			t.Fatalf("released manifest %s changed", mapID)
+		}
+	}
+}
+
 func TestVersionedCoursesAndWireShape(t *testing.T) {
 	for _, mapID := range []string{"maracaibo", "orinoco"} {
 		c, err := LoadCourse(mapID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if c.CourseVersion != mapID+"-surf-mvp-1" || len(c.Obstacles) != 54 || len(c.Trash) != 103 || len(c.Lifesavers) != 10 || len(c.StartSlotsX) != 4 || c.StartSlotsX[0] != -9 || c.StartSlotsX[3] != 9 {
+		if c.CourseVersion != mapID+"-surf-mvp-2" || c.LengthUnits != 1800 || len(c.Obstacles) != 113 || len(c.Trash) != 211 || len(c.Lifesavers) != 21 || len(c.StartSlotsX) != 4 || c.StartSlotsX[0] != -9 || c.StartSlotsX[3] != 9 {
 			t.Fatalf("course %s: %+v", mapID, c)
 		}
-		if c.Obstacles[0].ItemID != "o-001" || c.Trash[0].ItemID != "t-001" || c.Lifesavers[0].ItemID != "l-001" || c.Trash[0].X != 5.2 || c.Trash[0].Z != -6 || c.Trash[102].Z != -856.7 {
+		if c.Obstacles[0].ItemID != "o-001" || c.Trash[0].ItemID != "t-001" || c.Lifesavers[0].ItemID != "l-001" || c.Trash[0].X != 5.2 || c.Trash[0].Z != -6 || c.Trash[210].Z > -1753 || c.Trash[210].Z < -1754 {
 			t.Fatalf("course anchors changed: %s", mapID)
 		}
 		if mapID == "maracaibo" {
-			near(t, c.Obstacles[0].X, -6.138649136759341)
+			near(t, c.Obstacles[0].X, -12.71764969965443)
 			if c.Lifesavers[0].X != 3 {
 				t.Fatal("Maracaibo life anchor")
 			}
 		} else {
-			near(t, c.Obstacles[0].X, -6.831817462574691)
+			near(t, c.Obstacles[0].X, -11.824650708585978)
 			if c.Lifesavers[0].X != -3 {
 				t.Fatal("Orinoco life anchor")
 			}
@@ -67,7 +85,7 @@ func TestVersionedCoursesAndWireShape(t *testing.T) {
 				t.Fatal("unknown material")
 			}
 		}
-		if metal != 34 || plastic != 69 {
+		if metal != 70 || plastic != 141 {
 			t.Fatalf("material distribution %s: %d %d", mapID, metal, plastic)
 		}
 		for _, o := range c.Lifesavers {
@@ -98,7 +116,7 @@ func TestVersionedCoursesAndWireShape(t *testing.T) {
 			t.Fatalf("snapshot missing %s: %s", field, data)
 		}
 	}
-	if len(s.Trash) != 103 || len(s.Lifesavers) != 10 || len(s.Pursuits) != 2 {
+	if len(s.Trash) != 211 || len(s.Lifesavers) != 21 || len(s.Pursuits) != 2 {
 		t.Fatal("incomplete snapshot")
 	}
 }
@@ -260,7 +278,7 @@ func TestReentryFinishDeadlineRankingAndImmutableResult(t *testing.T) {
 	a.CollectedPlastic = 2
 	a.CollectedMetal = 1
 	b.CollectedPlastic = 9
-	a.Z = -899.99
+	a.Z = -r.Course.LengthUnits + .01
 	r.Disconnect("a", r.StartedAt)
 	if a.State != "reconnecting" || a.Input.Boost {
 		t.Fatal("disconnect not neutral")
@@ -319,7 +337,7 @@ func TestSimultaneousFinishRanksByPlayerID(t *testing.T) {
 	r.Course.Lifesavers = nil
 	r.Lifesavers = nil
 	for _, p := range r.Participants {
-		p.Z = -899.99
+		p.Z = -r.Course.LengthUnits + .01
 	}
 	_, _, result := r.Advance(r.StartedAt.Add(50*time.Millisecond), nil)
 	if result == nil || len(result.Participants) != 2 || result.Participants[0].PlayerID != "a" || *result.Participants[0].Rank != 1 || result.Participants[1].PlayerID != "b" || *result.Participants[1].Rank != 2 {
@@ -334,8 +352,8 @@ func TestFinishTimePrecedesPlayerID(t *testing.T) {
 	r.Trash = nil
 	r.Course.Lifesavers = nil
 	r.Lifesavers = nil
-	r.Participants["b"].Z = -899.99
-	r.Participants["a"].Z = -899.7
+	r.Participants["b"].Z = -r.Course.LengthUnits + .01
+	r.Participants["a"].Z = -r.Course.LengthUnits + .3
 	r.Advance(r.StartedAt.Add(50*time.Millisecond), nil)
 	if r.Participants["b"].State != "finished" || r.Participants["a"].State == "finished" {
 		t.Fatal("first finisher setup failed")

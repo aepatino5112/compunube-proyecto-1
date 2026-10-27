@@ -4,9 +4,9 @@
 
 ## Curso, salida y movimiento
 
-| Sistema | Regla `surf-mvp-1` |
+| Sistema | Regla `surf-mvp-2` |
 | --- | --- |
-| Curso | Meta a **900** unidades de progreso (`Z ≤ −900`); X lógico limitado a **[−15, +15]**. Los manifiestos separados de Maracaibo y Orinoco conservan **54 obstáculos, 103 residuos y 10 salvavidas cada uno**. Cada objeto tiene identidad, tipo y posición del curso versionado; no se genera a partir de datos que declare el cliente. |
+| Curso | Meta a **1800** unidades de progreso (`Z ≤ −1800`); X lógico limitado a **[−15, +15]**. Los manifiestos separados de Maracaibo y Orinoco conservan **113 obstáculos, 211 residuos y 21 salvavidas cada uno**, con la misma separación entre objetos que `surf-mvp-1` (900 unidades; 54, 103 y 10). Cada objeto tiene identidad, tipo y posición del curso versionado; no se genera a partir de datos que declare el cliente. |
 | Salida | Los humanos comienzan en **Z = 0** y velocidad, energía y salto iniciales iguales. Cada manifiesto incluye cuatro slots X no solapados; para la versión inicial son **−9, −3, +3 y +9**. Go asigna los slots disponibles por orden determinista de `playerId`. Nadie obtiene adelanto longitudinal. Cuenta atrás común y autoritativa de **3 s**; el tiempo de carrera empieza al terminarla. |
 | Dirección | Go valida `steer` en **[−1, +1]**. El giro lógico se aproxima al valor pedido con factor exponencial `1 − e^(−8·dt)`; `X ← clamp(X + giro·10·dt, −15, +15)`. El cliente no envía posición ni velocidad. |
 | Velocidad | Crucero objetivo **16,4 unidades/s** para todos. La velocidad se aproxima al objetivo con factor `1 − e^(−3·dt)` y `Z` disminuye en `velocidad·dt`. No hay variación por IA, personaje, equipo, slot ni elección de Reducir. |
@@ -17,7 +17,7 @@
 
 ## Contacto, vidas y pulpo
 
-| Sistema | Regla `surf-mvp-1` |
+| Sistema | Regla `surf-mvp-2` |
 | --- | --- |
 | Obstáculos | Hay contacto lógico si `|Zobj−Zjug| < radioObstáculo + 0,70` y `|Xobj−Xjug| < radioObstáculo + 0,45`, con altura de salto **< 0,75** y sin protección. Un golpe válido quita **1 vida**, multiplica de inmediato la velocidad por **0,45** y durante **1,15 s** apunta al **50 %** de la velocidad objetivo. |
 | Vidas y protección | Inicio y máximo: **3 vidas**. Cada golpe válido concede **2,6 s** de protección contra otro daño, incluido el pulpo. A 0 vidas el participante queda `disqualified` y deja de actuar. |
@@ -31,7 +31,7 @@ Go resuelve en cada paso las intenciones válidas, movimiento y salto, contactos
 
 ## Meta, continuidad y cierre
 
-- La meta se cruza por primera vez cuando Go confirma **progreso ≥ 900 / Z ≤ −900**. Go registra el **tiempo autoritativo del primer tick de cruce**, marca `finished`, detiene entradas de ese participante y deja correr a los demás. La cantidad de residuos no altera el tiempo ni el puesto.
+- La meta se cruza por primera vez cuando Go confirma **progreso ≥ 1800 / Z ≤ −1800**. Go registra el **tiempo autoritativo del primer tick de cruce**, marca `finished`, detiene entradas de ese participante y deja correr a los demás. La cantidad de residuos no altera el tiempo ni el puesto.
 - Una pérdida de foco libera controles sin pausar la sala. Una **desconexión accidental durante carrera** permite **15 s** de reentrada con entrada neutral y simulación en marcha; la misma identidad/sesión recupera estado completo. Si vence, el participante queda `left`. La salida voluntaria lo deja `left` de inmediato.
 - El **primer `finished`** inicia un plazo global de **45 s**. La carrera cierra cuando todos están terminales o vence ese plazo, lo que ocurra primero. Al vencer, quienes siguen activos o reconectando quedan **DNF**. Si todos terminan sin que nadie llegue a meta, cierra por terminalidad sin inventar un plazo desde una llegada inexistente.
 - Go mantiene resultado y recogidas confirmadas por participante. **Solo `finished`** obtiene exactamente el plástico y metal recogidos que Go confirmó, sin bonus por puesto. `disqualified`, `left` y DNF reciben **0** materiales de esa carrera. Las recogidas de todos permanecen retiradas y cuentan para el objetivo compartido de [B15](water-objective.md). Go coordina el settlement único con Rust por `(raceId, playerId)`; la interfaz no acredita `finish` ni saldos.
@@ -44,6 +44,6 @@ El **puesto competitivo numérico** pertenece exclusivamente a los `finished`: o
 
 ## Versionado y límites de implementación
 
-El identificador documental inicial del conjunto de reglas es **`surf-mvp-1`**. Cambiar `rulesVersion` cuando cambie simulación, elegibilidad, daño, adjudicación de objetos, ranking, fin global o recompensas; no cambiarlo por arte, cámara, efectos o texto. Cambiar `courseVersion` del mapa correspondiente cuando cambie su manifiesto: posiciones/identidades/tipos de obstáculos, residuos o salvavidas, meta o slots de salida. Maracaibo y Orinoco mantienen manifiestos/versiones separados, fijados junto con las reglas para cada carrera. [B09](multiplayer-decisions.md) exige rechazar incompatibilidad; **E43** definirá la representación contractual exacta de esas versiones.
+El conjunto de reglas vigente es **`surf-mvp-2`**. Solo cambia el curso respecto al inicial `surf-mvp-1`: la meta pasa de 900 a 1800 unidades (una carrera limpia, sin impulso, de unos 55 s a unos 1:50 min) con la misma separación entre obstáculos, residuos y salvavidas, de modo que el botín por minuto no cambia. Los manifiestos `surf-mvp-1` se conservan sin cambios como versión publicada. Cambiar `rulesVersion` cuando cambie simulación, elegibilidad, daño, adjudicación de objetos, ranking, fin global o recompensas; no cambiarlo por arte, cámara, efectos o texto. Cambiar `courseVersion` del mapa correspondiente cuando cambie su manifiesto: posiciones/identidades/tipos de obstáculos, residuos o salvavidas, meta o slots de salida. Maracaibo y Orinoco mantienen manifiestos/versiones separados, fijados junto con las reglas para cada carrera. [B09](multiplayer-decisions.md) exige rechazar incompatibilidad; **E43** definirá la representación contractual exacta de esas versiones.
 
 **B17** formalizará estados y transiciones de sala/participante; **D28** definirá runtime, tick y publicación; **E43** definirá DTO, transporte y frecuencia de snapshots. Este documento no implementa Go, Rust, frontend o contratos ni agrega recompensas, estadísticas educativas o sistemas ambientales. Las fuentes históricas de cálculo son [maps.js](../../apps/web/dist/maps.js), [mechanics.js](../../apps/web/dist/mechanics.js), [survival.js](../../apps/web/dist/survival.js), [collection.js](../../apps/web/dist/collection.js) y [game.js](../../apps/web/dist/game.js); la [guía de integración](../../apps/web/docs/backend/README.md) y el [adaptador](../../apps/web/docs/backend/FRONT_ADAPTER.md) no son contratos definitivos.

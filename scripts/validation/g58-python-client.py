@@ -50,7 +50,7 @@ def play(game, reduce_choice, outcome, errors):
         game.wait_for(lambda m: m is not None and m["type"] == "room.state"
                       and len(m["room"]["members"]) == 2, 20)
         game.ready(reduce_choice)
-        outcome["result"] = game.race(timeout=150)
+        outcome["result"] = game.race(timeout=300)
         outcome["final"] = game.view.snapshot
         outcome["settlement"] = game.wait_settlement(60)
     except Exception as error:  # reported by the main thread

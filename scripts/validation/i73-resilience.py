@@ -85,7 +85,7 @@ class Racer:
             self.game.wait_for(lambda m: m is not None and m["type"] == "room.state"
                                and len(m["room"]["members"]) == 2, 30)
             self.game.ready(choice)
-            self.result = self.game.race(timeout=240)
+            self.result = self.game.race(timeout=300)
             self.game.wait_settlement(3)
         except Exception as error:  # reported by the main thread
             self.error = f"{type(error).__name__}: {error}"

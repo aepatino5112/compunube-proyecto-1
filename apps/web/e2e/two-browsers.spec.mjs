@@ -108,7 +108,7 @@ test('two browsers and the Python client share a real Go race from the lobby to 
 
     // Authoritative result in both browsers, then the settlement confirmation.
     for (const client of [host, guest]) {
-      await expect(client.page.locator('#card-label')).toContainText('CARRERA CON AMIGOS', { timeout: 240_000 });
+      await expect(client.page.locator('#card-label')).toContainText('CARRERA CON AMIGOS', { timeout: 300_000 });
     }
     for (const client of [host, guest]) {
       const text = await client.page.locator('#card-text').textContent();

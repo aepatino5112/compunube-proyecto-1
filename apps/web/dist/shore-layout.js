@@ -19,7 +19,7 @@ export function createShoreLayout(islands,bounds) {
       sx,sy:1.55+variation(i*7)*.25,sz:1.20,rx:8.3*sx,rz:22*1.20};
   });
   // Continue the scenery past the finish so the horizon keeps its composition.
-  // These banks belong only to the backdrop, outside the 900 m race course.
+  // These banks belong only to the backdrop, outside the race course.
   const backdrop=[];
   for(const side of [-1,1]){
     const last=banks.filter(bank=>bank.side===side).at(-1);if(!last)continue;

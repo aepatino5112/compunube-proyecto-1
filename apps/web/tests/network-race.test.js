@@ -20,12 +20,12 @@ test('network race sanitizes immutable start, honors manifest positions and orde
 test('incompatible courses, duplicate IDs, missing self and unavailable appearance fail before rendering', () => {
   const cases = [
     raw => { raw.protocolVersion = 2; }, raw => { raw.course.mapId = 'caroni'; },
-    raw => { raw.course.lateralLimitMeters = 18; }, raw => { raw.course.lengthMeters = 1000; },
+    raw => { raw.course.lateralLimitMeters = 18; }, raw => { raw.course.lengthMeters = 900; },
     raw => { raw.course.trash.pop(); }, raw => { raw.course.obstacles[0].id = raw.course.trash[0].id; },
     raw => { raw.members[1].playerId = 'rival'; }, raw => { raw.members.pop(); },
     raw => { raw.members[1].equipment.board = 'inexistente'; }, raw => { raw.members[1].appearance.skin = 'purple'; },
     raw => { raw.course.obstacles[0].x = NaN; }, raw => { raw.members[1].ready = 'yes'; },
-    raw => { raw.course.trash[0].x = 1e200; }, raw => { raw.course.obstacles[0].z = -901; },
+    raw => { raw.course.trash[0].x = 1e200; }, raw => { raw.course.obstacles[0].z = -1801; },
     raw => { raw.course.lifesavers[0].z = 51; },
     raw => { delete raw.course.trash[0]; }, raw => { delete raw.members[0]; },
   ];

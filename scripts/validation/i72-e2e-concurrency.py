@@ -94,7 +94,7 @@ def play(game, choice, leave_after, outcome, errors):
             except (TimeoutError, RealtimeError):
                 outcome["result"] = None
             return
-        outcome["result"] = game.race(timeout=180, leave_after=leave_after)
+        outcome["result"] = game.race(timeout=300, leave_after=leave_after)
         outcome["final"] = game.view.snapshot
         outcome["settlement"] = game.wait_settlement(90)
     except Exception as error:  # reported by the main thread

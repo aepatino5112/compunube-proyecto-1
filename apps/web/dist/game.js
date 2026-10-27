@@ -92,13 +92,17 @@ for(const environment of Object.values(environments))markShadowReceivers(environ
 let activeMap=MAPS[0],environment=environments[activeMap.id];
 environments.orinoco.root.visible=false;
 
-const buoyKit=createBuoyKit(THREE,scene,white);
+// Every obstacle gets foam; two of every three are rocks and the third a buoy,
+// which shares the kit with the lane markers placed every 35 m on both sides.
+const OBSTACLE_CAPACITY=Math.max(...MAPS.map(map=>createCourse(map.id).obstacles.length));
+const LANE_BUOYS=2*Math.ceil((LENGTH+38)/35);
+const buoyKit=createBuoyKit(THREE,scene,white,LANE_BUOYS+Math.ceil(OBSTACLE_CAPACITY/3)+1);
 const buoy=(x,z,color,size=1)=>buoyKit.add(x,z,color,size);
 for (let z = 8; z > -LENGTH - 30; z -= 35) { buoy(-20, z, 0xff8c6d, .72); buoy(20, z, 0xff8c6d, .72); }
 
 const obstacles = [];
-const obstacleFoam=createContactFoam(THREE,scene,54);
-const obstacleRocks=createRockKit(THREE,scene,rockAssets,36);
+const obstacleFoam=createContactFoam(THREE,scene,OBSTACLE_CAPACITY);
+const obstacleRocks=createRockKit(THREE,scene,rockAssets,OBSTACLE_CAPACITY-Math.ceil(OBSTACLE_CAPACITY/3));
 for (let i = 0; i < 54; i++) {
   const {x,z,rotation}=initialCourse.obstacles[i];
   if (i % 3) {
