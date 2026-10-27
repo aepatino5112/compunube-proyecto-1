@@ -14,6 +14,30 @@ REDUCE_LABELS = {"reusable": "botella reutilizable", "disposable": "botella dese
 OUTCOME_LABELS = {"finished": "llegó", "disqualified": "sin vidas", "left": "salió", "dnf": "no terminó"}
 STATE_LABELS = {"LOBBY": "En el lobby", "COUNTDOWN": "Cuenta atrás", "RACING": "En carrera",
                 "RESULTS": "Resultados", "CLOSED": "Cerrada"}
+PARTICIPANT_LABELS = {"not_ready": "aún no está listo", "ready": "listo", "racing": "en carrera",
+                      "reconnecting": "reconectando", "finished": "llegó", "disqualified": "sin vidas",
+                      "left": "salió", "dnf": "no terminó"}
+MAP_LABELS = {"maracaibo": "Lago de Maracaibo", "orinoco": "Río Orinoco"}
+MATERIAL_LABELS = {"plastic": "Plástico", "metal": "Chatarra"}
+ITEM_TYPE_LABELS = {"character": "Personaje", "board": "Tabla", "outfit": "Ropa", "net": "Red", "hair": "Peinado"}
+# E45 error codes in words a player understands; the code itself is kept next to it.
+ERROR_TEXTS = {
+    "TRANSPORT_ERROR": "No hay conexión con el servidor del juego",
+    "SESSION_REQUIRED": "La sesión ya no es válida; vuelve a abrir el cliente",
+    "PROFILE_UNAVAILABLE": "El perfil online no está disponible ahora; inténtalo en unos segundos",
+    "SERVICE_UNAVAILABLE": "El servicio no está disponible ahora; inténtalo en unos segundos",
+    "INSUFFICIENT_COINS": "No te alcanzan las monedas",
+    "INSUFFICIENT_MATERIALS": "Te faltan materiales",
+    "ALREADY_OWNED": "Ya tienes ese objeto",
+    "NOT_OWNED": "Todavía no tienes ese objeto",
+    "INVALID_CATALOG_VERSION": "El catálogo cambió; vuelve a abrir el cliente",
+    "INCOMPATIBLE_VERSION": "Esta versión del cliente no es compatible con el servidor",
+    "ROOM_NOT_FOUND": "No hay ninguna sala con ese código",
+    "ROOM_FULL": "La sala está llena",
+    "INVALID_STATE": "Esa acción no está disponible en este momento",
+    "INVALID_ITEM": "Ese objeto no está en el catálogo",
+    "INVALID_ACTION": "Ese objeto no admite esa acción",
+}
 PLAYER_COLORS = ("#ef795e", "#4e97b3", "#e66f8b", "#8cb440")
 LATERAL_LIMIT = 15.0     # E43 surf-mvp-1 lateralLimitUnits
 VIEW_AHEAD = 60.0        # course units shown ahead of the own surfer
@@ -29,10 +53,19 @@ def member_name(member: dict) -> str:
     return f"{character or 'Surfista'} ({member.get('playerId', '')[:6]})"
 
 
+def error_text(status: int, code: str, server: str = "") -> str:
+    """Readable message for an E45 error, keeping the status and code for diagnosis."""
+    if code == "TRANSPORT_ERROR":
+        where = f" en {server}" if server else ""
+        return f"{ERROR_TEXTS[code]}{where}. ¿Está levantado el juego (docker compose up)? (sin respuesta de Go)"
+    return f"{ERROR_TEXTS.get(code, 'No se pudo completar la operación')} (Go respondió {status} {code})"
+
+
 def room_lines(room: dict | None, self_id: str | None) -> list[str]:
     if not room:
         return []
-    lines = [f"Sala {room['roomId']} · {room['mapId']} · {STATE_LABELS.get(room['state'], room['state'])} "
+    lines = [f"Sala {room['roomId']} · {MAP_LABELS.get(room['mapId'], room['mapId'])} · "
+             f"{STATE_LABELS.get(room['state'], room['state'])} "
              f"· {len(room['members'])}/{room.get('capacity', 4)}"]
     for member in room["members"]:
         tags = []
@@ -43,22 +76,40 @@ def room_lines(room: dict | None, self_id: str | None) -> list[str]:
         if member.get("reduceChoice"):
             tags.append(REDUCE_LABELS.get(member["reduceChoice"], member["reduceChoice"]))
         state = "listo" if member.get("ready") and member.get("participantState") in (None, "ready") \
-            else member.get("participantState", "")
+            else PARTICIPANT_LABELS.get(member.get("participantState", ""), member.get("participantState", ""))
         lines.append(f"  • {member_name(member)}: {state}" + (f"  [{', '.join(tags)}]" if tags else ""))
     return lines
 
 
-def profile_lines(profile: dict | None) -> list[str]:
+def profile_stats(profile: dict | None) -> dict[str, str]:
+    """Balance tiles: coins, plastic and metal as confirmed by Rust through Go."""
     if not profile:
-        return ["Perfil online sin cargar."]
+        return {"coins": "—", "plastic": "—", "metal": "—"}
+    return {key: str(profile[key]) for key in ("coins", "plastic", "metal")}
+
+
+def equipment_line(profile: dict | None, catalog: dict | None = None) -> str:
+    if not profile:
+        return "Perfil online sin cargar."
+    names = {item["itemId"]: item["name"] for item in (catalog or {}).get("items", [])}
     equipment = profile["equipment"]
-    return [f"Monedas {profile['coins']} · Plástico {profile['plastic']} · Chatarra {profile['metal']}",
-            f"Personaje {CHARACTER_NAMES.get(equipment['characterId'], equipment['characterId'])} · "
-            f"tabla {equipment['boardId']} · red {equipment['netId']} · revisión {profile['profileRevision']}"]
+    character = CHARACTER_NAMES.get(equipment["characterId"], names.get(equipment["characterId"],
+                                                                        equipment["characterId"]))
+    return (f"{character} · tabla {names.get(equipment['boardId'], equipment['boardId'])} · "
+            f"red {names.get(equipment['netId'], equipment['netId'])} · revisión {profile['profileRevision']}")
 
 
-def catalog_rows(catalog: dict | None, profile: dict | None) -> list[tuple[str, str]]:
-    """(itemId, label) rows; the price/recipe shown is the catalog's, Rust decides."""
+@dataclass(frozen=True)
+class CatalogRow:
+    item_id: str
+    kind: str          # item type in Spanish
+    name: str
+    status: str
+    state: str         # equipped | owned | available | locked
+
+
+def catalog_rows(catalog: dict | None, profile: dict | None) -> list[CatalogRow]:
+    """One row per catalog item; the price/recipe shown is the catalog's, Rust decides."""
     if not catalog:
         return []
     owned = set((profile or {}).get("ownedItemIds", []))
@@ -66,16 +117,17 @@ def catalog_rows(catalog: dict | None, profile: dict | None) -> list[tuple[str, 
     rows = []
     for item in catalog["items"]:
         if item["itemId"] in equipped:
-            status = "equipado"
+            status, state = "Equipado", "equipped"
         elif item["itemId"] in owned:
-            status = "en tu equipo"
+            status, state = "En tu equipo", "owned"
         elif item["purchasable"]:
-            status = f"{item['priceCoins']} monedas"
+            status, state = f"{item['priceCoins']} monedas", "available"
         elif item["craftable"]:
-            status = f"{item['recipePlastic']} plástico + {item['recipeMetal']} chatarra"
+            status, state = f"{item['recipePlastic']} plástico + {item['recipeMetal']} chatarra", "available"
         else:
-            status = "no disponible"
-        rows.append((item["itemId"], f"{item['itemType']:<9} {item['name']} — {status}"))
+            status, state = "No disponible", "locked"
+        rows.append(CatalogRow(item["itemId"], ITEM_TYPE_LABELS.get(item["itemType"], item["itemType"]),
+                               item["name"], status, state))
     return rows
 
 
@@ -165,6 +217,7 @@ def hud_text(snapshot: dict | None, self_id: str | None, length: float = 900.0) 
         return "Observando la carrera."
     progress = max(0.0, min(length, -me["z"]))
     position = 1 + sum(1 for p in snapshot["players"] if p["playerId"] != self_id and p["z"] < me["z"])
-    return (f"Tiempo {snapshot['elapsedMs'] / 1000:.1f} s · {progress:.0f}/{length:.0f} m · puesto {position} · "
+    return (f"Tiempo {snapshot['elapsedMs'] / 1000:.1f} s · {progress:.0f}/{length:.0f} m · puesto {position}\n"
             f"vidas {me['lives']} · impulso {me['energy'] * 100:.0f}% · "
-            f"recogidos {me['collectedPlastic']} plástico + {me['collectedMetal']} chatarra · {me['participantState']}")
+            f"recogidos {me['collectedPlastic']} plástico + {me['collectedMetal']} chatarra · "
+            f"{PARTICIPANT_LABELS.get(me['participantState'], me['participantState'])}")

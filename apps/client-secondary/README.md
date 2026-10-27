@@ -1,4 +1,4 @@
-# Cliente secundario (Python)
+# Cliente secundario (Python) · Surf Club: Acción por las Aguas
 
 Segunda interfaz requerida por la asignatura ([ADR 0002](../../docs/adr/0002-client-language-strategy.md), tarjeta G58). Tiene dos interfaces, una **ventana gráfica** (Tkinter) y una de **terminal**, y ambas usan **solo** la frontera pública de Go:
 
@@ -17,7 +17,18 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-La única dependencia de ejecución es `websockets==15.0.1` (fijada en `requirements.txt`); `requirements-dev.txt` añade `pytest==8.3.5`. La ventana gráfica usa Tkinter, de la biblioteca estándar: viene con el instalador de python.org en Windows; en Debian/Ubuntu se instala con `sudo apt install python3-tk`.
+La única dependencia de ejecución es `websockets==15.0.1` (fijada en `requirements.txt`); `requirements-dev.txt` añade `pytest==8.3.5`. La ventana gráfica usa Tkinter, de la biblioteca estándar: viene con el instalador de python.org en Windows.
+
+En **Debian/Ubuntu (también WSL)** el comando es `python3`, Tkinter y `venv` van aparte y `pip` no instala fuera de un entorno virtual (PEP 668):
+
+```sh
+sudo apt install -y python3-tk python3-venv
+python3 -m venv .venv
+. .venv/bin/activate              # dentro del entorno, `python` ya existe
+python -m pip install -r requirements.txt
+```
+
+En WSL la ventana se abre en Windows a través de WSLg (Windows 11). El stack debe estar levantado (`docker compose up -d --wait`); si no, la barra inferior de la ventana lo indica.
 
 ## Ventana gráfica
 
@@ -25,11 +36,13 @@ La única dependencia de ejecución es `websockets==15.0.1` (fijada en `requirem
 python -m compunube_client --server http://127.0.0.1:8080 gui
 ```
 
-Una sola ventana con:
+Una sola ventana con la marca del juego (misma paleta que la web, [`theme.py`](compunube_client/theme.py)) y:
 
-- **Perfil online:** monedas, plástico, chatarra, equipo y revisión confirmados por Rust a través de Go.
-- **Catálogo:** los 22 objetos con su precio o receta del catálogo activo y si ya son tuyos o están equipados; botones *Comprar*, *Fabricar*, *Equipar* y *Cambiar por monedas*. Cada acción lleva `requestId` y `catalogVersion`; si el resultado es incierto, repetir la misma acción reenvía el **mismo** `requestId`.
-- **Sala multijugador:** elegir mapa y *Crear sala* (el código aparece para compartirlo) o *Entrar con código*; responder «¿Qué llevas para hidratarte?» (Reducir) y pulsar *Listo*; la lista de miembros sale de `room.state`.
+- **Tu perfil:** monedas, plástico y chatarra en grande, más equipo y revisión, confirmados por Rust a través de Go.
+- **Pestaña «Jugar con amigos»** y **pestaña «El club»** (ver abajo), para que todo quepa en pantallas de 720 px de alto.
+- **Barra de estado:** verde si algo se confirmó, roja si falló. Los errores se explican en palabras («No te alcanzan las monedas») y conservan el código de Go entre paréntesis para diagnosticar.
+- **El club (catálogo):** tabla con los 22 objetos con su precio o receta del catálogo activo y si ya son tuyos o están equipados; botones *Comprar*, *Fabricar*, *Equipar* y *Cambiar por monedas*. Cada acción lleva `requestId` y `catalogVersion`; si el resultado es incierto, repetir la misma acción reenvía el **mismo** `requestId`.
+- **Jugar con amigos:** elegir destino y *Crear sala* (el código aparece y se copia con *Copiar código*) o escribir un código y *Entrar*; responder «¿Qué llevas para hidratarte?» (Reducir) y pulsar *Estoy listo*; la lista de miembros sale de `room.state`.
 - **Carrera:** vista cenital dibujada con el último `race.snapshot` y el manifiesto de `race.start` (surfistas, obstáculos, residuos sin recoger, salvavidas y meta), más tiempo, distancia, puesto, vidas, impulso y recogidos. Teclas: ←/→ o A/D girar, Espacio saltar, ↑/W impulso, Z/X lado de la red; o *Piloto automático*.
 - **Resultado:** puesto, tiempo y crédito de cada participante, y acreditación pendiente → confirmada; al confirmarse se recarga el perfil.
 

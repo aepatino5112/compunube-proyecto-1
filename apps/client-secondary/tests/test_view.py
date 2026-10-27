@@ -32,9 +32,9 @@ def test_room_lines_mark_self_disconnection_and_reduce_choice():
         {"playerId": "p_other", "displayName": "", "connected": False, "ready": False,
          "participantState": "not_ready", "reduceChoice": None, "equipment": {"characterId": "luna"}}]}
     lines = view.room_lines(room, "p_me")
-    assert lines[0] == "Sala room-1 · orinoco · En el lobby · 2/4"
+    assert lines[0] == "Sala room-1 · Río Orinoco · En el lobby · 2/4"
     assert "Nico (p_me)" in lines[1] and "listo" in lines[1] and "tú" in lines[1] and "reutilizable" in lines[1]
-    assert "not_ready" in lines[2] and "desconectado" in lines[2]
+    assert "aún no está listo" in lines[2] and "desconectado" in lines[2]
     assert view.room_lines(None, "p_me") == []
 
 
@@ -47,12 +47,26 @@ def test_catalog_rows_show_catalog_prices_and_ownership():
          "craftable": True, "recipePlastic": 6, "recipeMetal": 2},
         {"itemId": "luna", "itemType": "character", "name": "Luna", "purchasable": False, "craftable": False}]}
     profile = {"ownedItemIds": ["nico", "luna"], "equipment": {"characterId": "nico"}}
-    rows = dict(view.catalog_rows(catalog, profile))
-    assert rows["nico"].endswith("equipado")
-    assert rows["luna"].endswith("en tu equipo")
-    assert rows["sol"].endswith("40 monedas")
-    assert rows["faro"].endswith("6 plástico + 2 chatarra")
+    rows = {row.item_id: row for row in view.catalog_rows(catalog, profile)}
+    assert (rows["nico"].kind, rows["nico"].status, rows["nico"].state) == ("Personaje", "Equipado", "equipped")
+    assert (rows["luna"].status, rows["luna"].state) == ("En tu equipo", "owned")
+    assert (rows["sol"].kind, rows["sol"].status, rows["sol"].state) == ("Tabla", "40 monedas", "available")
+    assert rows["faro"].status == "6 plástico + 2 chatarra"
     assert view.catalog_rows(None, profile) == []
+
+
+def test_profile_tiles_equipment_and_error_texts_are_readable():
+    profile = {"coins": 12, "plastic": 3, "metal": 0, "profileRevision": 4,
+               "equipment": {"characterId": "luna", "boardId": "sol", "netId": "faro"}}
+    catalog = {"items": [{"itemId": "sol", "name": "Sol del lago"}, {"itemId": "faro", "name": "Red faro"}]}
+    assert view.profile_stats(profile) == {"coins": "12", "plastic": "3", "metal": "0"}
+    assert view.profile_stats(None) == {"coins": "—", "plastic": "—", "metal": "—"}
+    assert view.equipment_line(profile, catalog) == "Luna · tabla Sol del lago · red Red faro · revisión 4"
+    assert view.error_text(422, "INSUFFICIENT_COINS") == \
+        "No te alcanzan las monedas (Go respondió 422 INSUFFICIENT_COINS)"
+    offline = view.error_text(0, "TRANSPORT_ERROR", "http://127.0.0.1:8080")
+    assert offline.startswith("No hay conexión con el servidor del juego en http://127.0.0.1:8080")
+    assert "TEAPOT" in view.error_text(418, "TEAPOT")
 
 
 def test_result_lines_rank_finishers_first_and_show_settlement():

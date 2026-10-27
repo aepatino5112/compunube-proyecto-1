@@ -80,7 +80,7 @@ def main():
         check(window.catalog_list.size() == len(controller.catalog["items"]) == 22,
               "window lists the 22 catalog items served through Go -> Envoy -> Rust")
         before = controller.profile
-        check(f"Monedas {before['coins']}" in window.profile_label.cget("text"), "window shows the confirmed profile")
+        check(window.stats["coins"].get() == str(before["coins"]), "window shows the confirmed profile")
 
         rows = [item["itemId"] for item in controller.catalog["items"]]
         target = "luna" if before["equipment"]["characterId"] != "luna" else "nico"
@@ -156,20 +156,22 @@ def main():
         check(outcome["result"]["raceId"] == controller.game.view.result["raceId"],
               "window and guest received the same authoritative result")
         credited = own()["credited"]
-        expected = f"Plástico {before['plastic'] + credited['plastic']} · Chatarra {before['metal'] + credited['metal']}"
-        pump_until(root, "profile panel credited", 30, lambda: expected in window.profile_label.cget("text"))
+        expected = (str(before["plastic"] + credited["plastic"]), str(before["metal"] + credited["metal"]))
+        pump_until(root, "profile panel credited", 30,
+                   lambda: (window.stats["plastic"].get(), window.stats["metal"].get()) == expected)
         after = controller.profile
         check(after["plastic"] == before["plastic"] + credited["plastic"]
               and after["metal"] == before["metal"] + credited["metal"],
               f"profile panel shows exactly the credited materials once {credited}")
-        check(f"Plástico {after['plastic']}" in window.profile_label.cget("text"), "profile panel refreshed")
+        check(window.stats["plastic"].get() == str(after["plastic"]), "profile panel refreshed")
 
         # RF-035: about 10 s after the confirmed settlement Go returns the room
         # to LOBBY; the guest already left, so only the window remains.
         pump_until(root, "room back in LOBBY", 60,
-                   lambda: window.room_label.cget("text").startswith(f"Sala {room_id} · maracaibo · En el lobby"))
+                   lambda: window.room_label.cget("text").startswith(f"Sala {room_id} · Lago de Maracaibo · En el lobby"))
         lines = window.room_label.cget("text").splitlines()
-        check(len(lines) == 2 and "not_ready" in lines[1], "room returned to LOBBY with the window not_ready")
+        check(len(lines) == 2 and "aún no está listo" in lines[1],
+              "room returned to LOBBY with the window not_ready")
         check(not window.ready_button.instate(["disabled"]) and window.canvas.find_withtag("placeholder"),
               "window offers Listo again for another race in the same room")
 

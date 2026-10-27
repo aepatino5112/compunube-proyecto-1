@@ -15,7 +15,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import view
+from . import theme, view
 from .api import MAP_IDS, ApiError, GoApi, Mutation
 from .autopilot import Intent, decide
 from .cli import load_session
@@ -23,6 +23,7 @@ from .game import INPUT_INTERVAL, TERMINAL, GameSession
 from .realtime import REDUCE_CHOICES, RealtimeError
 
 POLL_MS = 50
+ACTION_LABELS = {"buy": "compra", "craft": "fabricación", "equip": "equipado", "exchange": "canje"}
 
 
 class Controls:
@@ -48,6 +49,7 @@ class GuiController:
 
     def __init__(self, server: str, token_file: Path | None = None):
         self.api = GoApi(server)
+        self.server = self.api.base_url
         self.token_file = token_file
         self.events: queue.Queue = queue.Queue()
         self.controls = Controls()
@@ -66,7 +68,7 @@ class GuiController:
             try:
                 work()
             except ApiError as error:
-                self.events.put(("error", f"{label}: Go respondió {error.status} {error.code}"))
+                self.events.put(("error", f"{label}: {view.error_text(error.status, error.code, self.server)}"))
             except (RealtimeError, TimeoutError, ValueError) as error:
                 self.events.put(("error", f"{label}: {error}"))
         threading.Thread(target=run, name=f"gui-{label}", daemon=True).start()
@@ -96,15 +98,23 @@ class GuiController:
                 if not error.uncertain:
                     del self.pending[key]
                     raise
-                self.events.put(("error", f"Resultado incierto ({error.code}): repite la misma acción y se "
+                self.events.put(("error", f"No sabemos si se aplicó ({error.code}). Repite la misma acción: se "
                                           f"reenviará con el mismo requestId {mutation.request_id}."))
                 return
             del self.pending[key]
             self.profile = result["profile"]
             self.events.put(("profile", self.profile))
-            self.events.put(("notice", ("Operación ya registrada (replay)" if result["replayed"]
-                                        else "Operación confirmada por Go") + f" · {key[0]} {key[1]}"))
+            self.events.put(("ok", ("Operación ya registrada (replay)" if result["replayed"]
+                                    else "Operación confirmada por Go") + f" · {self._describe(key)}"))
         self._spawn("Perfil", work)
+
+    def _describe(self, key: tuple) -> str:
+        kind, target = key
+        if kind == "exchange":
+            amount, material = target.split(" ", 1)
+            return f"canje de {amount} de {view.MATERIAL_LABELS.get(material, material).lower()}"
+        names = {item["itemId"]: item["name"] for item in (self.catalog or {}).get("items", [])}
+        return f"{ACTION_LABELS.get(kind, kind)}: {names.get(target, target)}"
 
     def item_action(self, kind: str, item_id: str):
         self._mutate((kind, item_id), lambda version: GoApi.item_mutation(kind, item_id, version))
@@ -185,89 +195,95 @@ def build_window(controller: GuiController, root=None):  # pragma: no cover - ex
     return Window(controller, root or tk.Tk(), tk, ttk)
 
 
+class CatalogTable:
+    """Treeview of the catalog with the small list API the window and validation use."""
+
+    def __init__(self, parent, ttk):
+        self.tree = ttk.Treeview(parent, columns=("name", "kind", "status"), show="headings", height=7,
+                                 selectmode="browse")
+        for column, title, width, stretch in (("name", "OBJETO", 190, True), ("kind", "TIPO", 90, False),
+                                              ("status", "ESTADO", 190, True)):
+            self.tree.heading(column, text=title, anchor="w")
+            self.tree.column(column, width=width, minwidth=70, stretch=stretch, anchor="w")
+        self.tree.tag_configure("equipped", foreground=theme.GREEN)
+        self.tree.tag_configure("locked", foreground="#7b8a7e")
+        self.tree.tag_configure("odd", background="#f8f9f2")
+        self.rows: list[view.CatalogRow] = []
+
+    def set_rows(self, rows: list[view.CatalogRow]):
+        if rows == self.rows:
+            return
+        selected = self.curselection()
+        self.tree.delete(*self.tree.get_children())
+        for index, row in enumerate(rows):
+            tags = (row.state,) + (("odd",) if index % 2 else ())
+            self.tree.insert("", "end", iid=str(index), values=(row.name, row.kind, row.status), tags=tags)
+        self.rows = rows
+        if selected and selected[0] < len(rows):
+            self.selection_set(selected[0])
+
+    def size(self) -> int:
+        return len(self.tree.get_children())
+
+    def curselection(self) -> tuple[int, ...]:
+        return tuple(int(iid) for iid in self.tree.selection())
+
+    def selection_set(self, index: int):
+        self.tree.selection_set(str(index))
+        self.tree.see(str(index))
+
+
 class Window:
     """Tk widgets; reads controller state on the Tk thread only."""
 
-    CANVAS_W, CANVAS_H = 420, 560
+    CANVAS_W, CANVAS_H = 400, 470   # height follows the window
+    STATUS_COLORS = {"info": (theme.PAPER, theme.TEXT, theme.MUTED), "ok": (theme.OK_BG, theme.OK_FG, theme.GREEN),
+                     "error": (theme.ERROR_BG, theme.ERROR_FG, theme.CORAL)}
 
     def __init__(self, controller: GuiController, root, tk, ttk):
         self.c, self.root, self.tk = controller, root, tk
-        root.title("Compunube · cliente Python")
-        root.minsize(980, 640)
-        self.status = tk.StringVar(value="Conectando con Go…")
+        root.title("Surf Club: Acción por las Aguas · cliente Python")
+        root.minsize(1040, 720)
+        self.font = theme.apply(root, ttk)
+        self.status = tk.StringVar(value="Conectando con el servidor del juego…")
+        self.player = tk.StringVar(value="Sin sesión")
         self.reduce = tk.StringVar(value="")
         self.map_id = tk.StringVar(value=MAP_IDS[0])
+        self.map_label = tk.StringVar(value=view.MAP_LABELS[MAP_IDS[0]])
         self.room_code = tk.StringVar()
         self.material = tk.StringVar(value="plastic")
+        self.material_label = tk.StringVar(value=view.MATERIAL_LABELS["plastic"])
         self.amount = tk.IntVar(value=1)
         self.autopilot = tk.BooleanVar(value=False)
         self.hud = tk.StringVar(value="")
+        self.stats = {key: tk.StringVar(value="—") for key in ("coins", "plastic", "metal")}
+        # The combo boxes show names; the id variables stay the source of truth.
+        self.map_id.trace_add("write", lambda *_: self.map_label.set(view.MAP_LABELS.get(self.map_id.get(),
+                                                                                          self.map_id.get())))
+        self.material.trace_add("write", lambda *_: self.material_label.set(
+            view.MATERIAL_LABELS.get(self.material.get(), self.material.get())))
 
-        left = ttk.Frame(root, padding=8)
-        left.grid(row=0, column=0, sticky="nsew")
-        right = ttk.Frame(root, padding=8)
-        right.grid(row=0, column=1, sticky="nsew")
         root.columnconfigure(0, weight=1)
-        root.rowconfigure(0, weight=1)
-
-        ttk.Label(left, textvariable=self.status, wraplength=520).pack(anchor="w")
-        profile_box = ttk.LabelFrame(left, text="Perfil online (Rust, a través de Go)", padding=6)
-        profile_box.pack(fill="x", pady=4)
-        self.profile_label = ttk.Label(profile_box, text="\n".join(view.profile_lines(None)), justify="left")
-        self.profile_label.pack(anchor="w")
-
-        shop = ttk.LabelFrame(left, text="Catálogo", padding=6)
-        shop.pack(fill="both", expand=True, pady=4)
-        self.catalog_list = tk.Listbox(shop, height=9, exportselection=False)
-        self.catalog_list.pack(fill="both", expand=True)
-        actions = ttk.Frame(shop)
-        actions.pack(fill="x", pady=2)
-        self.item_buttons = {}
-        for kind, label in (("buy", "Comprar"), ("craft", "Fabricar"), ("equip", "Equipar")):
-            self.item_buttons[kind] = ttk.Button(actions, text=label, command=lambda k=kind: self.on_item(k))
-            self.item_buttons[kind].pack(side="left", padx=2)
-        ttk.Combobox(actions, textvariable=self.material, values=("plastic", "metal"), width=8,
-                     state="readonly").pack(side="left", padx=(12, 2))
-        ttk.Spinbox(actions, from_=1, to=99, textvariable=self.amount, width=4).pack(side="left")
-        self.exchange_button = ttk.Button(actions, text="Cambiar por monedas", command=self.on_exchange)
-        self.exchange_button.pack(side="left", padx=2)
-
-        room = ttk.LabelFrame(left, text="Sala multijugador", padding=6)
-        room.pack(fill="x", pady=4)
-        row = ttk.Frame(room)
-        row.pack(fill="x")
-        ttk.Combobox(row, textvariable=self.map_id, values=MAP_IDS, width=10, state="readonly").pack(side="left")
-        self.create_button = ttk.Button(row, text="Crear sala", command=self.on_create)
-        self.create_button.pack(side="left", padx=2)
-        self.code_entry = ttk.Entry(row, textvariable=self.room_code, width=22)
-        self.code_entry.pack(side="left", padx=(12, 2))
-        self.join_button = ttk.Button(row, text="Entrar con código", command=self.on_join)
-        self.join_button.pack(side="left")
-        row = ttk.Frame(room)
-        row.pack(fill="x", pady=4)
-        ttk.Label(row, text="¿Qué llevas para hidratarte?").pack(side="left")
-        for choice in REDUCE_CHOICES:
-            ttk.Radiobutton(row, text=view.REDUCE_LABELS[choice], value=choice,
-                            variable=self.reduce).pack(side="left", padx=4)
-        row = ttk.Frame(room)
-        row.pack(fill="x")
-        self.ready_button = ttk.Button(row, text="Listo", command=self.on_ready)
-        self.ready_button.pack(side="left")
-        self.leave_button = ttk.Button(row, text="Salir de la sala", command=self.on_leave)
-        self.leave_button.pack(side="left", padx=4)
-        self.room_label = ttk.Label(room, text="Sin sala.", justify="left")
-        self.room_label.pack(anchor="w", pady=4)
-
-        self.canvas = tk.Canvas(right, width=self.CANVAS_W, height=self.CANVAS_H, background="#1d6f8c",
-                                highlightthickness=0)
-        self.canvas.pack()
-        ttk.Label(right, textvariable=self.hud, wraplength=self.CANVAS_W).pack(anchor="w", pady=2)
-        ttk.Checkbutton(right, text="Piloto automático", variable=self.autopilot,
-                        command=self.on_autopilot).pack(anchor="w")
-        ttk.Label(right, text="Teclas: ←/→ o A/D girar · Espacio saltar · ↑/W impulso · Z/X red",
-                  wraplength=self.CANVAS_W).pack(anchor="w")
-        self.result_label = ttk.Label(right, text="", justify="left", wraplength=self.CANVAS_W)
-        self.result_label.pack(anchor="w", pady=4)
+        root.rowconfigure(1, weight=1)
+        self._header(tk).grid(row=0, column=0, sticky="ew")
+        body = ttk.Frame(root, style="App.TFrame", padding=(16, 14))
+        body.grid(row=1, column=0, sticky="nsew")
+        body.columnconfigure(0, weight=1)
+        body.rowconfigure(0, weight=1)
+        left = ttk.Frame(body, style="App.TFrame")
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
+        left.columnconfigure(0, weight=1)
+        left.rowconfigure(1, weight=1)
+        self._profile_card(ttk, left).grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        self.tabs = ttk.Notebook(left)
+        self.tabs.grid(row=1, column=0, sticky="nsew")
+        self.play_tab = self._room_card(ttk, self.tabs)
+        self.tabs.add(self.play_tab, text="Jugar con amigos")
+        self.tabs.add(self._club_card(ttk, self.tabs), text="El club")
+        self._race_card(tk, ttk, body).grid(row=0, column=1, sticky="ns")
+        self.status_bar = self._status_bar(tk)
+        self.status_bar.grid(row=2, column=0, sticky="ew")
+        self.set_status("info")
 
         for keys, attribute in ((("Left", "a", "A"), "left"), (("Right", "d", "D"), "right"),
                                 (("Up", "w", "W"), "boost")):
@@ -282,16 +298,179 @@ class Window:
         controller.start_session()
         root.after(POLL_MS, self.poll)
 
+    # Layout --------------------------------------------------------------------
+    def _header(self, tk):
+        header = tk.Frame(self.root, background=theme.INK, padx=18, pady=10)
+        logo = tk.Canvas(header, width=46, height=38, background=theme.INK, highlightthickness=0)
+        logo.create_oval(29, 2, 41, 14, fill=theme.CORAL, outline="")
+        logo.create_line(3, 26, 12, 30, 19, 18, 25, 9, 29, 22, 35, 28, 44, 27, smooth=True, fill=theme.SAND,
+                         width=3, capstyle="round")
+        logo.create_line(3, 34, 12, 36, 20, 31, 28, 32, 36, 37, 44, 34, smooth=True, fill=theme.SAND, width=3,
+                         capstyle="round")
+        logo.pack(side="left", padx=(0, 12))
+        names = tk.Frame(header, background=theme.INK)
+        names.pack(side="left")
+        tk.Label(names, text="Surf Club", font=self.font["brand"], foreground=theme.SAND,
+                 background=theme.INK).pack(anchor="w")
+        tk.Label(names, text="ACCIÓN POR LAS AGUAS", font=self.font["eyebrow"], foreground=theme.CORAL_LIGHT,
+                 background=theme.INK).pack(anchor="w")
+        tk.Label(header, textvariable=self.player, font=self.font["small"], foreground=theme.SAND,
+                 background="#2c5a4c", padx=12, pady=6).pack(side="right")
+        tk.Label(header, text=f"Servidor {self.c.server}", font=self.font["small"], foreground="#b9cfc4",
+                 background=theme.INK).pack(side="right", padx=12)
+        return header
+
+    def _card(self, ttk, parent, title: str = "", hint: str = ""):
+        card = ttk.Frame(parent, style="Card.TFrame", padding=(16, 12, 16, 14))
+        head = ttk.Frame(card, style="Inner.TFrame")
+        head.pack(fill="x", pady=(0, 10))
+        if title:
+            ttk.Label(head, text=title, style="CardTitle.TLabel").pack(side="left")
+        if hint:
+            ttk.Label(head, text=hint, style="CardHint.TLabel").pack(side="right" if title else "left")
+        return card
+
+    def _profile_card(self, ttk, parent):
+        card = self._card(ttk, parent, "Tu perfil", "Confirmado por el servidor")
+        tiles = ttk.Frame(card, style="Inner.TFrame")
+        tiles.pack(fill="x")
+        for column, (key, caption) in enumerate((("coins", "MONEDAS"), ("plastic", "PLÁSTICO"),
+                                                 ("metal", "CHATARRA"))):
+            tiles.columnconfigure(column, weight=1, uniform="tile")
+            tile = ttk.Frame(tiles, style="Tile.TFrame", padding=(12, 6, 12, 8))
+            tile.grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else 8, 0))
+            ttk.Label(tile, textvariable=self.stats[key], style="TileValue.TLabel").pack(anchor="w")
+            ttk.Label(tile, text=caption, style="TileCaption.TLabel").pack(anchor="w")
+        self.profile_label = ttk.Label(card, text=view.equipment_line(None), style="CardHint.TLabel")
+        self.profile_label.pack(anchor="w", pady=(10, 0))
+        return card
+
+    def _room_card(self, ttk, parent):
+        card = self._card(ttk, parent, hint="Crea una sala o entra con el código de un amigo. Hasta 4 surfistas.")
+        grid = ttk.Frame(card, style="Inner.TFrame")
+        grid.pack(fill="x")
+        grid.columnconfigure(1, weight=1)
+        ttk.Label(grid, text="Destino", style="Field.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 12))
+        maps = ttk.Combobox(grid, textvariable=self.map_label, state="readonly", width=22,
+                            values=[view.MAP_LABELS[map_id] for map_id in MAP_IDS])
+        maps.grid(row=0, column=1, sticky="ew")
+        maps.bind("<<ComboboxSelected>>", lambda _e: self.map_id.set(MAP_IDS[maps.current()]))
+        self.create_button = ttk.Button(grid, text="Crear sala", style="Primary.TButton", command=self.on_create)
+        self.create_button.grid(row=0, column=2, sticky="ew", padx=(8, 0))
+        ttk.Label(grid, text="Código", style="Field.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
+        self.code_entry = ttk.Entry(grid, textvariable=self.room_code)
+        self.code_entry.grid(row=1, column=1, sticky="ew", pady=(8, 0))
+        self.code_entry.bind("<Return>", lambda _e: self.on_join())
+        self.join_button = ttk.Button(grid, text="Entrar", command=self.on_join)
+        self.join_button.grid(row=1, column=2, sticky="ew", padx=(8, 0), pady=(8, 0))
+
+        reduce_row = ttk.Frame(card, style="Inner.TFrame")
+        reduce_row.pack(fill="x", pady=(12, 0))
+        ttk.Label(reduce_row, text="Reducir · ¿Qué llevas para hidratarte?", style="Field.TLabel").pack(anchor="w")
+        choices = ttk.Frame(reduce_row, style="Inner.TFrame")
+        choices.pack(anchor="w", pady=(4, 0))
+        for choice in REDUCE_CHOICES:
+            ttk.Radiobutton(choices, text=view.REDUCE_LABELS[choice].capitalize(), value=choice,
+                            variable=self.reduce, style="Card.TRadiobutton").pack(side="left", padx=(0, 18))
+        actions = ttk.Frame(card, style="Inner.TFrame")
+        actions.pack(fill="x", pady=(12, 0))
+        self.ready_button = ttk.Button(actions, text="Estoy listo", style="Primary.TButton", command=self.on_ready)
+        self.ready_button.pack(side="left")
+        self.leave_button = ttk.Button(actions, text="Salir de la sala", command=self.on_leave)
+        self.leave_button.pack(side="left", padx=8)
+        self.copy_button = ttk.Button(actions, text="Copiar código", command=self.on_copy_code)
+        self.copy_button.pack(side="left")
+        self.room_label = ttk.Label(card, text="Sin sala.", style="Room.TLabel", justify="left")
+        self.room_label.pack(fill="x", pady=(12, 0))
+        return card
+
+    def _club_card(self, ttk, parent):
+        card = self._card(ttk, parent, hint="Elige un objeto y cómpralo, fabrícalo o equípalo.")
+        # Packed bottom-up so the table, not the actions, shrinks on short windows.
+        recycle = ttk.Frame(card, style="Inner.TFrame")
+        recycle.pack(side="bottom", fill="x")
+        ttk.Label(recycle, text="Reciclar", style="Field.TLabel").pack(side="left", padx=(0, 10))
+        materials = ttk.Combobox(recycle, textvariable=self.material_label, state="readonly", width=10,
+                                 values=list(view.MATERIAL_LABELS.values()))
+        materials.pack(side="left")
+        materials.bind("<<ComboboxSelected>>",
+                       lambda _e: self.material.set(list(view.MATERIAL_LABELS)[materials.current()]))
+        ttk.Spinbox(recycle, from_=1, to=99, textvariable=self.amount, width=4).pack(side="left", padx=8)
+        self.exchange_button = ttk.Button(recycle, text="Cambiar por monedas", command=self.on_exchange)
+        self.exchange_button.pack(side="left")
+        ttk.Separator(card).pack(side="bottom", fill="x", pady=12)
+        actions = ttk.Frame(card, style="Inner.TFrame")
+        actions.pack(side="bottom", fill="x", pady=(10, 0))
+        self.item_buttons = {}
+        for kind, label in (("buy", "Comprar"), ("craft", "Fabricar"), ("equip", "Equipar")):
+            self.item_buttons[kind] = ttk.Button(actions, text=label, command=lambda k=kind: self.on_item(k),
+                                                 style="Primary.TButton" if kind == "buy" else "TButton")
+            self.item_buttons[kind].pack(side="left", padx=(0, 8))
+        table = ttk.Frame(card, style="Inner.TFrame")
+        table.pack(fill="both", expand=True)
+        self.catalog_list = CatalogTable(table, ttk)
+        scroll = ttk.Scrollbar(table, orient="vertical", command=self.catalog_list.tree.yview)
+        self.catalog_list.tree.configure(yscrollcommand=scroll.set)
+        self.catalog_list.tree.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        return card
+
+    def _race_card(self, tk, ttk, parent):
+        card = self._card(ttk, parent, "Carrera", "Vista desde arriba")
+        # Packed bottom-up so the canvas takes whatever height is left.
+        self.result_label = ttk.Label(card, text="", style="Card.TLabel", justify="left",
+                                      wraplength=self.CANVAS_W, font=self.font["small"])
+        self.result_label.pack(side="bottom", anchor="w", pady=(8, 0))
+        ttk.Checkbutton(card, text="Piloto automático (juega solo; útil para demostraciones)",
+                        variable=self.autopilot, command=self.on_autopilot,
+                        style="Card.TCheckbutton").pack(side="bottom", anchor="w", pady=(8, 0))
+        keys = ttk.Frame(card, style="Inner.TFrame")
+        keys.pack(side="bottom", fill="x", pady=(10, 0))
+        for key, action in (("← →", "girar"), ("Espacio", "saltar"), ("↑ W", "impulso"), ("Z X", "red")):
+            tk.Label(keys, text=key, font=self.font["kbd"], foreground=theme.INK, background=theme.TILE,
+                     padx=6, pady=1, relief="solid", borderwidth=1).pack(side="left")
+            ttk.Label(keys, text=action, style="CardHint.TLabel").pack(side="left", padx=(4, 10))
+        ttk.Label(card, textvariable=self.hud, style="Hud.TLabel", wraplength=self.CANVAS_W - 24,
+                  justify="left").pack(side="bottom", fill="x")
+        self.canvas = tk.Canvas(card, width=self.CANVAS_W, height=self.CANVAS_H, background=theme.WATER,
+                                highlightthickness=0)
+        self.canvas.pack(side="top", fill="y", expand=True)
+        self.canvas.bind("<Configure>", self.on_canvas_resize)
+        return card
+
+    def on_canvas_resize(self, event):
+        if event.height != self.CANVAS_H:
+            self.CANVAS_H = event.height
+            game = self.c.game
+            self.draw(game.view if game else None)
+
+    def _status_bar(self, tk):
+        bar = tk.Frame(self.root, padx=18, pady=8, borderwidth=0)
+        self.status_dot = tk.Label(bar, text="●", font=self.font["small"])
+        self.status_dot.pack(side="left", padx=(0, 8))
+        self.status_label = tk.Label(bar, textvariable=self.status, font=self.font["base"], anchor="w",
+                                     justify="left", wraplength=980)
+        self.status_label.pack(side="left", fill="x", expand=True)
+        return bar
+
+    def set_status(self, kind: str, text: str | None = None):
+        if text is not None:
+            self.status.set(text)
+        background, foreground, dot = self.STATUS_COLORS[kind]
+        self.status_bar.configure(background=background)
+        self.status_label.configure(background=background, foreground=foreground)
+        self.status_dot.configure(background=background, foreground=dot)
+
     # Actions -----------------------------------------------------------------
     def selected_item(self) -> str | None:
         selection = self.catalog_list.curselection()
         rows = view.catalog_rows(self.c.catalog, self.c.profile)
-        return rows[selection[0]][0] if selection and selection[0] < len(rows) else None
+        return rows[selection[0]].item_id if selection and selection[0] < len(rows) else None
 
     def on_item(self, kind: str):
         item_id = self.selected_item()
         if item_id is None:
-            self.status.set("Selecciona un objeto del catálogo.")
+            self.set_status("info", "Selecciona un objeto del catálogo.")
         else:
             self.c.item_action(kind, item_id)
 
@@ -299,20 +478,28 @@ class Window:
         try:
             self.c.exchange(self.material.get(), int(self.amount.get()))
         except (ValueError, self.tk.TclError):
-            self.status.set("Cantidad no válida.")
+            self.set_status("error", "Cantidad no válida.")
 
     def on_create(self):
         self.c.enter_room(map_id=self.map_id.get())
 
     def on_join(self):
+        if self.c.game is not None:
+            return
         if not self.room_code.get().strip():
-            self.status.set("Escribe el código de la sala.")
+            self.set_status("info", "Escribe el código de la sala.")
         else:
             self.c.enter_room(room_id=self.room_code.get())
 
+    def on_copy_code(self):
+        if self.c.game is not None:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(self.c.game.room_id)
+            self.set_status("ok", f"Código {self.c.game.room_id} copiado: compártelo para que otros entren.")
+
     def on_ready(self):
         if self.c.game is None:
-            self.status.set("Primero crea una sala o entra con un código.")
+            self.set_status("info", "Primero crea una sala o entra con un código.")
         else:
             self.c.ready(self.reduce.get())
 
@@ -353,14 +540,16 @@ class Window:
                 break
             changed = True
             if kind == "session":
-                self.status.set(f"Sesión emitida por Go · playerId {value}")
+                self.player.set(f"Jugador {value}")
+                self.set_status("ok", f"Sesión lista · jugador {value}")
             elif kind == "room-code":
                 self.room_code.set(value)
-                self.status.set(f"En la sala {value}: comparte el código para que otros entren.")
-            elif kind in ("error", "notice"):
-                self.status.set(value)
+                self.tabs.select(self.play_tab)
+                self.set_status("ok", f"Estás en la sala {value}: comparte el código para que otros entren.")
+            elif kind in ("error", "notice", "ok"):
+                self.set_status({"notice": "info"}.get(kind, kind), value)
             elif kind == "left":
-                self.status.set("Saliste de la sala.")
+                self.set_status("info", "Saliste de la sala.")
         if changed:
             self.refresh()
         try:
@@ -370,28 +559,37 @@ class Window:
 
     def refresh(self):
         c = self.c
-        self.profile_label.configure(text="\n".join(view.profile_lines(c.profile)))
-        rows = view.catalog_rows(c.catalog, c.profile)
-        if self.catalog_list.size() != len(rows) or \
-                list(self.catalog_list.get(0, "end")) != [label for _, label in rows]:
-            selection = self.catalog_list.curselection()
-            self.catalog_list.delete(0, "end")
-            for _, label in rows:
-                self.catalog_list.insert("end", label)
-            if selection:
-                self.catalog_list.selection_set(selection[0])
+        for key, value in view.profile_stats(c.profile).items():
+            self.stats[key].set(value)
+        self.profile_label.configure(text=view.equipment_line(c.profile, c.catalog))
+        self.catalog_list.set_rows(view.catalog_rows(c.catalog, c.profile))
         game = c.game
         game_view = game.view if game else None
         room = game_view.room if game_view else None
         self.room_label.configure(text="\n".join(view.room_lines(room, c.player_id)) or "Sin sala.")
         in_room = game is not None
-        for button in (self.create_button, self.join_button):
-            button.state(["disabled"] if in_room else ["!disabled"])
-        for button in (self.ready_button, self.leave_button):
+        for widget in (self.create_button, self.join_button, self.code_entry):
+            widget.state(["disabled"] if in_room else ["!disabled"])
+        for button in (self.ready_button, self.leave_button, self.copy_button):
             button.state(["!disabled"] if in_room else ["disabled"])
         self.draw(game_view)
         result = game_view.result if game_view else None
         self.result_label.configure(text="\n".join(view.result_lines(result, c.player_id)))
+
+    def draw_idle(self, text: str):
+        canvas, w, h = self.canvas, self.CANVAS_W, self.CANVAS_H
+        band = h / len(theme.WATER_BANDS)
+        for index, color in enumerate(theme.WATER_BANDS):
+            canvas.create_rectangle(0, index * band, w, (index + 1) * band + 1, fill=color, outline="", tags="decor")
+        canvas.create_oval(w / 2 - 30, 46, w / 2 + 30, 106, fill="#ffd98a", outline="", tags="decor")
+        for row in range(5):
+            y = 150 + row * 62
+            points = [coordinate for x in range(-20, w + 40, 40)
+                      for coordinate in (x + (row % 2) * 20, y + (8 if (x // 40) % 2 else -8))]
+            canvas.create_line(*points, smooth=True, fill="#bfe6e2" if row < 2 else "#86c3c6", width=2, tags="decor")
+        canvas.create_text(w / 2, h / 2 + 30, text="Surf Club", fill=theme.SAND, font=self.font["brand"], tags="decor")
+        canvas.create_text(w / 2, h / 2 + 78, fill="white", text=text, width=w - 70, justify="center",
+                           font=self.font["bold"], tags="placeholder")
 
     def draw(self, game_view):
         canvas = self.canvas
@@ -399,11 +597,14 @@ class Window:
         waiting = game_view and game_view.room and game_view.room["state"] in ("LOBBY", "COUNTDOWN")
         if not game_view or not game_view.start or not game_view.snapshot or waiting:
             # After the settled result Go returns the room to LOBBY (RF-035).
-            text = ("La sala volvió al lobby: elige qué llevas y pulsa Listo para otra carrera."
-                    if waiting and game_view.result else "La carrera aparecerá aquí cuando Go la inicie.")
-            canvas.create_text(self.CANVAS_W / 2, self.CANVAS_H / 2, fill="white", text=text,
-                               width=self.CANVAS_W - 40, tags="placeholder")
-            self.hud.set("")
+            if waiting and game_view.result:
+                text = "La sala volvió al lobby: elige qué llevas y pulsa «Estoy listo» para otra carrera."
+            elif game_view:
+                text = "Cuando todos estén listos, la carrera empieza aquí."
+            else:
+                text = "Crea una sala o entra con un código. La carrera aparecerá aquí cuando empiece."
+            self.draw_idle(text)
+            self.hud.set("Sin carrera en curso.")
             return
         shapes = view.race_shapes(game_view.start, game_view.snapshot, game_view.self_player_id,
                                   self.CANVAS_W, self.CANVAS_H)

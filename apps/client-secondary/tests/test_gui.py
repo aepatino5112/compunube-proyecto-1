@@ -54,7 +54,7 @@ def test_uncertain_mutation_is_repeated_with_the_same_request_id():
     assert drain(controller)[0][0] == "error"
     controller.item_action("buy", "sol")
     kinds = [kind for kind, _ in drain(controller)]
-    assert kinds == ["profile", "notice"]
+    assert kinds == ["profile", "ok"]
     first, second = controller.api.sent
     assert first is second and first.body["catalogVersion"] == "v1"
     assert controller.pending == {}
@@ -127,8 +127,10 @@ def test_window_renders_profile_catalog_room_and_race():
         controller = OfflineController("http://127.0.0.1:9")
         window = build_window(controller, root)
         pump(root, window)
-        assert "Monedas 10" in window.profile_label.cget("text")
+        assert {key: var.get() for key, var in window.stats.items()} == {"coins": "10", "plastic": "2", "metal": "1"}
+        assert window.profile_label.cget("text").startswith("Nico · tabla coral")
         assert window.catalog_list.size() == 2
+        assert window.catalog_list.tree.item("0", "values")[2] == "Equipado"
         assert window.ready_button.instate(["disabled"]) and not window.create_button.instate(["disabled"])
 
         window.on_item("buy")
@@ -148,7 +150,7 @@ def test_window_renders_profile_catalog_room_and_race():
         controller.game = game
         window.refresh()
         root.update()
-        assert "Sala room-9" in window.room_label.cget("text")
+        assert window.room_label.cget("text").startswith("Sala room-9 · Lago de Maracaibo · En carrera")
         assert window.create_button.instate(["disabled"]) and not window.ready_button.instate(["disabled"])
         assert len(window.canvas.find_withtag("player")) == 4  # two ovals and two labels
         assert window.canvas.find_withtag("obstacle") and window.canvas.find_withtag("plastic")

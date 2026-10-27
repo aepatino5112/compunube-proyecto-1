@@ -1,0 +1,209 @@
+/* Surf Club: Acción por las Aguas — brand and legibility layer for the menus,
+   dialogs and panels around the game. Loaded last, so it sets the type scale and
+   text colours over the older per-screen sheets. The 3D scene and the race HUD
+   keep their own styles. Secondary text stays at 4.5:1 or more on every surface. */
+:root{
+  --brand-ink:#1d473b;--brand-text:#2f5245;--brand-muted:#4a6255;--brand-eyebrow:#476152;
+  --brand-green:#285746;--brand-green-hover:#1f4a3b;--brand-coral:#e0674b;--brand-coral-text:#b6492f;
+  --brand-sand:#f6f5ef;--brand-line:#d8decf;
+  --font-ui:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Roboto,Ubuntu,Arial,sans-serif;
+  --font-display:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Roboto,Ubuntu,Arial,sans-serif;
+  font-family:var(--font-ui);color:var(--brand-text);line-height:1.5}
+body{background:var(--brand-sand)}
+h1,h2,h3,.brand,dialog h2{font-family:var(--font-display)}
+
+/* Brand lockup: sun over two waves, name, motto. */
+.topbar{height:78px}
+.brand{gap:12px;font-size:25px;letter-spacing:-.5px;font-weight:700;color:var(--brand-ink)}
+.brand svg{width:38px;overflow:visible}
+.brand svg .brand-sun{fill:var(--brand-coral);stroke:none}
+.brand-name{white-space:nowrap}
+.brand-divider{height:26px;margin:0 4px;background:var(--brand-line)}
+.club{font-size:11px;letter-spacing:.16em;line-height:1.35;font-weight:700;text-transform:uppercase;color:var(--brand-coral-text);max-width:9.5em;white-space:normal}
+.racing .topbar:after{font-size:11px;letter-spacing:.12em;color:var(--brand-muted);font-weight:600}
+.error{inset:78px 0 0}
+.race{height:calc(100dvh - 78px)}
+
+nav{gap:32px}
+nav button{font-size:15px;color:var(--brand-muted);font-weight:500;border-bottom-width:3px}
+nav button:hover{color:var(--brand-ink)}
+nav button[aria-pressed=true]{color:var(--brand-ink);font-weight:700;border-color:var(--brand-coral)}
+.wallet{font-size:14px;gap:8px}
+.wallet>strong{font-size:18px;color:var(--brand-ink)}
+.coin-icon{color:#a8792c}
+.wallet>button{font-size:13px;font-weight:600;color:var(--brand-green);border-color:#c7d2bf;padding:9px 14px;border-radius:8px;min-height:40px}
+.wallet>button:hover{background:#ebf0e2}
+.materials-popover{font-size:14px;color:var(--brand-text)}
+.materials-popover small{font-size:13px;color:var(--brand-muted)}
+
+/* Type scale */
+.eyebrow{font-size:11px;letter-spacing:.14em;font-weight:700;color:var(--brand-eyebrow)}
+h1{font-size:44px;line-height:1.08;letter-spacing:-1.4px;font-weight:600;color:var(--brand-ink)}
+h1 span{color:var(--brand-coral)}
+.menu-heading>p{font-size:15px;line-height:1.6;color:var(--brand-muted)}
+.progress-context{font-size:12px;letter-spacing:.12em;font-weight:600;color:var(--brand-muted)}
+.progress-context b{font-size:12px;color:var(--brand-green);background:#fffef8}
+.progress-context button{font-size:14px;font-weight:600;color:var(--brand-green)}
+.progress-context button:hover,.secondary:hover,.quiet-button:hover{background:#ebf0e2}
+.profile-operation p{font-size:14px}
+
+.pill{font-size:11px;letter-spacing:.12em;font-weight:700;color:var(--brand-ink);background:#fbffeecc;border-color:#93b8a0}
+.studio-coordinate{font-size:11px;letter-spacing:.12em;color:#3f6650}
+.preview-view{font-size:13px;font-weight:600}
+.studio-caption .eyebrow{font-size:11px;color:#355845}
+.studio-caption h2{font-size:28px;font-weight:600;letter-spacing:-.6px;color:var(--brand-ink)}
+.studio-caption p{font-size:14px;color:#355845}
+.equipment span{font-size:11px;letter-spacing:.12em;font-weight:700;color:#3f6650}
+.equipment strong{font-size:15px;font-weight:600;color:var(--brand-ink)}
+/* The larger caption needs more room between the preview and the equipment bar. */
+.studio{height:505px}
+.studio-caption{bottom:96px}
+
+.section-heading{margin-bottom:16px}
+.section-heading h2{font-size:21px;font-weight:600;letter-spacing:-.3px;color:var(--brand-ink)}
+.section-heading>span{font-size:11px;letter-spacing:.14em;font-weight:600;color:var(--brand-muted)}
+.map-chip{font-size:11px;letter-spacing:.1em;font-weight:700;color:var(--brand-ink)}
+.map-info small{font-size:12px;letter-spacing:.14em;opacity:1;font-weight:700;text-shadow:0 1px 3px #0d2f2a99}
+.map-info strong{font-size:32px;font-weight:600;text-shadow:0 2px 8px #0d2f2a73}
+.map-info>span{font-size:15px;opacity:1;text-shadow:0 1px 3px #0d2f2a99}
+.map-feature:after{inset:30% 0 0;background:linear-gradient(transparent,#123f3bd9)}
+.map-options button{padding:9px 10px;border-radius:10px}
+.map-options button:hover{border-color:#8eab92;background:#e8eedf}
+.map-options strong{font-size:15px;font-weight:600}
+.map-options small{font-size:13px;color:var(--brand-muted)}
+#home-panel .future-map{height:68px}
+.future-map small{font-size:10px;letter-spacing:.12em;font-weight:700;color:var(--brand-muted)}
+.future-map strong{font-size:16px;font-weight:600;color:#3d5e50}
+.race-brief{font-size:13px;color:var(--brand-muted)}
+.primary{font-size:16px;font-weight:600;min-height:54px;border-radius:10px;background:var(--brand-green)}
+.primary:not(:disabled):hover{background:var(--brand-green-hover)}
+.friends-button{font-size:15px;min-height:50px;border-radius:10px;border-color:#9fb8a4}
+.play-note{font-size:13px;color:var(--brand-muted)}
+.secondary,.quiet-button{font-size:14px;font-weight:600;color:var(--brand-green);border-color:#bfccb7;border-radius:8px}
+
+.menu-footer{font-size:13px;color:var(--brand-muted)}
+.menu-footer button{font-size:13px;font-weight:600;color:var(--brand-green)}
+.menu-footer button:hover{text-decoration:underline;text-underline-offset:4px}
+.version{font-size:11px;letter-spacing:.12em;color:var(--brand-muted)}
+.loading-status{font-size:14px;color:var(--brand-green)}
+
+/* Shop, workshop and recycling */
+.category-tabs{gap:24px}
+.category-tabs button{font-size:15px;color:var(--brand-muted);font-weight:500;border-bottom-width:3px}
+.category-tabs button:hover{color:var(--brand-ink)}
+.category-tabs button[aria-pressed=true]{color:var(--brand-ink);font-weight:700;border-color:var(--brand-coral)}
+.item-card{border-radius:12px}
+.item-card:hover,.recipe-card:hover{border-color:#8eab92}
+.item-card strong{font-size:15px;font-weight:600}
+.item-card small{font-size:13px;color:var(--brand-muted)}
+.item-state{font-size:12px;color:#3f6a4c;font-weight:700}
+.item-detail h3{font-size:26px;font-weight:600;color:var(--brand-ink)}
+.item-detail p,.item-detail>p,.panel-intro{font-size:15px;line-height:1.6;color:var(--brand-muted)}
+.detail-note,.recycle-counter .detail-note{font-size:13px!important;color:var(--brand-muted)!important}
+.recipe-card{border-radius:12px}
+.recipe-card strong{font-size:15px;font-weight:600}
+.recipe-card small,.recipe-card .recipe-state{font-size:13px;color:var(--brand-muted)}
+.recipe-materials>div{font-size:14px}
+.recipe-materials .missing{color:#9a4a2c;font-weight:600}
+.rarity{font-size:11px}
+.cosmetic-note{font-size:13px!important}
+.cosmetic-note,.appearance-note,.character-intro small,.character-card small,.color-choice small{font-size:13px;color:var(--brand-muted)}
+.character-description{font-size:14px;color:var(--brand-muted)}
+.appearance-options legend{font-size:14px;font-weight:600;color:var(--brand-ink)}
+
+.exchange-intro .eyebrow{font-size:11px}
+.exchange-intro h3{font-size:28px;font-weight:600;color:var(--brand-ink)}
+.exchange-intro p{font-size:15px;color:var(--brand-muted)}
+.salvage-card>small{font-size:13px;color:var(--brand-muted)}
+.salvage-rate{font-size:13px}
+.recycle-counter>label{font-size:15px!important;color:var(--brand-text)}
+.recycle-counter>label span{font-size:13px;color:var(--brand-muted)}
+#exchange-max{font-size:13px;font-weight:600}
+.trade-give span,.trade-reward>span:last-child{font-size:11px;letter-spacing:.12em;color:var(--brand-muted);font-weight:600}
+.trade-give strong,.trade-reward strong{font-size:15px}
+.exchange-balance{font-size:13px;color:var(--brand-muted)}
+.exchange-receipt{font-size:14px}
+.workshop-link{font-size:15px;font-weight:600}
+.workshop-link small{font-size:13px;font-weight:400;color:var(--brand-muted)}
+.recycle-steps{font-size:14px;font-weight:600}
+.recycle-steps b{font-size:11px;color:#3f6650}
+.recycling-studio .studio-caption h2{font-size:28px}
+
+/* Messages and dialogs */
+.app-message{font-size:15px;color:var(--brand-ink)}
+dialog{max-width:460px}
+dialog h2{font-size:30px;font-weight:600;color:var(--brand-ink)}
+dialog p,dialog li{font-size:15px;line-height:1.7;color:var(--brand-text)}
+dialog li{margin-bottom:4px}
+.error p{font-size:15px;color:var(--brand-muted)}
+.start-card .eyebrow{font-size:11px}
+.start-card h2{font-weight:600;color:var(--brand-ink)}
+.start-card p{font-size:15px;color:var(--brand-muted)}
+.start-card .card-note{font-size:12px;color:var(--brand-muted)}
+
+/* Profile panel */
+#profile-dialog .pp-eyebrow,#online-lobby .ol-eyebrow{font-size:11px;letter-spacing:.14em}
+#profile-dialog .pp-heading p,#profile-dialog .pp-note,#profile-dialog .pp-error{font-size:15px}
+#profile-dialog .pp-scope,#profile-dialog .pp-summary-label{font-size:10px;letter-spacing:.12em}
+#profile-dialog .pp-choice-note,#profile-dialog .pp-selection,#profile-dialog dt,#profile-dialog .pp-history{font-size:13px}
+#profile-dialog .pp-service,#profile-dialog .pp-footer p{font-size:13px}
+#profile-dialog .pp-refresh,#profile-dialog .pp-done{font-size:15px;font-weight:600}
+
+/* Room lobby */
+#online-lobby .ol-story>p.ol-story-note,#online-lobby .ol-service,#online-lobby .ol-hint,#online-lobby .ol-room-note,#online-lobby .ol-footer>span{font-size:13px}
+#online-lobby .ol-notice strong,#online-lobby .ol-notice p,#online-lobby .ol-error,#online-lobby .ol-local,#online-lobby .ol-exit-confirm p{font-size:14px}
+#online-lobby .ol-modes button{font-size:14px;font-weight:600}
+#online-lobby .ol-form label,#online-lobby .ol-field-label{font-size:14px}
+#online-lobby .ol-form label span,#online-lobby .ol-destination small,#online-lobby .ol-count,#online-lobby .ol-member small,#online-lobby .ol-member-status{font-size:12px}
+#online-lobby .ol-room-heading .ol-eyebrow{font-size:11px}
+#online-lobby .ol-you{font-size:10px}
+#online-lobby .ol-primary{font-size:16px;font-weight:600}
+#online-lobby .ol-cancel-connection,#online-lobby .ol-leave,#online-lobby .ol-copy,#online-lobby .ol-exit{font-size:14px}
+#online-lobby .ol-share input{font-size:15px}
+#online-lobby .ol-member strong{font-size:15px}
+#online-lobby .ol-member-empty strong{font-size:14px}
+
+/* Smaller screens keep the same scale one step down. */
+@media(min-width:1450px){.studio{height:565px}}
+@media(max-width:1050px){
+  .club{display:none}
+  .studio{height:495px}
+  h1{font-size:38px}
+  .studio-caption h2{font-size:24px}
+  .map-info strong{font-size:28px}
+}
+@media(max-width:700px){
+  .topbar{height:118px}
+  .brand{font-size:22px}
+  .brand svg{width:32px}
+  .wallet>button{font-size:13px;padding:8px 10px}
+  nav{gap:40px}
+  h1{font-size:28px;letter-spacing:-.8px}
+  .eyebrow,.studio-caption .eyebrow,.equipment span,.section-heading>span,.pill{font-size:11px;letter-spacing:.1em}
+  .studio{height:390px}
+  .studio-caption{bottom:90px}
+  .studio-caption h2{font-size:22px}
+  .equipment strong{font-size:13px}
+  .section-heading h2{font-size:19px}
+  #home-panel .section-heading>span{display:none}
+  .map-info strong{font-size:26px}
+  .map-info>span{font-size:13px}
+  .map-options strong{font-size:14px}
+  .map-options small{font-size:12px}
+  .future-map small{font-size:10px}
+  .future-map strong{font-size:14px}
+  .race-brief,.play-note,.menu-footer,.menu-footer button{font-size:13px}
+  .item-card strong{font-size:14px}
+  .item-card small{font-size:12px}
+  .racing .topbar{height:63px}
+  .racing .topbar:after{font-size:10px;letter-spacing:.06em}
+  .race{height:calc(100dvh - 63px)}
+  .error{inset:0}
+  #online-lobby .ol-story .ol-eyebrow{font-size:10px}
+  #online-lobby .ol-story>p{font-size:13px}
+  #online-lobby .ol-modes button{font-size:13px}
+  #online-lobby .ol-member-status{font-size:12px}
+  #profile-dialog .pp-scope{font-size:10px}
+  #profile-dialog .pp-choice-note{font-size:12px}
+}
+@media(max-width:380px){.brand{font-size:20px}.brand svg{width:28px}h1{font-size:28px}}
