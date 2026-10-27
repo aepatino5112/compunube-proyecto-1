@@ -368,6 +368,10 @@ function showHit(s, cause) {
   }
 }
 
+// Rubber band for the simulated rivals: one more than this far ahead of the
+// player neither hunts trash nor boosts, so a leader cannot sweep the course
+// before the player gets there. Rivals near the player still compete.
+const RIVAL_LEAD = 35;
 function simulate(dt) {
   if(networkRace)return;
   elapsed += dt;
@@ -381,9 +385,10 @@ function simulate(dt) {
     const boardStart = { x: s.x, z: s.z };
     let desiredTurn = steer;
     const reachStart = netReach(s);
+    const farAhead = s.index > 0 && s.z < player.z - RIVAL_LEAD;
     if (s.index) {
       let target = Math.sin(elapsed * .36 + s.phase) * 10;
-      const wasteAhead = trash.find(item => item.collectedBy === null && item.z < s.z - 3 && item.z > s.z - 20 && Math.abs(item.x - s.x) < 7);
+      const wasteAhead = !farAhead && trash.find(item => item.collectedBy === null && item.z < s.z - 3 && item.z > s.z - 20 && Math.abs(item.x - s.x) < 7);
       if (wasteAhead) { s.netSide = wasteAhead.x >= s.x ? 1 : -1; target = THREE.MathUtils.clamp(wasteAhead.x - s.netSide * 2.05, -WIDTH, WIDTH); }
       const lifeAhead = s.lives < 3 && lifesavers.find(item => item.collectedBy === null && item.z < s.z && item.z > s.z - 26);
       if (lifeAhead) target = lifeAhead.x;
@@ -393,7 +398,7 @@ function simulate(dt) {
     }
     s.netAngle = advanceNetAngle(s.netAngle,s.netSide,dt);
     const wasBoosting = s.boosting;
-    const boost = spendBoost(s.energy, dt, s.index ? s.energy >= .8 || (s.boosting && s.energy > 0) : wantsBoost);
+    const boost = spendBoost(s.energy, dt, s.index ? !farAhead && (s.energy >= .8 || (s.boosting && s.energy > 0)) : wantsBoost);
     s.energy = boost.energy; s.boosting = boost.boosting;
     if (!s.index && s.boosting && !wasBoosting) audio.cue('boost');
     s.turn = THREE.MathUtils.damp(s.turn, desiredTurn, 8, dt);
