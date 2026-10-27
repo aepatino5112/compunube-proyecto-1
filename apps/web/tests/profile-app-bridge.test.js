@@ -23,7 +23,8 @@ function fixture(perform){
   const offlineProfile={...freshProfile(),coins:150,plastic:36,metal:22};
   const c={offlineProfile,profile:offlineProfile,progressMode:'local',progressGeneration:0,storageAvailable:true,STORAGE:'compunube.profile.v1',onlineProfiles,transact,$,
     game:{mode:'local'},localStorage:{setItem(key,value){writes.push({key,profile:JSON.parse(value)});}},render(){renders.push(c.profile);},message:text=>messages.push(text),
-    materialName:type=>type==='plastic'?'plástico':'chatarra',updateExchange(){},Number,JSON};
+    materialName:type=>type==='plastic'?'plástico':'chatarra',updateExchange(){},Number,JSON,
+    remembered:[],rememberProgressMode(mode){c.remembered.push(mode);}};
   vm.createContext(c);vm.runInContext(bridge+'\n'+exchange+'\n'+subscription,c);
   return {c,$,onlineProfiles,sent,writes,messages,renders,submit:()=>$('exchange-form').handlers.submit({preventDefault(){}})};
 }
@@ -33,7 +34,9 @@ test('actual app persists only the offline wallet and online selection requires 
   await h.onlineProfiles.load();h.c.setProgressMode('online');h.c.persist();
   assert.equal(h.c.profile.coins,80);assert.equal(h.writes[0].profile.coins,150);
   assert.equal(h.$('progress-scope').textContent,'ONLINE');
-  h.c.setProgressMode('local');assert.equal(h.c.profile.coins,150);h.onlineProfiles.dispose();
+  h.c.setProgressMode('local');assert.equal(h.c.profile.coins,150);
+  assert.deepEqual(h.c.remembered,['online','local'],'only confirmed switches are remembered for the next visit');
+  h.onlineProfiles.dispose();
 });
 
 test('actual app waits for confirmation, blocks double submits and never spends or saves online balances locally',async()=>{
