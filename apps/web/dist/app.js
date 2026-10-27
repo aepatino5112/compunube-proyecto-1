@@ -126,6 +126,15 @@ function actionMarkup(item, craft = false) {
   const note = owned ? '' : craft ? missing ? `Te faltan ${missing}.` : '' : afford ? '' : `Te faltan ${item.price - profile.coins} ◈.`;
   return `<button class="primary" data-action="${action}" data-id="${item.id}" ${onlineReadOnly()||equipped || (!owned && !afford) ? 'disabled' : ''}>${text}<span>↗</span></button>${note?`<p class="detail-note">${note}</p>`:''}`;
 }
+// Selecting an item only changes which card is marked: lists, images and the 3D
+// views are rebuilt when their content really changes, so the shop does not blink.
+const renderedHtml = new WeakMap();
+function setHtml(element, html) { if (renderedHtml.get(element) !== html) { element.innerHTML = html; renderedHtml.set(element, html); } }
+function markSelected(container, key, value) {
+  for (const button of container.querySelectorAll(`[data-${key}]`)) {
+    const on = button.dataset[key] === value; button.classList.toggle('selected', on); button.setAttribute('aria-pressed', String(on));
+  }
+}
 const ITEM_KINDS={board:'Tabla',outfit:'Ropa',hair:'Peinado',net:'Red',character:'Personaje'};
 // Name and story of the selected item, presented as a card: kind and rarity,
 // the name in the display face and its description as a short quote.
@@ -142,12 +151,13 @@ function renderShop() {
   if(characters){selected=profile.equipped.character;renderCharacters();return;}
   const items = CATALOG.filter(item => item.type === category);
   if (!items.some(item => item.id === selected)) selected = profile.equipped[category];
-  $('shop-items').innerHTML = items.map(item => `<button class="item-card ${item.id === selected ? 'selected' : ''}" data-item="${item.id}" aria-pressed="${item.id === selected}"><span class="item-state">${profile.equipped[item.type] === item.id ? '✓' : ''}</span><span class="item-art" aria-hidden="true">${['board','hair'].includes(category) ? `<img class="equipment-photo board-photo" src="${game.equipmentImages[item.id]}" alt="">` : `<span class="shirt-icon" style="--item-color:${item.color}"></span>`}</span><strong>${item.name}</strong><small>${profile.equipped[item.type] === item.id ? 'Equipado' : profile.owned.includes(item.id) ? 'En tu equipo' : `${item.price} ◈`}</small></button>`).join('');
+  setHtml($('shop-items'), items.map(item => `<button class="item-card" data-item="${item.id}" aria-pressed="false"><span class="item-state">${profile.equipped[item.type] === item.id ? '✓' : ''}</span><span class="item-art" aria-hidden="true">${['board','hair'].includes(category) ? `<img class="equipment-photo board-photo" src="${game.equipmentImages[item.id]}" alt="">` : `<span class="shirt-icon" style="--item-color:${item.color}"></span>`}</span><strong>${item.name}</strong><small>${profile.equipped[item.type] === item.id ? 'Equipado' : profile.owned.includes(item.id) ? 'En tu equipo' : `${item.price} ◈`}</small></button>`).join(''));
+  markSelected($('shop-items'), 'item', selected);
   const item = findItem(selected);
-  $('item-detail').innerHTML = `${itemHero(item)}${actionMarkup(item)}`;
+  setHtml($('item-detail'), `${itemHero(item)}${actionMarkup(item)}`);
 }
 function renderCharacters() {
-  $('character-items').innerHTML=CHARACTERS.map(character=>`<button type="button" class="character-card" data-character="${character.id}" aria-label="Elegir ${character.name}" aria-pressed="${profile.equipped.character===character.id}"><img src="${game.equipmentImages[character.id]}" alt=""><span><strong>${character.name}</strong><small>${character.gender}</small></span><i aria-hidden="true">${profile.equipped.character===character.id?'✓':'↗'}</i></button>`).join('');
+  setHtml($('character-items'),CHARACTERS.map(character=>`<button type="button" class="character-card" data-character="${character.id}" aria-label="Elegir ${character.name}" aria-pressed="${profile.equipped.character===character.id}"><img src="${game.equipmentImages[character.id]}" alt=""><span><strong>${character.name}</strong><small>${character.gender}</small></span><i aria-hidden="true">${profile.equipped.character===character.id?'✓':'↗'}</i></button>`).join(''));
   const character=findItem(profile.equipped.character);
   $('character-description').textContent=character.description;
   for(const [id,choices,field] of [['skin-options',SKIN_TONES,'skin'],['hair-color-options',HAIR_COLORS,'hairColor']]) {
@@ -155,11 +165,13 @@ function renderCharacters() {
   }
 }
 function renderWorkshop() {
-  $('workshop-items').innerHTML = CATALOG.filter(item => item.type === 'net').map(item => `<button class="recipe-card ${recipe === item.id ? 'selected' : ''}" data-recipe="${item.id}" aria-pressed="${recipe === item.id}"><img class="equipment-photo net-photo" src="${game.equipmentImages[item.id]}" alt=""><span><strong>${item.name} <i class="rarity">${item.rarity}</i></strong><small>${item.recipe ? `${item.recipe.plastic} plástico + ${item.recipe.metal} chatarra` : 'Tu herramienta inicial'}</small></span><span class="recipe-state">${profile.equipped.net === item.id ? 'Equipada ✓' : profile.owned.includes(item.id) ? 'Fabricada' : '↗'}</span></button>`).join('');
+  setHtml($('workshop-items'), CATALOG.filter(item => item.type === 'net').map(item => `<button class="recipe-card" data-recipe="${item.id}" aria-pressed="false"><img class="equipment-photo net-photo" src="${game.equipmentImages[item.id]}" alt=""><span><strong>${item.name} <i class="rarity">${item.rarity}</i></strong><small>${item.recipe ? `${item.recipe.plastic} plástico + ${item.recipe.metal} chatarra` : 'Tu herramienta inicial'}</small></span><span class="recipe-state">${profile.equipped.net === item.id ? 'Equipada ✓' : profile.owned.includes(item.id) ? 'Fabricada' : '↗'}</span></button>`).join(''));
+  markSelected($('workshop-items'), 'recipe', recipe);
   const item = findItem(recipe);
   const materials = item.recipe && !profile.owned.includes(item.id) ? `<p class="detail-note">Tienes / necesitas</p><div class="recipe-materials">${[['plastic', 'Plástico'], ['metal', 'Chatarra']].map(([type, name]) => `<div class="${profile[type] < item.recipe[type] ? 'missing' : ''}"><img class="recipe-waste" src="${game.wasteImages[type]}" alt=""><span>${name}</span><strong>${profile[type]} / ${item.recipe[type]}</strong></div>`).join('')}</div>` : '';
-  $('recipe-detail').innerHTML = `${itemHero(item)}${materials}${actionMarkup(item, !!item.recipe)}`;
+  setHtml($('recipe-detail'), `${itemHero(item)}${materials}${actionMarkup(item, !!item.recipe)}`);
 }
+let lastEquipKey = '', lastPreviewKey = '';
 function render() {
   // Cards are rebuilt when a selection changes; keep keyboard navigation and the
   // workshop scroll position on that selection instead of returning to the body.
@@ -178,7 +190,11 @@ function render() {
   const recycling = page === 'shop' && category === 'exchange';
   document.querySelector('.studio').classList.toggle('recycling-studio',recycling);
   $('recycle-steps').hidden = !recycling;
-  game.equip(equipment()); game.preview(palette, recycling ? $('exchange-material').value : item?.type === 'board' ? 'board' : item?.type === 'net' ? 'net' : 'surfer');
+  const equipKey = JSON.stringify(equipment());
+  if (equipKey !== lastEquipKey) { lastEquipKey = equipKey; game.equip(equipment()); }
+  const previewType = recycling ? $('exchange-material').value : item?.type === 'board' ? 'board' : item?.type === 'net' ? 'net' : 'surfer';
+  const previewKey = JSON.stringify([palette, previewType]);
+  if (previewKey !== lastPreviewKey) { lastPreviewKey = previewKey; game.preview(palette, previewType); }
   $('preview-badge').textContent = item ? (profile.owned.includes(item.id) ? 'EN TU EQUIPO' : 'VISTA PREVIA') : 'TU SURFISTA';
   $('preview-kicker').textContent = item ? 'DEL CLUB AL AGUA' : 'LISTO PARA VOLVER AL AGUA';
   $('preview-title').textContent = item ? item.name : findItem(profile.equipped.character).name;
