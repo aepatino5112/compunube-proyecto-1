@@ -573,6 +573,9 @@ function animate(now) {
   }
   const dt = networkRace?(networkLive(now)?frameDt:0):tick.dt;
   audio.update(menuActive||suspended?'menu':state,player.boosting);
+  // Title screen, club and lobby, or the race track of this map; the final
+  // stretch switches to the race track's final-lap version.
+  audio.music(attractHost?'home':menuActive?'menu':player.z<-(LENGTH-250)?`${activeMap.id}-final`:activeMap.id);
   if(state==='running'&&!suspended&&chase.gap<15&&chase.retreat===0)audio.cue('danger');
   if (!suspended && state !== 'paused' && state !== 'finished') visualTime += dt;
   if (menuActive) { if (attractHost) renderAttract(frameDt); else renderPreview(frameDt); return; }
