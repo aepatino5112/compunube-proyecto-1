@@ -36,7 +36,7 @@ En WSL la ventana se abre en Windows a través de WSLg (Windows 11). El stack de
 python -m compunube_client --server http://127.0.0.1:8080 gui
 ```
 
-Una sola ventana con la marca del juego (misma paleta que la web, [`theme.py`](compunube_client/theme.py)) y:
+Una sola ventana con la identidad del juego (misma paleta y calcomanía que la web, [`theme.py`](compunube_client/theme.py)). Tk no carga fuentes desde archivo, así que el logo es un PNG ya dibujado con la fuente de la web: `python tools/make_logo.py` lo regenera (solo esa herramienta necesita Pillow). La ventana tiene:
 
 - **Tu perfil:** monedas, plástico y chatarra en grande, más equipo y revisión, confirmados por Rust a través de Go.
 - **Pestaña «Jugar con amigos»** y **pestaña «El club»** (ver abajo), para que todo quepa en pantallas de 720 px de alto.

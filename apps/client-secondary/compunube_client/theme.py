@@ -1,29 +1,40 @@
 """Surf Club: Acción por las Aguas look for the Tk window.
 
-Same palette as the web client (`apps/web/dist/brand.css`): deep green ink,
-sand background, coral accent. Only presentation lives here.
+Same identity as the web client (`apps/web/dist/brand.css`): the game's sunset
+over the water. Lagoon ink outlines, sunset coral for the main action, sun
+yellow, peach sky and mint water, and sticker-like buttons with an ink border.
+The wordmark is a pre-rendered PNG (`assets/surf-club-logo.png`, drawn by
+`tools/make_logo.py`) because Tk cannot load a font file at run time. Only
+presentation lives here.
 """
 
 from __future__ import annotations
 
-INK = "#1d473b"
-TEXT = "#2f5245"
-MUTED = "#4a6255"
-GREEN = "#285746"
-GREEN_HOVER = "#1f4a3b"
-GREEN_PRESSED = "#173d31"
-CORAL = "#e0674b"
+from pathlib import Path
+
+INK = "#12393b"
+TEXT = "#23484a"
+MUTED = "#44605f"
+GREEN = "#1d5552"
+CORAL = "#ff7452"
+CORAL_HOVER = "#ff8b6e"
+CORAL_PRESSED = "#f0623f"
 CORAL_LIGHT = "#f4a58f"
-SAND = "#f6f5ef"
-PAPER = "#fffef8"
-TILE = "#eef2e6"
-LINE = "#d8decf"
-FIELD_LINE = "#c5d1bd"
-DISABLED = "#a9bcb1"
+SUN = "#ffd166"
+SKY = "#ffe6d0"
+SAND = "#eaf5f0"          # window background: lagoon mint
+PAPER = "#fffaf3"
+WATER_PALE = "#c9f0e6"
+LINE = "#c9d6d2"
+DISABLED_BG, DISABLED_FG = "#f2d2c6", "#5f7a78"
 WATER = "#1d6f8c"
-WATER_BANDS = ("#7cc6c9", "#5fb3bd", "#47a0b1", "#3790a6", "#2a809b", "#1f7391", "#1a6886", "#165d7a")
-OK_BG, OK_FG = "#e5efcf", "#2f5a25"
-ERROR_BG, ERROR_FG = "#f7e2da", "#8a3a22"
+# Tiles use the in-game material colours: coins sun, plastic water, scrap sunset.
+TILES = {"coins": "#fff1c9", "plastic": "#d9f3ec", "metal": "#ffe3d8"}
+SKY_BANDS = ("#ffd9bd", "#ffe2c8", "#ffead4", "#fff1df")
+WATER_BANDS = ("#7cd1c6", "#5fc0b9", "#47adab", "#36999c", "#2a868e", "#1f7480", "#196372")
+OK_BG, OK_FG = "#d9f3ec", "#16514a"
+ERROR_BG, ERROR_FG = "#ffe1d8", "#9c3218"
+LOGO = Path(__file__).resolve().parent / "assets" / "surf-club-logo.png"
 
 
 def fonts(root) -> dict[str, tuple]:
@@ -35,8 +46,17 @@ def fonts(root) -> dict[str, tuple]:
             family = preferred
             break
     return {"base": (family, 10), "small": (family, 9), "bold": (family, 10, "bold"),
-            "title": (family, 12, "bold"), "brand": (family, 18, "bold"), "eyebrow": (family, 8, "bold"),
-            "stat": (family, 18, "bold"), "kbd": (family, 9, "bold"), "big": (family, 13, "bold")}
+            "title": (family, 13, "bold"), "brand": (family, 18, "bold"), "eyebrow": (family, 8, "bold"),
+            "stat": (family, 20, "bold"), "kbd": (family, 9, "bold"), "big": (family, 13, "bold"),
+            "button": (family, 11, "bold")}
+
+
+def _button(style, name, background, hover, pressed, font):
+    style.configure(name, background=background, foreground=INK, bordercolor=INK, lightcolor=background,
+                    darkcolor=background, borderwidth=2, padding=(16, 8), font=font, focuscolor=INK)
+    states = {"background": [("disabled", DISABLED_BG), ("pressed", pressed), ("active", hover)]}
+    style.map(name, **states, lightcolor=states["background"], darkcolor=states["background"],
+              foreground=[("disabled", DISABLED_FG)], bordercolor=[("disabled", "#9fb1ae")])
 
 
 def apply(root, ttk) -> dict[str, tuple]:
@@ -46,68 +66,62 @@ def apply(root, ttk) -> dict[str, tuple]:
     style = ttk.Style(root)
     style.theme_use("clam")
     style.configure(".", background=SAND, foreground=TEXT, font=font["base"], bordercolor=LINE,
-                    lightcolor=SAND, darkcolor=SAND, troughcolor=TILE, focuscolor=CORAL,
-                    selectbackground=GREEN, selectforeground="white", insertcolor=INK)
+                    lightcolor=SAND, darkcolor=SAND, troughcolor=WATER_PALE, focuscolor=CORAL,
+                    selectbackground=INK, selectforeground="white", insertcolor=INK)
     style.configure("App.TFrame", background=SAND)
-    style.configure("Card.TFrame", background=PAPER, bordercolor=LINE, lightcolor=PAPER, darkcolor=PAPER,
-                    relief="solid", borderwidth=1)
+    # Panels: ink outline, like the comic-panel frames of the web menus.
+    style.configure("Card.TFrame", background=PAPER, bordercolor=INK, lightcolor=PAPER, darkcolor=PAPER,
+                    relief="solid", borderwidth=2)
     style.configure("Inner.TFrame", background=PAPER)
-    style.configure("Tile.TFrame", background=TILE)
     style.configure("Card.TLabel", background=PAPER, foreground=TEXT)
     style.configure("CardTitle.TLabel", background=PAPER, foreground=INK, font=font["title"])
     style.configure("CardHint.TLabel", background=PAPER, foreground=MUTED, font=font["small"])
     style.configure("Field.TLabel", background=PAPER, foreground=MUTED, font=font["bold"])
-    style.configure("TileValue.TLabel", background=TILE, foreground=INK, font=font["stat"])
-    style.configure("TileCaption.TLabel", background=TILE, foreground=MUTED, font=font["eyebrow"])
-    style.configure("Room.TLabel", background=TILE, foreground=TEXT, padding=(10, 8))
-    style.configure("Hud.TLabel", background=INK, foreground=SAND, font=font["bold"], padding=(12, 8))
+    for key, background in TILES.items():
+        style.configure(f"{key}.Tile.TFrame", background=background)
+        style.configure(f"{key}.TileValue.TLabel", background=background, foreground=INK, font=font["stat"])
+        style.configure(f"{key}.TileCaption.TLabel", background=background, foreground=MUTED, font=font["eyebrow"])
+    style.configure("Room.TLabel", background=WATER_PALE, foreground=INK, padding=(10, 8))
+    style.configure("Hud.TLabel", background=INK, foreground="#fff1e4", font=font["bold"], padding=(12, 8))
 
-    for name, background, foreground, border in (("TButton", "#e9efe0", GREEN, FIELD_LINE),
-                                                ("Primary.TButton", GREEN, "white", GREEN)):
-        style.configure(name, background=background, foreground=foreground, bordercolor=border,
-                        lightcolor=background, darkcolor=background, padding=(14, 7), font=font["bold"])
-    style.map("TButton", background=[("disabled", "#eef0ea"), ("pressed", "#d3e0cb"), ("active", "#dfe9d6")],
-              lightcolor=[("disabled", "#eef0ea"), ("pressed", "#d3e0cb"), ("active", "#dfe9d6")],
-              darkcolor=[("disabled", "#eef0ea"), ("pressed", "#d3e0cb"), ("active", "#dfe9d6")],
-              foreground=[("disabled", "#8a9a8c")], bordercolor=[("focus", GREEN)])
-    style.map("Primary.TButton",
-              background=[("disabled", DISABLED), ("pressed", GREEN_PRESSED), ("active", GREEN_HOVER)],
-              lightcolor=[("disabled", DISABLED), ("pressed", GREEN_PRESSED), ("active", GREEN_HOVER)],
-              darkcolor=[("disabled", DISABLED), ("pressed", GREEN_PRESSED), ("active", GREEN_HOVER)],
-              bordercolor=[("disabled", DISABLED), ("focus", CORAL)], foreground=[("disabled", "#f2f5f1")])
+    _button(style, "TButton", WATER_PALE, "#b5e8db", "#a2dfd0", font["button"])
+    _button(style, "Primary.TButton", CORAL, CORAL_HOVER, CORAL_PRESSED, font["button"])
 
     for name in ("TEntry", "TCombobox", "TSpinbox"):
-        style.configure(name, fieldbackground=PAPER, background=TILE, foreground=INK, bordercolor=FIELD_LINE,
-                        lightcolor=PAPER, darkcolor=PAPER, arrowcolor=GREEN, padding=5)
-        style.map(name, fieldbackground=[("readonly", PAPER), ("disabled", "#f1f2ec")],
-                  foreground=[("disabled", "#8a9a8c")], bordercolor=[("focus", GREEN)],
+        style.configure(name, fieldbackground=PAPER, background=WATER_PALE, foreground=INK, bordercolor=INK,
+                        lightcolor=PAPER, darkcolor=PAPER, arrowcolor=INK, padding=5)
+        style.map(name, fieldbackground=[("readonly", PAPER), ("disabled", "#eef2ef")],
+                  foreground=[("disabled", DISABLED_FG)], bordercolor=[("focus", CORAL), ("disabled", "#9fb1ae")],
                   lightcolor=[("focus", PAPER)])
     root.option_add("*TCombobox*Listbox.background", PAPER)
     root.option_add("*TCombobox*Listbox.foreground", INK)
-    root.option_add("*TCombobox*Listbox.selectBackground", GREEN)
+    root.option_add("*TCombobox*Listbox.selectBackground", INK)
     root.option_add("*TCombobox*Listbox.selectForeground", "white")
     root.option_add("*TCombobox*Listbox.font", font["base"])
 
     for name in ("Card.TRadiobutton", "Card.TCheckbutton"):
         style.configure(name, background=PAPER, foreground=TEXT, indicatorbackground=PAPER,
-                        indicatorforeground=GREEN, indicatormargin=(0, 0, 6, 0))
-        style.map(name, background=[("active", PAPER)], indicatorbackground=[("selected", PAPER)])
+                        indicatorforeground=INK, indicatormargin=(0, 0, 6, 0), upperbordercolor=INK,
+                        lowerbordercolor=INK)
+        style.map(name, background=[("active", PAPER)], indicatorbackground=[("selected", SUN)])
 
     import tkinter.font as tkfont
     row_height = tkfont.Font(root=root, font=font["base"]).metrics("linespace") + 12
-    style.configure("Treeview", background=PAPER, fieldbackground=PAPER, foreground=TEXT, bordercolor=LINE,
+    style.configure("Treeview", background=PAPER, fieldbackground=PAPER, foreground=TEXT, bordercolor=INK,
                     lightcolor=PAPER, darkcolor=PAPER, rowheight=row_height)
-    style.map("Treeview", background=[("selected", GREEN)], foreground=[("selected", "white")])
-    style.configure("Treeview.Heading", background=TILE, foreground=MUTED, font=font["eyebrow"],
-                    bordercolor=LINE, lightcolor=TILE, darkcolor=TILE, relief="flat", padding=(8, 6))
-    style.map("Treeview.Heading", background=[("active", "#e3e9da")])
-    style.configure("Vertical.TScrollbar", background=TILE, troughcolor=PAPER, bordercolor=PAPER,
-                    lightcolor=TILE, darkcolor=TILE, arrowcolor=MUTED)
+    style.map("Treeview", background=[("selected", INK)], foreground=[("selected", SUN)])
+    style.configure("Treeview.Heading", background=SKY, foreground=INK, font=font["eyebrow"],
+                    bordercolor=INK, lightcolor=SKY, darkcolor=SKY, relief="flat", padding=(8, 6))
+    style.map("Treeview.Heading", background=[("active", "#ffd9bd")])
+    style.configure("Vertical.TScrollbar", background=WATER_PALE, troughcolor=PAPER, bordercolor=INK,
+                    lightcolor=WATER_PALE, darkcolor=WATER_PALE, arrowcolor=INK)
     style.configure("TSeparator", background=LINE)
-    style.configure("TNotebook", background=SAND, bordercolor=LINE, lightcolor=SAND, darkcolor=SAND,
+    # Tabs read as game menu tabs: the open one is an ink sticker with sun text.
+    style.configure("TNotebook", background=SAND, bordercolor=INK, lightcolor=SAND, darkcolor=SAND,
                     tabmargins=(0, 0, 0, 0))
-    style.configure("TNotebook.Tab", background="#e9efe0", foreground=MUTED, bordercolor=LINE,
-                    lightcolor="#e9efe0", darkcolor="#e9efe0", padding=(16, 7), font=font["bold"])
-    style.map("TNotebook.Tab", background=[("selected", PAPER), ("active", "#dfe9d6")],
-              lightcolor=[("selected", PAPER)], foreground=[("selected", INK)], expand=[("selected", (0, 2, 0, 0))])
+    style.configure("TNotebook.Tab", background="#d3ebe3", foreground=MUTED, bordercolor=INK,
+                    lightcolor="#d3ebe3", darkcolor="#d3ebe3", padding=(18, 8), font=font["button"])
+    style.map("TNotebook.Tab", background=[("selected", INK), ("active", "#c1e3d8")],
+              lightcolor=[("selected", INK)], darkcolor=[("selected", INK)],
+              foreground=[("selected", SUN), ("active", INK)], expand=[("selected", (0, 2, 0, 0))])
     return font

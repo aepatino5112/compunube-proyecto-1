@@ -121,7 +121,7 @@ Los estudios no compran ni equipan objetos en el perfil. Para diagnosticar local
 
 - `dist/index.html`: interfaz.
 - `dist/style.css`: diseño y adaptación a móvil.
-- `dist/brand.css`: marca «Surf Club: Acción por las Aguas» y escala tipográfica de menús, diálogos y paneles (se carga la última; textos secundarios con contraste de 4,5:1 o más). La escena 3D y el HUD de carrera conservan sus estilos.
+- `dist/brand.css`: identidad «Surf Club: Acción por las Aguas» de menús, diálogos y paneles: el atardecer del juego sobre el agua (cielo melocotón, agua menta, tinta de laguna, coral y sol), logo tipo calcomanía y botones-pegatina con sombra dura que se hunden al pulsar. Títulos y botones usan [Lilita One](dist/assets/fonts/OFL.txt) (OFL, incluida para funcionar sin internet); el texto usa la fuente del sistema. Se carga la última; textos secundarios con contraste de 4,5:1 o más. La escena 3D y el HUD de carrera conservan sus estilos.
 - `dist/game.js`: escena, animación y simulación local.
 - `dist/environment.js`: paisaje instanciado y agua animada en la GPU.
 - `dist/art-direction.js`: horizonte escénico, cielo y dirección solar compartida.
