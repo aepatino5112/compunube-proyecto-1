@@ -21,7 +21,9 @@ export const LAB_DB_PORT = '55432';
 
 // role -> Compose services it runs and the .env addresses it needs to reach.
 export const ROLES = {
-  db: { services: ['postgres', 'db-migrate'], needs: [] },
+  // db-migrate is a one-shot job: some Compose versions fail `up --wait` when a
+  // targeted service exits, even with code 0, so it runs after PostgreSQL is up.
+  db: { services: ['postgres'], needs: [], then: ['compose', 'run', '--rm', 'db-migrate'] },
   rust: { services: ['player-profile-rust-1', 'player-profile-rust-2', 'envoy'], needs: ['POSTGRES_ADDR'] },
   go: { services: ['match-service-go'], needs: ['POSTGRES_ADDR', 'PLAYER_PROFILE_GRPC_ADDR'] },
   all: { services: [], needs: [] },
@@ -198,6 +200,7 @@ async function up(role, opts) {
   if (!docker(composeUp(role, opts), local)) {
     die('Docker Compose no pudo dejar el rol sano.', `Mira los registros: docker compose logs --tail 50 ${ROLES[role].services.join(' ')}`);
   }
+  if (ROLES[role].then && !docker(ROLES[role].then, local)) die('Las migraciones de la base de datos fallaron.', 'Revisa el mensaje de arriba; luego repite "node scripts/lab.mjs db".');
   const goPort = env.GO_HTTP_PORT || 8080, adminPort = env.ENVOY_ADMIN_PORT || 9901;
   if (role === 'db') {
     const port = env.POSTGRES_PORT || 5432;

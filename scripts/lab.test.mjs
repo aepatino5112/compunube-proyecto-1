@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import net from 'node:net';
 import test from 'node:test';
-import { composeUp, hostPort, initValues, LAB_DB_PORT, parseEnv, renderEnv, SECRETS, tcp } from './lab.mjs';
+import { composeUp, hostPort, ROLES, initValues, LAB_DB_PORT, parseEnv, renderEnv, SECRETS, tcp } from './lab.mjs';
 
 const example = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
 
@@ -36,7 +36,8 @@ test('the rendered .env keeps the template and Compose reads the new values', ()
 });
 
 test('each role starts only its services; Rust and Go skip the dependencies on other machines', () => {
-  assert.deepEqual(composeUp('db').slice(-2), ['postgres', 'db-migrate']);
+  assert.deepEqual(composeUp('db').slice(-1), ['postgres']);
+  assert.deepEqual(ROLES.db.then, ['compose', 'run', '--rm', 'db-migrate']);
   assert.ok(!composeUp('db').includes('--no-deps'));
   assert.deepEqual(composeUp('rust').slice(-4), ['--no-deps', 'player-profile-rust-1', 'player-profile-rust-2', 'envoy']);
   assert.deepEqual(composeUp('go').slice(-2), ['--no-deps', 'match-service-go']);
