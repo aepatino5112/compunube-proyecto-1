@@ -106,7 +106,7 @@ test('two web clients race on Go: E43 flow, reentry with monotonic inputs, leave
   }
   await until('both clients racing', () => host.client.state.status === 'racing' && guest.client.state.status === 'racing', 15000);
   assert.equal(host.seen.starts[0].course.mapId, 'orinoco');
-  assert.equal(host.seen.starts[0].course.trash.length, 103);
+  assert.equal(host.seen.starts[0].course.trash.length, 211);
   await until('snapshots flowing', () => host.seen.snapshots.length > 5 && guest.seen.snapshots.length > 5);
 
   // Inputs with strictly increasing seq; Go reports what it processed.
@@ -141,7 +141,7 @@ test('two web clients race on Go: E43 flow, reentry with monotonic inputs, leave
   const guestId = guest.profile.state.playerId;
   assert.equal(reloaded.client.state.selfPlayerId, guestId, 'same identity after reload');
   assert.equal(reloaded.race.start.raceId, raceId);
-  assert.equal(reloaded.race.start.course.trash.length, 103, 'course rebuilt from the versioned manifest');
+  assert.equal(reloaded.race.start.course.trash.length, 211, 'course rebuilt from the versioned manifest');
   assert.ok(['racing', 'reconnecting'].includes(reloaded.race.latest.players.find(p => p.playerId === guestId).state),
     'the participation survived the reload inside the reentry window');
   const owned = race => new Map(race.latest.trash.map(item => [item.itemId, item.collectedBy]));

@@ -30,3 +30,9 @@ test('surf-mvp-2 keeps the surf-mvp-1 spacing, and 900 m still rebuilds surf-mvp
     assert.ok(Math.abs((900+v1.trash.at(-1).z)-(1800+v2.trash.at(-1).z))<8.3);
   }
 });
+
+test('the home screen announces the current course length',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const html=await readFile(new URL('../dist/index.html',import.meta.url),'utf8');
+  assert.match(html,new RegExp(`<span>${COURSE_LENGTH} m · 3 vidas</span>`));
+});

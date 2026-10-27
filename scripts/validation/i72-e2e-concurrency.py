@@ -96,6 +96,7 @@ def play(game, choice, leave_after, outcome, errors):
             return
         outcome["result"] = game.race(timeout=300, leave_after=leave_after)
         outcome["final"] = game.view.snapshot
+        outcome["course_trash"] = len(game.view.start["course"]["trash"])
         outcome["settlement"] = game.wait_settlement(90)
     except Exception as error:  # reported by the main thread
         errors.append(f"{type(error).__name__}: {error}")
@@ -179,7 +180,7 @@ def main():
         for item in final["trash"]:
             if item["collectedBy"] is not None:
                 owners[item["collectedBy"]] = owners.get(item["collectedBy"], 0) + 1
-        h68.check(len({i["itemId"] for i in final["trash"]}) == 103 and all(
+        h68.check(len({i["itemId"] for i in final["trash"]}) == room["outcomes"][0]["course_trash"] and all(
             owners.get(p["playerId"], 0) == p["collectedPlastic"] + p["collectedMetal"] for p in final["players"]),
             f"room {r_index}: every pickup has exactly one owner, matching counters")
         h68.check(all(o["settlement"] == "confirmed" for o in room["outcomes"] if o["result"]),

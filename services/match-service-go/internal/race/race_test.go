@@ -23,6 +23,7 @@ func near(t *testing.T, got, want float64) {
 		t.Fatalf("got %.12f, want %.12f", got, want)
 	}
 }
+
 // surf-mvp-1 is a released version: its manifests stay embedded byte for byte
 // (apps/web/tools/generate-course-manifests.mjs --check surf-mvp-1 900).
 func TestReleasedSurfMvp1ManifestsStayUnchanged(t *testing.T) {
