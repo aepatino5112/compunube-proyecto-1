@@ -13,8 +13,10 @@ use super::{
     profile::{Appearance, ProfileState, Slot},
 };
 
-/// The only catalog version that exists today. Exchange rates are bound to it.
+/// First catalog (retired by migration 0004, kept so its operations replay).
 pub const ONLINE_V1: &str = "online-v1";
+/// Active catalog since migration 0004: prices and recipes ×5, same rates.
+pub const ONLINE_V2: &str = "online-v2";
 
 /// Largest value any balance column can hold (`BIGINT`).
 const BALANCE_LIMIT: u64 = i64::MAX as u64;
@@ -52,10 +54,12 @@ impl ExchangeRates {
 
 /// Rates have no table; they are constants of the catalog they belong to.
 pub fn exchange_rates(catalog_version: &str) -> Option<ExchangeRates> {
-    (catalog_version == ONLINE_V1).then_some(ExchangeRates {
-        plastic: 4,
-        metal: 6,
-    })
+    [ONLINE_V1, ONLINE_V2]
+        .contains(&catalog_version)
+        .then_some(ExchangeRates {
+            plastic: 4,
+            metal: 6,
+        })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -619,17 +623,19 @@ mod tests {
     }
 
     #[test]
-    fn exchange_rates_exist_only_for_online_v1() {
-        assert_eq!(
-            exchange_rates("online-v1"),
-            Some(ExchangeRates {
-                plastic: 4,
-                metal: 6
-            })
-        );
-        assert_eq!(exchange_rates("online-v2"), None);
+    fn exchange_rates_exist_only_for_published_catalogs() {
+        for version in ["online-v1", "online-v2"] {
+            assert_eq!(
+                exchange_rates(version),
+                Some(ExchangeRates {
+                    plastic: 4,
+                    metal: 6
+                })
+            );
+        }
+        assert_eq!(exchange_rates("online-v3"), None);
         let mut catalog = fixtures::catalog();
-        catalog.version = "online-v2".into();
+        catalog.version = "online-v3".into();
         let mut s = state();
         s.plastic = 1;
         let intent = MutationIntent::Exchange {

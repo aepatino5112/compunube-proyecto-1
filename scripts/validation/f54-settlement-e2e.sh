@@ -283,10 +283,10 @@ stable_match_counters() { # PostgreSQL flushes statistics asynchronously: sample
 before=$(stable_match_counters)
 log "match.* tuple counters (ins/upd/del) before Rust-only traffic: $before"
 R="f54-rustonly-$RUN_ID"
-grpc SettleRace "{\"race_id\":\"rustonly-$RUN_ID\",\"player_id\":\"$R\",\"outcome\":\"RACE_OUTCOME_FINISHED\",\"credited_plastic\":8,\"credited_metal\":2}" >/dev/null
-grpc ExchangeMaterials "{\"player_id\":\"$R\",\"request_id\":\"ro-ex\",\"catalog_version\":\"online-v1\",\"material\":\"MATERIAL_PLASTIC\",\"amount\":8}" >/dev/null
-grpc BuyItem "{\"player_id\":\"$R\",\"request_id\":\"ro-buy\",\"catalog_version\":\"online-v1\",\"item_id\":\"brisa\"}" >/dev/null
-grpc SetAppearance "{\"player_id\":\"$R\",\"request_id\":\"ro-app\",\"catalog_version\":\"online-v1\",\"skin_id\":\"warm\",\"hair_color_id\":\"copper\"}" >/dev/null
+grpc SettleRace "{\"race_id\":\"rustonly-$RUN_ID\",\"player_id\":\"$R\",\"outcome\":\"RACE_OUTCOME_FINISHED\",\"credited_plastic\":50,\"credited_metal\":2}" >/dev/null
+grpc ExchangeMaterials "{\"player_id\":\"$R\",\"request_id\":\"ro-ex\",\"catalog_version\":\"online-v2\",\"material\":\"MATERIAL_PLASTIC\",\"amount\":50}" >/dev/null
+grpc BuyItem "{\"player_id\":\"$R\",\"request_id\":\"ro-buy\",\"catalog_version\":\"online-v2\",\"item_id\":\"brisa\"}" >/dev/null
+grpc SetAppearance "{\"player_id\":\"$R\",\"request_id\":\"ro-app\",\"catalog_version\":\"online-v2\",\"skin_id\":\"warm\",\"hair_color_id\":\"copper\"}" >/dev/null
 after=$(stable_match_counters)
 log "match.* tuple counters after:                                  $after"
 expect "Rust-only gRPC traffic (settle, exchange, buy, appearance) changed no match.* row" "$before" "$after"

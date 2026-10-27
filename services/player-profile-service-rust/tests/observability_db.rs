@@ -15,7 +15,7 @@ use player_profile_service::{
     },
 };
 
-const V: &str = "online-v1";
+const V: &str = "online-v2";
 
 /// Value of the first series of `name` that carries every label, or 0.
 fn series(text: &str, name: &str, labels: &[&str]) -> f64 {
@@ -77,9 +77,9 @@ async fn business_outcomes_replays_conflicts_and_settlements_are_counted() {
     let race = unique("race");
 
     // Settlement: credited, replayed, conflict, invalid.
-    c.settle_race(settle(&race, &player, 1, 25)).await.unwrap();
-    c.settle_race(settle(&race, &player, 1, 25)).await.unwrap();
-    c.settle_race(settle(&race, &player, 1, 26)).await.unwrap();
+    c.settle_race(settle(&race, &player, 1, 125)).await.unwrap();
+    c.settle_race(settle(&race, &player, 1, 125)).await.unwrap();
+    c.settle_race(settle(&race, &player, 1, 126)).await.unwrap();
     c.settle_race(settle(&unique("race"), &player, 2, 5))
         .await
         .unwrap();
@@ -90,7 +90,7 @@ async fn business_outcomes_replays_conflicts_and_settlements_are_counted() {
         request_id: "ex1".into(),
         catalog_version: V.into(),
         material: Material::Plastic as i32,
-        amount: 20,
+        amount: 100,
     })
     .await
     .unwrap();

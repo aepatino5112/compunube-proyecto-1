@@ -11,21 +11,21 @@ test('a finished race credits each material once, and survives persistence', () 
   assert.ok(duplicate.error); assert.deepEqual(duplicate.profile, profile); assert.equal(profile.races, 1);
 });
 test('crafting and recycling compete for the same finite material', () => {
-  const initial = { ...freshProfile(), plastic: 6, metal: 3 };
+  const initial = { ...freshProfile(), plastic: 30, metal: 15 };
   const crafted = transact(initial, { type: 'craft', id: 'red-reuso' });
   assert.equal(crafted.error, null); assert.equal(crafted.profile.plastic, 0); assert.equal(crafted.profile.metal, 0);
   assert.equal(crafted.profile.equipped.net, 'red-base');
   assert.ok(transact(crafted.profile, { type: 'exchange', material: 'metal', amount: 1 }).error);
   const equipped = transact(crafted.profile, { type: 'equip', id: 'red-reuso' });
   assert.equal(equipped.profile.equipped.net, 'red-reuso');
-  const recycled = transact(initial, { type: 'exchange', material: 'plastic', amount: 6 });
-  assert.equal(recycled.profile.coins, 24);
+  const recycled = transact(initial, { type: 'exchange', material: 'plastic', amount: 30 });
+  assert.equal(recycled.profile.coins, 120);
   const failed = transact(recycled.profile, { type: 'craft', id: 'red-reuso' });
   assert.ok(failed.error); assert.deepEqual(failed.profile, recycled.profile);
-  assert.equal(initial.plastic, 6);
+  assert.equal(initial.plastic, 30);
 });
 test('buy, ownership and equip are distinct, failed transactions spend nothing', () => {
-  let profile = { ...freshProfile(), coins: 60 };
+  let profile = { ...freshProfile(), coins: 300 };
   const bought = transact(profile, { type: 'buy', id: 'manglar' });
   assert.equal(bought.profile.coins, 0); assert.equal(bought.profile.equipped.board, 'coral');
   assert.ok(bought.profile.owned.includes('manglar'));

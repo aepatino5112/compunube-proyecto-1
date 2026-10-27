@@ -137,7 +137,7 @@ grpcurl -plaintext -import-path proto -proto player_profile.proto -d '{}' \
   127.0.0.1:50051 compunube.player.v1.PlayerProfileService/GetCatalog
 ```
 
-`GetCatalog` es de solo lectura y devuelve `online-v1` **[L]**. **Cualquier otra RPC, incluido `GetProfile`, crea el perfil si no existe** y las mutaciones cambian saldos: úselas solo con jugadores de prueba y en un proyecto aislado. `grpc.health.v1.Health` no se puede consultar con `grpcurl` sin su propio `.proto` (el repositorio no lo incluye); use la sonda del contenedor y `/clusters`.
+`GetCatalog` es de solo lectura y devuelve `online-v2` (desde la migración `0004`) **[L]**. **Cualquier otra RPC, incluido `GetProfile`, crea el perfil si no existe** y las mutaciones cambian saldos: úselas solo con jugadores de prueba y en un proyecto aislado. `grpc.health.v1.Health` no se puede consultar con `grpcurl` sin su propio `.proto` (el repositorio no lo incluye); use la sonda del contenedor y `/clusters`.
 
 ### 4.4 Logs
 

@@ -13,7 +13,7 @@ use player_profile_service::pb::{
 };
 use tonic::Code;
 
-const V: &str = "online-v1";
+const V: &str = "online-v2";
 
 async fn client(test: &str) -> Option<(Client, common::Instance)> {
     let url = common::database_url(test)?;
@@ -134,17 +134,17 @@ async fn the_catalog_is_stable_online_v1_with_items_and_appearance_options() {
         .into_inner();
     assert_eq!(
         explicit, active,
-        "the active version is online-v1 and is stable"
+        "the active version is online-v2 and is stable"
     );
 
     let item = |id: &str| active.items.iter().find(|i| i.item_id == id).unwrap();
     assert_eq!(item("manglar").item_type, ItemType::Board as i32);
     assert!(item("manglar").purchasable && !item("manglar").craftable);
-    assert_eq!(item("manglar").price_coins, 60);
+    assert_eq!(item("manglar").price_coins, 300);
     assert!(item("red-sol").craftable && !item("red-sol").purchasable);
     assert_eq!(
         (item("red-sol").recipe_plastic, item("red-sol").recipe_metal),
-        (24, 16)
+        (120, 80)
     );
     assert_eq!(item("nico").item_type, ItemType::Character as i32);
     assert!(item("red-aurora")
@@ -196,7 +196,7 @@ async fn business_outcomes_travel_in_the_body_with_status_ok() {
     );
 
     // earn coins through the authoritative path, then buy
-    c.settle_race(finish(&unique("race"), &player, 25, 0))
+    c.settle_race(finish(&unique("race"), &player, 125, 0))
         .await
         .unwrap();
     let exchanged = c
@@ -205,13 +205,13 @@ async fn business_outcomes_travel_in_the_body_with_status_ok() {
             request_id: "ex1".into(),
             catalog_version: V.into(),
             material: Material::Plastic as i32,
-            amount: 20,
+            amount: 100,
         })
         .await
         .unwrap()
         .into_inner();
     let (_, profile) = success(exchanged);
-    assert_eq!((profile.coins, profile.plastic), (80, 5));
+    assert_eq!((profile.coins, profile.plastic), (400, 25));
 
     let (replayed, bought) = success(
         c.buy_item(buy(&player, "r2", "manglar"))
@@ -220,7 +220,7 @@ async fn business_outcomes_travel_in_the_body_with_status_ok() {
             .into_inner(),
     );
     assert!(!replayed);
-    assert_eq!(bought.coins, 20);
+    assert_eq!(bought.coins, 100);
     assert!(bought.owned_item_ids.contains(&"manglar".to_string()));
 
     let (replayed, again) = success(

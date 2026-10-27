@@ -104,36 +104,47 @@ async fn the_four_characters_are_item_definitions() {
 }
 
 #[tokio::test]
-async fn online_v1_is_the_published_active_catalog_with_all_items() {
-    let Some(pool) = pool("online_v1_is_the_published_active_catalog_with_all_items").await else {
+async fn online_v2_is_the_published_active_catalog_with_all_items() {
+    let Some(pool) = pool("online_v2_is_the_published_active_catalog_with_all_items").await else {
         return;
     };
     let version = sqlx::query(
         "SELECT active, published_at IS NOT NULL AS published \
-         FROM player.catalog_versions WHERE catalog_version = 'online-v1'",
+         FROM player.catalog_versions WHERE catalog_version = 'online-v2'",
     )
     .fetch_one(&pool)
     .await
-    .expect("online-v1 is not registered");
+    .expect("online-v2 is not registered");
     assert!(version.get::<bool, _>("active"));
     assert!(version.get::<bool, _>("published"));
     let entries: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM player.catalog_entries WHERE catalog_version = 'online-v1' AND enabled",
+        "SELECT count(*) FROM player.catalog_entries WHERE catalog_version = 'online-v2' AND enabled",
     )
     .fetch_one(&pool)
     .await
     .unwrap();
     assert_eq!(entries, 22);
+
+    // Migration 0004 retired online-v1: kept with its 22 entries, unpublished.
+    let retired = sqlx::query(
+        "SELECT active, published_at IS NOT NULL AS published \
+         FROM player.catalog_versions WHERE catalog_version = 'online-v1'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("online-v1 is still registered");
+    assert!(!retired.get::<bool, _>("active"));
+    assert!(!retired.get::<bool, _>("published"));
 }
 
 #[tokio::test]
-async fn online_v1_economy_values_match_the_prototype() {
-    let Some(pool) = pool("online_v1_economy_values_match_the_prototype").await else {
+async fn online_v2_economy_values_are_five_times_the_prototype() {
+    let Some(pool) = pool("online_v2_economy_values_are_five_times_the_prototype").await else {
         return;
     };
     let rows = sqlx::query(
         "SELECT item_id, price_coins, recipe_plastic, recipe_metal \
-         FROM player.catalog_entries WHERE catalog_version = 'online-v1'",
+         FROM player.catalog_entries WHERE catalog_version = 'online-v2'",
     )
     .fetch_all(&pool)
     .await
@@ -149,18 +160,18 @@ async fn online_v1_economy_values_match_the_prototype() {
             row.get::<i64, _>("recipe_metal"),
         )
     };
-    assert_eq!(get("manglar"), (Some(60), 0, 0));
-    assert_eq!(get("sol"), (Some(100), 0, 0));
-    assert_eq!(get("brisa"), (Some(40), 0, 0));
-    assert_eq!(get("uva"), (Some(80), 0, 0));
+    assert_eq!(get("manglar"), (Some(300), 0, 0));
+    assert_eq!(get("sol"), (Some(500), 0, 0));
+    assert_eq!(get("brisa"), (Some(200), 0, 0));
+    assert_eq!(get("uva"), (Some(400), 0, 0));
     assert_eq!(get("coral"), (Some(0), 0, 0));
     assert_eq!(get("nico"), (Some(0), 0, 0));
-    assert_eq!(get("red-reuso"), (None, 6, 3));
-    assert_eq!(get("red-marea"), (None, 10, 5));
-    assert_eq!(get("red-cobre"), (None, 12, 8));
-    assert_eq!(get("red-faro"), (None, 16, 10));
-    assert_eq!(get("red-aurora"), (None, 20, 12));
-    assert_eq!(get("red-sol"), (None, 24, 16));
+    assert_eq!(get("red-reuso"), (None, 30, 15));
+    assert_eq!(get("red-marea"), (None, 50, 25));
+    assert_eq!(get("red-cobre"), (None, 60, 40));
+    assert_eq!(get("red-faro"), (None, 80, 50));
+    assert_eq!(get("red-aurora"), (None, 100, 60));
+    assert_eq!(get("red-sol"), (None, 120, 80));
 }
 
 // ---- integrity constraints (I71) --------------------------------------------
@@ -393,7 +404,7 @@ async fn at_most_one_catalog_version_can_be_active() {
     let Some(pool) = pool("at_most_one_catalog_version_can_be_active").await else {
         return;
     };
-    // online-v1 is already active, so a second active version must be refused
+    // online-v2 is already active, so a second active version must be refused
     // (and, being refused, leaves the shared database untouched).
     assert_eq!(
         sqlstate(

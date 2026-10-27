@@ -154,23 +154,23 @@ async fn concurrent_first_access_provisions_exactly_once() {
 }
 
 #[tokio::test]
-async fn the_active_catalog_is_online_v1_with_the_prototype_economy() {
-    let Some((repos, _pool)) = setup("the_active_catalog_is_online_v1").await else {
+async fn the_active_catalog_is_online_v2_with_the_rebalanced_economy() {
+    let Some((repos, _pool)) = setup("the_active_catalog_is_online_v2").await else {
         return;
     };
     let catalog = repos.catalog.find_catalog(None).await.unwrap().unwrap();
-    assert_eq!(catalog.version, "online-v1");
+    assert_eq!(catalog.version, "online-v2");
     assert_eq!(catalog.items.len(), 22);
 
     let manglar = catalog.get("manglar").unwrap();
     assert_eq!(manglar.item_type, ItemType::Board);
-    assert_eq!(manglar.price_coins, Some(60));
+    assert_eq!(manglar.price_coins, Some(300));
     assert!(manglar.purchasable() && !manglar.craftable());
     assert_eq!(manglar.metadata["color"], "#378875");
 
     let aurora = catalog.get("red-aurora").unwrap();
     assert_eq!(aurora.price_coins, None);
-    assert_eq!((aurora.recipe_plastic, aurora.recipe_metal), (20, 12));
+    assert_eq!((aurora.recipe_plastic, aurora.recipe_metal), (100, 60));
     assert!(!aurora.purchasable() && aurora.craftable());
     assert_eq!(aurora.metadata["rarity"], "Especial");
     assert_eq!(
@@ -191,7 +191,7 @@ async fn the_active_catalog_is_online_v1_with_the_prototype_economy() {
 
     let explicit = repos
         .catalog
-        .find_catalog(Some("online-v1"))
+        .find_catalog(Some("online-v2"))
         .await
         .unwrap()
         .unwrap();
@@ -213,7 +213,7 @@ async fn unknown_and_unpublished_catalog_versions_are_not_found() {
     assert_eq!(repos.catalog.find_catalog(Some(&draft)).await, Ok(None));
     let mut tx = repos.transactions.begin().await.unwrap();
     assert_eq!(tx.find_catalog(&draft).await, Ok(None));
-    assert!(tx.find_catalog("online-v1").await.unwrap().is_some());
+    assert!(tx.find_catalog("online-v2").await.unwrap().is_some());
 }
 
 #[tokio::test]
@@ -369,7 +369,7 @@ async fn operation_and_settlement_records_round_trip_including_rejections() {
         request_id: "r-1".into(),
         operation_type: "buy".into(),
         request_fingerprint: "fp-1".into(),
-        catalog_version: Some("online-v1".into()),
+        catalog_version: Some("online-v2".into()),
         status: OperationStatus::Applied,
         rejection: None,
         profile_revision_after: Some(2),

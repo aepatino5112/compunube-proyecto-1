@@ -73,11 +73,11 @@ async fn a_finished_race_credits_exactly_the_request_amounts_once() {
     let race = unique("race");
     let (replayed, profile) = ok(settle(
         &env.app,
-        command(&race, &player, RaceOutcome::Finished, 7, 3),
+        command(&race, &player, RaceOutcome::Finished, 31, 15),
     )
     .await);
     assert!(!replayed, "first application is not a replay");
-    assert_eq!((profile.plastic, profile.metal, profile.coins), (7, 3, 0));
+    assert_eq!((profile.plastic, profile.metal, profile.coins), (31, 15, 0));
     assert_eq!(profile.revision, 2, "provisioned at 1, credit bumps to 2");
     let stored: (i64, i64, i64) = sqlx::query_as(
         "SELECT credited_plastic, credited_metal, profile_revision_after FROM player.settlements \
@@ -88,12 +88,12 @@ async fn a_finished_race_credits_exactly_the_request_amounts_once() {
     .fetch_one(&env.pool)
     .await
     .unwrap();
-    assert_eq!(stored, (7, 3, 2));
+    assert_eq!(stored, (31, 15, 2));
 
     // replay: same result, zero extra effect
     let (replayed, again) = ok(settle(
         &env.app,
-        command(&race, &player, RaceOutcome::Finished, 7, 3),
+        command(&race, &player, RaceOutcome::Finished, 31, 15),
     )
     .await);
     assert!(replayed);

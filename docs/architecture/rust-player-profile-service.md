@@ -242,18 +242,20 @@ F47 dejó la base modular del servicio; **F52 implementa las ocho RPC de `compun
 
 Pruebas estructurales (`tests/architecture.rs`) verifican que `application`, `domain` y `transport` no dependan de SQL y que ninguna fuente referencie el schema `match`.
 
-### Reglas de economía (catálogo `online-v1`)
+### Reglas de economía (catálogo `online-v2`)
+
+Desde la migración `0004`, el catálogo activo es `online-v2`. Sus precios de tienda y recetas de taller son ×5 los de `online-v1`, porque las carreras de 1800 m (surf-mvp-3) dan el doble de materiales. `online-v1` se conserva sin publicar: sus operaciones registradas siguen haciendo replay y las nuevas se rechazan con `INVALID_CATALOG_VERSION`.
 
 Los valores salen de `apps/web/dist/economy.js` y `appearance.js` y los publica la migración `0002` (ver [E41](postgresql-schema.md) y [`database/README.md`](../../database/README.md)); no se inventa ninguno.
 
 - **Perfil inicial (aprovisionamiento perezoso):** cualquier RPC salvo `GetCatalog` crea el perfil en una transacción si no existe: monedas/plástico/metal en 0, `profile_revision = 1`, 12 objetos base (`coral`, `costero`, `red-base`, los 5 peinados y los 4 personajes, `acquisition_type = 'base'`), 5 ranuras equipadas (`coral`, `costero`, `red-base`, `swept`, `nico`) y apariencia `medium`/`brown`. El aprovisionamiento concurrente es idempotente (`ON CONFLICT DO NOTHING` + relectura).
 - **Compra:** solo si el catálogo da precio y no hay receta; **craft:** solo objetos con receta (las redes). Nada queda negativo (dominio + `CHECK`).
-- **Canje:** 4 monedas por plástico y 6 por metal. No tiene tabla: son constantes del dominio ligadas a `online-v1`. Cantidad 0, `>= 1e9` o material `UNSPECIFIED` -> `INVALID_ARGUMENT`.
+- **Canje:** 4 monedas por plástico y 6 por metal. No tiene tabla: son constantes del dominio ligadas a `online-v1` y `online-v2`. Cantidad 0, `>= 1e9` o material `UNSPECIFIED` -> `INVALID_ARGUMENT`.
 - **Equipar:** solo objetos poseídos y en la ranura de su propio tipo; equipar un personaje fija además su peinado y apariencia (como `economy.js`). Equipar lo ya equipado se aplica.
 - **Apariencia:** 5 tonos de piel y 6 colores de cabello (constantes). Un valor fuera de la lista -> `INVALID_APPEARANCE`.
 - **Orden de rechazo:** `INVALID_CATALOG_VERSION` -> `INVALID_ITEM` -> `ALREADY_OWNED`/`NOT_OWNED` -> `INVALID_ACTION` -> `INSUFFICIENT_COINS`/`INSUFFICIENT_MATERIALS`. Una versión de catálogo sin publicar, desconocida o vacía es `INVALID_CATALOG_VERSION`.
 - **Revisión:** `+1` en cada mutación aplicada (también equipar/apariencia sin cambio efectivo) y en cada liquidación con crédito > 0; rechazos, replays y liquidaciones de crédito 0 no la mueven.
-- **Catálogo:** `GetCatalog` vacío devuelve la versión activa (`online-v1`); una versión inexistente o sin publicar es `NOT_FOUND`. Los objetos salen en un orden determinista (tipo, precio, receta, id) y `metadata` ordenada por clave.
+- **Catálogo:** `GetCatalog` vacío devuelve la versión activa (`online-v2`); una versión inexistente o sin publicar es `NOT_FOUND`. Los objetos salen en un orden determinista (tipo, precio, receta, id) y `metadata` ordenada por clave.
 
 ### Transacciones e idempotencia
 
