@@ -46,11 +46,12 @@ test('four coloured Blender rocks fit the collision envelope and batch both unmo
     });assert.equal(meshes,1);
   }
   assert.equal(new Set(silhouettes).size,4);
-  const kit=createRockKit(THREE,new THREE.Scene(),assets,36),buffers=kit.batches.map(b=>b.mesh.instanceMatrix.array);
+  const rocks=createCourse('maracaibo').obstacles.filter((_,i)=>i%3).length;
+  const kit=createRockKit(THREE,new THREE.Scene(),assets,rocks),buffers=kit.batches.map(b=>b.mesh.instanceMatrix.array);
   for(const map of MAPS){
     const course=createCourse(map.id),before=structuredClone(course);
     kit.sync(course.obstacles.filter((_,i)=>i%3).map(item=>({x:item.x,z:item.z,angle:item.rotation})));
-    assert.equal(kit.batches.length,4);assert.equal(kit.batches.reduce((n,b)=>n+b.mesh.count,0),36);
+    assert.equal(kit.batches.length,4);assert.equal(kit.batches.reduce((n,b)=>n+b.mesh.count,0),rocks);
     kit.batches.forEach((batch,i)=>{assert.equal(batch.mesh.instanceMatrix.array,buffers[i]);assert.ok(batch.mesh.boundingSphere.radius>0);assert.ok(batch.mesh.instanceMatrix.array.every(Number.isFinite));});
     assert.deepEqual(course,before);
   }

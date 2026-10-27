@@ -1,12 +1,14 @@
 // Transport-independent, read-only presentation of an authoritative race.
 // No physics, local pickup claims, rewards, timers or network connections run here.
-import { MAPS, COURSE_LENGTH, COURSE_WIDTH } from './maps.js';
+import { MAPS, COURSE_LENGTH, COURSE_WIDTH, createCourse } from './maps.js';
 import { CATALOG } from './economy.js';
 import { SKIN_TONES, HAIR_COLORS } from './appearance.js';
 import { MAX_LIVES } from './survival.js';
 import { NET_LEFT_ANGLE } from './mechanics.js';
 
-const COUNTS = Object.freeze({ obstacles: 54, trash: 103, lifesavers: 10 });
+// Both maps share the counts of the current ruleset (surf-mvp-2: 113, 211, 21).
+const SUPPORTED = createCourse(MAPS[0].id);
+const COUNTS = Object.freeze({ obstacles: SUPPORTED.obstacles.length, trash: SUPPORTED.trash.length, lifesavers: SUPPORTED.lifesavers.length });
 const CONTINUOUS = ['x', 'z', 'speed', 'turn', 'netAngle', 'jump', 'jumpVelocity'];
 const own = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const fail = message => { throw new TypeError(message); };
@@ -86,7 +88,7 @@ function sanitizeStart(value, selfPlayerId) {
   for (const [kind, count] of Object.entries(COUNTS)) {
     cleanCourse[kind] = list(course[kind], `course.${kind}`, count).map((entry, index) => {
       const path = `course.${kind}[${index}]`; object(entry, path);
-      // These meshes cover the supported 900 m course and its two visible banks.
+      // These meshes cover the supported course length and its two visible banks.
       const clean = { id: uniqueId(entry.id, ids, `${path}.id`), x: number(entry.x, `${path}.x`, -64, 64), z: number(entry.z, `${path}.z`, -COURSE_LENGTH, 50) };
       if (kind === 'obstacles') clean.radius = number(entry.radius, `${path}.radius`, Number.MIN_VALUE);
       if (kind === 'trash') {

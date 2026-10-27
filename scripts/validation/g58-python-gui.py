@@ -55,7 +55,7 @@ def guest_plays(room_id, outcome, errors):
         game.wait_for(lambda m: m is not None and m["type"] == "room.state"
                       and len(m["room"]["members"]) == 2, 20)
         game.ready("disposable")
-        outcome["result"] = game.race(timeout=180)
+        outcome["result"] = game.race(timeout=300)
         outcome["settlement"] = game.wait_settlement(60)
         game.leave()
         game.close()
@@ -133,7 +133,7 @@ def main():
                 drawn["saved"] = True
             return controller.game.view.result is not None
 
-        pump_until(root, "race ended in the window", 240, racing_drawn)
+        pump_until(root, "race ended in the window", 300, racing_drawn)
         check(drawn["players"] >= 4, "canvas drew both surfers from the authoritative snapshots")
         check(drawn["pickups"] > 0, "canvas drew uncollected pickups from the course manifest")
         check("Tiempo" in drawn["hud"] and "vidas" in drawn["hud"], f"HUD showed race state: {drawn['hud']}")

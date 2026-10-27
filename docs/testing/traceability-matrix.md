@@ -41,7 +41,7 @@ Una prueba omitida no cuenta como PASS: las pruebas de PostgreSQL de Rust (`PLAY
 | RF-010 cuenta atrás 3 s cancelable | Go rooms | `TestCountdownCancellationAndStaleDisconnect` | E-GO | PASS-CI | main |
 | RF-011 bloqueo de roster/versiones | Go rooms/race | `TestRaceInputGatewayAndReentrySequences` | E-GO | PASS-CI | main |
 | RF-012 solo intenciones válidas | Go `inputmailbox`, race | `TestLatestInputAndJumpEdges`, `TestRealtimeInputReachesAuthoritativeRace`; web/Python secuencias | E-GO, E-WEB, E-PY | PASS-CI | main, #70 |
-| RF-013–RF-018 simulación `surf-mvp-1` | Go race | `TestMovementBoostJumpAndValidation`, `TestEnergyCapAndExactBoostBurn`, `TestObstacleProtectionOctopusAndDisqualification` | E-GO | PASS-CI | main |
+| RF-013–RF-018 simulación `surf-mvp-2` | Go race | `TestMovementBoostJumpAndValidation`, `TestEnergyCapAndExactBoostBurn`, `TestObstacleProtectionOctopusAndDisqualification` | E-GO | PASS-CI | main |
 | RF-019 un único propietario por objeto | Go race | `TestDeterministicPickupOwnershipAndEnergy`, `TestCloserPickupCandidateWins`; G58/I72 (propiedad = contadores en snapshot) | E-GO, E-INT | PASS-CI | #70 (run 40265326508) |
 | RF-020 red/tabla barridas | Go race | `TestDeterministicPickupOwnershipAndEnergy` | E-GO | PASS-CI | main |
 | RF-021 `finished` al cruzar | Go race | `TestReentryFinishDeadlineRankingAndImmutableResult` | E-GO | PASS-CI | main |

@@ -1,4 +1,4 @@
-// Package race is the deterministic, single-writer surf-mvp-1 simulation.
+// Package race is the deterministic, single-writer surf-mvp simulation (see RulesVersion).
 // RoomLoop owns every Race; only the synchronized input mailbox is shared with
 // WebSocket readers.
 package race
@@ -72,7 +72,7 @@ func New(roomID, raceID, mapID string, startedAt time.Time, roster []RosterMembe
 	}
 	members := append([]RosterMember(nil), roster...)
 	sort.Slice(members, func(i, j int) bool { return members[i].PlayerID < members[j].PlayerID })
-	r := &Race{ID: raceID, RoomID: roomID, RulesVersion: "surf-mvp-1", Course: course, Roster: members, Participants: map[string]*RaceParticipant{}, Trash: make([]PickupState, len(course.Trash)), Lifesavers: make([]PickupState, len(course.Lifesavers)), StartedAt: startedAt}
+	r := &Race{ID: raceID, RoomID: roomID, RulesVersion: RulesVersion, Course: course, Roster: members, Participants: map[string]*RaceParticipant{}, Trash: make([]PickupState, len(course.Trash)), Lifesavers: make([]PickupState, len(course.Lifesavers)), StartedAt: startedAt}
 	for i, m := range members {
 		if m.PlayerID == "" || m.ReduceChoice != "reusable" && m.ReduceChoice != "disposable" {
 			return nil, errors.New("invalid race member")
@@ -188,8 +188,8 @@ func (r *Race) Advance(at time.Time, deliveries []inputmailbox.Delivery) ([]Race
 		if !active(p) {
 			continue
 		}
-		if p.Z <= -900 {
-			p.Z = -900
+		if p.Z <= -r.Course.LengthUnits {
+			p.Z = -r.Course.LengthUnits
 			p.State = "finished"
 			p.Boosting = false
 			finish := r.ElapsedMs

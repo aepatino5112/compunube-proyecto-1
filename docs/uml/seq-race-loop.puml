@@ -17,7 +17,7 @@ loop cada tick (50 ms)
   Room -> Room : mover, colisiones, recogidas\n(un único propietario por objeto), persecución, meta
   Room -> Out : race.event (feedback, deduplicable)
   alt tick par (10 Hz)
-    Room -> Out : race.snapshot completo\n(todos los jugadores, 103 residuos, 10 salvavidas,\nlastProcessedInputSeq/JumpSeq)
+    Room -> Out : race.snapshot completo\n(todos los jugadores, 211 residuos, 21 salvavidas,\nlastProcessedInputSeq/JumpSeq)
   end
 end
 Out --> C : eventos y snapshots\n(snapshots coalescibles bajo backpressure)

@@ -178,7 +178,7 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument("--reduce", choices=REDUCE_CHOICES, default="reusable")
     play.add_argument("--manual", action="store_true", help="steer with keyboard lines instead of the autopilot")
     play.add_argument("--lobby-timeout", type=float, default=300.0)
-    play.add_argument("--race-timeout", type=float, default=240.0)
+    play.add_argument("--race-timeout", type=float, default=300.0)
     play.add_argument("--settlement-timeout", type=float, default=30.0)
     commands.add_parser("gui", help="open the graphical window (Tkinter)")
     return parser

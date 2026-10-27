@@ -50,8 +50,9 @@ def play(game, reduce_choice, outcome, errors):
         game.wait_for(lambda m: m is not None and m["type"] == "room.state"
                       and len(m["room"]["members"]) == 2, 20)
         game.ready(reduce_choice)
-        outcome["result"] = game.race(timeout=150)
+        outcome["result"] = game.race(timeout=300)
         outcome["final"] = game.view.snapshot
+        outcome["course_trash"] = len(game.view.start["course"]["trash"])
         outcome["settlement"] = game.wait_settlement(60)
     except Exception as error:  # reported by the main thread
         errors.append(f"{reduce_choice}: {type(error).__name__} {error}")
@@ -139,8 +140,9 @@ def main():
     for item in final["trash"]:
         if item["collectedBy"] is not None:
             owners[item["collectedBy"]] = owners.get(item["collectedBy"], 0) + 1
-    h68.check(len(final["trash"]) == 103 and len({i["itemId"] for i in final["trash"]}) == 103,
-              "final snapshot lists each of the 103 pickups once")
+    expected = outcomes[0]["course_trash"]
+    h68.check(len(final["trash"]) == expected and len({i["itemId"] for i in final["trash"]}) == expected,
+              f"final snapshot lists each of the {expected} pickups of the manifest once")
     for player in final["players"]:
         counted = player["collectedPlastic"] + player["collectedMetal"]
         collected = participants[player["playerId"]]["collected"]

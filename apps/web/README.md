@@ -74,7 +74,7 @@ Una futura partida conectada sigue el reloj del servicio: perder foco libera los
 
 ## Qué incluye la v1
 
-Las carreras de 900 m comparten residuos y salvavidas entre el jugador y las tres IA. Cada surfista empieza con tres vidas; los golpes y el pulpo perseguidor restan una, y los salvavidas permiten recuperarla hasta el máximo. El impulso se carga recogiendo plástico o chatarra. El pulpo se ve en la cámara trasera. El juego se pausa al perder el foco o ante interrupciones largas.
+Las carreras de 1800 m (unos dos minutos) comparten residuos y salvavidas entre el jugador y las tres IA. Cada surfista empieza con tres vidas; los golpes y el pulpo perseguidor restan una, y los salvavidas permiten recuperarla hasta el máximo. El impulso se carga recogiendo plástico o chatarra. El pulpo se ve en la cámara trasera. El juego se pausa al perder el foco o ante interrupciones largas.
 
 Maracaibo presenta el puente en el horizonte, palafitos, manglares y agua turquesa. Orinoco interpreta el delta con caños, bosque de copas anchas, canoas y agua verde dorada. Los recorridos son estilizados y no representan rutas geográficas a escala. Caroní y Encuentro quedan anunciados como futuras ampliaciones.
 

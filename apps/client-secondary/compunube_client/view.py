@@ -39,7 +39,7 @@ ERROR_TEXTS = {
     "INVALID_ACTION": "Ese objeto no admite esa acción",
 }
 PLAYER_COLORS = ("#ef795e", "#4e97b3", "#e66f8b", "#8cb440")
-LATERAL_LIMIT = 15.0     # E43 surf-mvp-1 lateralLimitUnits
+LATERAL_LIMIT = 15.0     # E43 lateralLimitUnits (surf-mvp-1 and surf-mvp-2)
 VIEW_AHEAD = 60.0        # course units shown ahead of the own surfer
 VIEW_BEHIND = 15.0
 

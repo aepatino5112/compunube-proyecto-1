@@ -24,7 +24,7 @@ const (
 	Racing       = "RACING"
 	Results      = "RESULTS"
 	Closed       = "CLOSED"
-	RulesVersion = "surf-mvp-1"
+	RulesVersion = race.RulesVersion
 )
 
 var (
@@ -150,7 +150,7 @@ func NewManager(runtime *roomruntime.Manager, verifier Verifier, options ...Opti
 	return &Manager{rooms: map[string]*entry{}, runtime: runtime, verifier: verifier, inputSlots: opts.InputSlots, jumpEdges: opts.JumpEdges, recorder: opts.Recorder, inputObserver: opts.InputObserver, resultsLobbyDelay: opts.ResultsLobbyDelay}
 }
 func validMap(id string) bool           { return id == "maracaibo" || id == "orinoco" }
-func courseVersion(mapID string) string { return mapID + "-surf-mvp-1" }
+func courseVersion(mapID string) string { return race.CourseVersion(mapID) }
 func newID(prefix string) (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {

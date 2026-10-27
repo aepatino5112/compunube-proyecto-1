@@ -101,6 +101,20 @@ test('illustrated and classic water use the contact mesh with unchanged world co
     assert.ok(water.geometry.boundingBox.max.y>=WATER_AMPLITUDE);
     const shader={uniforms:{},vertexShader:'#include <begin_vertex>',fragmentShader:'#include <color_fragment>'};
     water.material.onBeforeCompile(shader);
-    assert.match(shader.vertexShader,/vWater\s*=\s*vec2\(position.x,\s*position.z\s*-\s*700\./);
+    // World Z: the mesh translation follows the view (followWater), the waves do not.
+    assert.match(shader.vertexShader,/vWater\s*=\s*vec2\(position.x,\s*position.z\s*\+\s*modelMatrix\[3\]\.z\)/);
   }
+});
+
+test('water follows the view in whole rows, so any course length keeps water ahead and behind',async()=>{
+  const { followWater, WATER_ROW, WATER_START_Z } = await import('../dist/water-geometry.js');
+  const { COURSE_LENGTH } = await import('../dist/maps.js');
+  const water={position:{z:0}};
+  for(const viewZ of [0,25,-1,-3.9,-437.25,-900,-COURSE_LENGTH]){
+    followWater(water,viewZ);
+    assert.equal(Math.abs((water.position.z-WATER_START_Z)%WATER_ROW),0,'vertices keep the same world lattice');
+    assert.ok(water.position.z+1200>=Math.min(0,viewZ)+500-WATER_ROW,'500 m of water behind the view');
+    assert.ok(water.position.z-1200<=viewZ-1500,'well past the 410 m fog ahead of the view');
+  }
+  followWater(water,10);assert.equal(water.position.z,WATER_START_Z,'the start keeps the original placement');
 });

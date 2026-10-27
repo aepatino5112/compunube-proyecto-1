@@ -1,6 +1,6 @@
 import { WATER_GLSL,WATER_AMPLITUDE } from './water-surface.js';
 import { ART_PALETTES,SUN_DIRECTION } from './art-direction.js';
-import { createWaterGeometry } from './water-geometry.js';
+import { createWaterGeometry, WATER_START_Z } from './water-geometry.js';
 
 const PAINT_NOISE=`
 float paintHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
@@ -19,7 +19,7 @@ export function createIllustratedWater(THREE,parent,delta=false){
   material.onBeforeCompile=shader=>{
     Object.assign(shader.uniforms,{uWaterTime:time,uDeep:deep,uShallow:shallow});
     shader.vertexShader=`uniform float uWaterTime;varying vec2 vWater;${WATER_GLSL}\n${shader.vertexShader}`.replace('#include <begin_vertex>',`
-      vec3 transformed=vec3(position);vWater=vec2(position.x,position.z-700.);
+      vec3 transformed=vec3(position);vWater=vec2(position.x,position.z+modelMatrix[3].z);
       transformed.y+=waterHeight(vWater,uWaterTime);
     `);
     shader.fragmentShader=`uniform float uWaterTime;uniform vec3 uDeep;uniform vec3 uShallow;varying vec2 vWater;${WATER_GLSL}\n${PAINT_NOISE}\n${shader.fragmentShader}`
@@ -72,7 +72,7 @@ export function createIllustratedWater(THREE,parent,delta=false){
       `);
   };
   material.customProgramCacheKey=()=> 'compunube-illustrated-water-v3-pigment-groups';
-  const water=new THREE.Mesh(geometry,material);water.name='LagoonWater';water.position.set(0,-.15,-700);
+  const water=new THREE.Mesh(geometry,material);water.name='LagoonWater';water.position.set(0,-.15,WATER_START_Z);
   geometry.computeBoundingBox();geometry.boundingBox.min.y-=WATER_AMPLITUDE;geometry.boundingBox.max.y+=WATER_AMPLITUDE;
   geometry.computeBoundingSphere();geometry.boundingSphere.radius+=WATER_AMPLITUDE;parent.add(water);
   return {water,time};
