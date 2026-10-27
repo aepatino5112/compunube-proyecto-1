@@ -193,6 +193,7 @@ jobs:
           Set-Content fake-go.mjs "import http from 'node:http'; http.createServer((q, r) => { r.writeHead(200, {'Content-Type': 'application/json'}); r.end(JSON.stringify({fake: true, path: q.url})) }).listen(18080, '127.0.0.1')"
           Start-Process node -ArgumentList 'fake-go.mjs' -NoNewWindow
           Start-Sleep 2
+          Remove-Item .env   # a web machine has no .env; the previous step's points to made-up IPs
           node scripts/lab.mjs check --go 127.0.0.1:18080
           if ($LASTEXITCODE -ne 0) { throw 'check failed' }
           $index = Get-Content apps/web/dist/index.html -Raw
