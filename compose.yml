@@ -14,7 +14,7 @@ services:
       - ./database/init:/docker-entrypoint-initdb.d:ro
       - ./database:/opt/compunube-database:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-compunube} -d ${POSTGRES_DB:-compunube}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-compunube} -d ${POSTGRES_DB:-compunube}"]
       interval: 5s
       timeout: 3s
       retries: 10
