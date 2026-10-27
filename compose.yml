@@ -47,7 +47,7 @@ services:
     environment:
       SERVICE_ADDR: 0.0.0.0:50051
       INSTANCE_ID: rust-1
-      DATABASE_URL: postgres://compunube_player_runtime:${PLAYER_DB_PASSWORD:?set PLAYER_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-compunube}
+      DATABASE_URL: postgres://compunube_player_runtime:${PLAYER_DB_PASSWORD:?set PLAYER_DB_PASSWORD}@${POSTGRES_ADDR:-postgres:5432}/${POSTGRES_DB:-compunube}
     depends_on:
       db-migrate:
         condition: service_completed_successfully
@@ -68,7 +68,7 @@ services:
     environment:
       SERVICE_ADDR: 0.0.0.0:50051
       INSTANCE_ID: rust-2
-      DATABASE_URL: postgres://compunube_player_runtime:${PLAYER_DB_PASSWORD:?set PLAYER_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-compunube}
+      DATABASE_URL: postgres://compunube_player_runtime:${PLAYER_DB_PASSWORD:?set PLAYER_DB_PASSWORD}@${POSTGRES_ADDR:-postgres:5432}/${POSTGRES_DB:-compunube}
     depends_on:
       db-migrate:
         condition: service_completed_successfully
@@ -103,8 +103,8 @@ services:
         COMPUNUBE_REVISION: ${COMPUNUBE_REVISION:-dev}
     environment:
       HTTP_ADDR: 0.0.0.0:8080
-      PLAYER_PROFILE_GRPC_ADDR: envoy:50051
-      DATABASE_URL: postgres://compunube_match_runtime:${MATCH_DB_PASSWORD:?set MATCH_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-compunube}
+      PLAYER_PROFILE_GRPC_ADDR: ${PLAYER_PROFILE_GRPC_ADDR:-envoy:50051}
+      DATABASE_URL: postgres://compunube_match_runtime:${MATCH_DB_PASSWORD:?set MATCH_DB_PASSWORD}@${POSTGRES_ADDR:-postgres:5432}/${POSTGRES_DB:-compunube}
       PUBLIC_ORIGINS: ${PUBLIC_ORIGINS:-}
     ports:
       - "${GO_HTTP_PORT:-8080}:8080"

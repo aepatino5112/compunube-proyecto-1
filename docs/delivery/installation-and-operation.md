@@ -14,7 +14,7 @@ Instalación desde un checkout limpio. Todo funciona sin Internet una vez descar
 
 ## Variables y puertos
 
-Copiar `.env.example` a `.env` (no se versiona) y completar los **cinco secretos** con `openssl rand -hex 24`:
+Crear `.env` (no se versiona) con los **cinco secretos**: `node scripts/lab.mjs init` lo genera con valores aleatorios (en Windows también); o copiar `.env.example` y completarlos con `openssl rand -hex 24`:
 
 | Variable | Obligatoria | Uso |
 | --- | --- | --- |
@@ -25,6 +25,7 @@ Copiar `.env.example` a `.env` (no se versiona) y completar los **cinco secretos
 | `GRAFANA_ADMIN_PASSWORD` | sí | administrador de Grafana |
 | `POSTGRES_USER`, `POSTGRES_DB` | no (`compunube`) | identidad de la base |
 | `COMPUNUBE_IMAGE_TAG`, `COMPUNUBE_REVISION` | no (`dev`) | revisión desplegada (las fija `deploy.sh`) |
+| `POSTGRES_ADDR`, `PLAYER_PROFILE_GRPC_ADDR`, `COMPUNUBE_GO_URL` | no (vacías: un host) | dónde están la BD, Envoy y Go en el [laboratorio por roles](../deployment/lab-roles.md) (las escribe `lab.mjs init`) |
 
 | Puerto (variable) | Servicio | ¿Lo usan los clientes? |
 | --- | --- | --- |
@@ -40,7 +41,7 @@ Copiar `.env.example` a `.env` (no se versiona) y completar los **cinco secretos
 scripts/deploy/deploy.sh        # preflight, copia previa, build, up --wait, smoke y versión
 ```
 
-o manualmente:
+o `node scripts/lab.mjs all` (lo mismo con Node, sin bash), o manualmente:
 
 ```bash
 docker compose up -d --build --wait
@@ -60,6 +61,10 @@ Clientes:
 Documentación de la API HTTP (Swagger UI, «Try it out» contra Go): `http://127.0.0.1:4173/api-docs/` con el cliente web arrancado como arriba.
 
 Observabilidad: Grafana en `http://127.0.0.1:3000` (usuario `GRAFANA_ADMIN_USER`, contraseña del `.env`), dashboard **Compunube Operations**.
+
+## Varios equipos
+
+Un equipo por pieza (BD, Rust, Go y dos web): [laboratorio por roles](../deployment/lab-roles.md).
 
 ## Actualización y rollback
 

@@ -2,6 +2,8 @@
 
 Go emite la cookie de sesión `HttpOnly; Secure; SameSite=Strict`. Un navegador solo la envía por HTTPS (o a `localhost`), así que para jugar desde **otro equipo del laboratorio** el cliente web debe servirse por HTTPS. El cliente Python no lo necesita (usa `Authorization: Bearer`).
 
+Si cada equipo de jugador corre su propio cliente web y abre `http://127.0.0.1:4173` ([laboratorio por roles](lab-roles.md)), esta guía **no hace falta**: la cookie viaja a `127.0.0.1`. Es para cuando los navegadores abren la web servida desde **otro** equipo.
+
 Diseño: `apps/web/server.mjs` termina TLS y reenvía `/v1` (HTTP y WebSocket) a Go por la red interna. Go ve esa petición sin TLS, así que se le declara el origen público exacto con `PUBLIC_ORIGINS`; Go sigue sin confiar en cabeceras reenviadas y solo acepta ese `Origin` (o el directo) en mutaciones con cookie y en el WebSocket. Verificado en CI Integration: prueba Node (`integration/https.test.js`) y navegador Chromium por HTTPS (`e2e/https.spec.mjs`).
 
 ## Pasos (host del servidor)

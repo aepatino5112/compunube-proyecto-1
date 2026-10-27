@@ -25,6 +25,11 @@ jobs:
             echo "::add-mask::$value"
             printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
           done
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Unit tests of the lab role helper (scripts/lab.mjs)
+        run: node --test scripts/lab.test.mjs
       - name: Validate local quality targets
         run: make -n quality >/dev/null
       - name: Validate Compose

@@ -48,6 +48,7 @@ Consulta [ARCHITECTURE.md](ARCHITECTURE.md) y [AGENTS.md](AGENTS.md) antes de ca
 - [UML de estados de sala y participante (D35)](docs/uml/README.md)
 - [UML de componentes (D32), despliegue (D33) y secuencias críticas (D34)](docs/uml/README.md)
 - [Topología física (D31)](docs/deployment/d31-topology.md) y [auditoría del laboratorio (A05)](docs/deployment/a05-lab-audit.md)
+- [Laboratorio por roles: un equipo por pieza](docs/deployment/lab-roles.md)
 - [Despliegue, actualización y rollback (H66)](docs/deployment/h66-deploy-procedure.md)
 - [Matriz de trazabilidad y plan de pruebas (I70/C24)](docs/testing/traceability-matrix.md)
 - [Evidencias de validación](docs/evidence/)
@@ -94,6 +95,15 @@ Ver [apps/client-secondary/README.md](apps/client-secondary/README.md) para perf
 - Make (opcional)
 
 ## Inicio rápido
+
+```bash
+node scripts/lab.mjs init     # crea .env con cinco secretos aleatorios (Windows, Linux o macOS)
+node scripts/lab.mjs all      # levanta todo y espera a que Go y las dos réplicas Rust estén sanos
+```
+
+Un equipo por pieza en el laboratorio (BD, Rust, Go y dos web): [laboratorio por roles](docs/deployment/lab-roles.md).
+
+A mano:
 
 ```bash
 cp .env.example .env
@@ -148,4 +158,4 @@ El proyecto usa **Fast Deployment + Kanban**: ramas cortas, integración frecuen
 
 El ruleset `Protect main` exige Pull Request y los checks `go`, `rust`, `validate`, `contracts`, `web`, `client-secondary (ubuntu-latest)` y `client-secondary (windows-latest)`. Actualmente no exige aprobaciones obligatorias.
 
-El despliegue se hace con [`scripts/deploy/deploy.sh`](docs/deployment/h66-deploy-procedure.md) (preflight, copia, verificación de versión y rollback), validado en CI Deploy. No hay CD automático al laboratorio y la ejecución en los equipos físicos sigue pendiente de A05; ver [docs/ci-cd.md](docs/ci-cd.md).
+El despliegue se hace con [`scripts/deploy/deploy.sh`](docs/deployment/h66-deploy-procedure.md) (preflight, copia, verificación de versión y rollback), validado en CI Deploy. El reparto en varios equipos es el [laboratorio por roles](docs/deployment/lab-roles.md) (`node scripts/lab.mjs`), validado en CI Deploy. No hay CD automático al laboratorio y la ejecución en los equipos físicos sigue pendiente; ver [docs/ci-cd.md](docs/ci-cd.md).
