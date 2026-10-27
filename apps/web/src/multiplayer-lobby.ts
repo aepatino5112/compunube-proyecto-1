@@ -1,4 +1,5 @@
 import type { ClientState, MultiplayerClient, RoomMember } from './multiplayer-client.js';
+import { playerTag } from './net/translate.js';
 
 const MAP_NAMES: Readonly<Record<string, string> & { maracaibo: string }> = Object.freeze({ maracaibo: 'Lago de Maracaibo', orinoco: 'Río Orinoco' });
 const CHARACTER_NAMES: Readonly<Record<string, string>> = Object.freeze({ nico: 'Nico', luna: 'Luna', amara: 'Amara', samuel: 'Samuel' });
@@ -170,8 +171,11 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
       const label = document.createElement('span'), name = document.createElement('strong'), note = document.createElement('small');
       label.append(name, note);
       if (member) {
-        const displayName = String(member.displayName || 'Surfista');
-        mark.textContent = (Array.from(displayName.trim())[0] || '').toLocaleUpperCase('es');
+        // Go only shares a member's equipment once they are ready, so the name
+        // stays the same from joining to racing; the character goes below it.
+        const tag = member.controller === 'bot' ? '' : playerTag(member.playerId);
+        const displayName = tag ? `Surfista · #${tag}` : String(member.displayName || 'Surfista');
+        mark.textContent = (Array.from(tag || displayName.trim())[0] || '').toLocaleUpperCase('es');
         name.textContent = displayName;
         if (member.playerId === state.selfPlayerId) {
           const you = document.createElement('b'); you.className = 'ol-you'; you.textContent = 'TÚ'; name.append(you);
