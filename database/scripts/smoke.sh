@@ -28,12 +28,15 @@ sh "$script_dir/seed.sh" >/dev/null
 before=$(psql "$DATABASE_URL" -X -At -c 'SELECT count(*) FROM public.schema_migrations')
 sh "$script_dir/migrate.sh"
 after=$(psql "$DATABASE_URL" -X -At -c 'SELECT count(*) FROM public.schema_migrations')
-[ "$before" = 3 ] && [ "$after" = 3 ]
+[ "$before" = 4 ] && [ "$after" = 4 ]
 [ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM information_schema.tables WHERE table_schema IN ('match','player')")" = 14 ]
 [ "$(psql "$DATABASE_URL" -X -At -c 'SELECT count(*) FROM player.item_definitions')" = 22 ]
-# F52 (0002): published active online-v1 catalog covering all 22 items, and stored rejections.
-[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM player.catalog_versions WHERE catalog_version = 'online-v1' AND active AND published_at IS NOT NULL")" = 1 ]
-[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM player.catalog_entries WHERE catalog_version = 'online-v1' AND enabled")" = 22 ]
+# F52 (0002) and 0004: online-v2 is the published active catalog covering all
+# 22 items at five times the online-v1 prices; online-v1 is kept unpublished.
+[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM player.catalog_versions WHERE catalog_version = 'online-v2' AND active AND published_at IS NOT NULL")" = 1 ]
+[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM player.catalog_entries WHERE catalog_version = 'online-v2' AND enabled")" = 22 ]
+[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM player.catalog_versions WHERE catalog_version = 'online-v1' AND NOT active AND published_at IS NULL")" = 1 ]
+[ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM player.catalog_entries v2 JOIN player.catalog_entries v1 USING (item_id) WHERE v1.catalog_version = 'online-v1' AND v2.catalog_version = 'online-v2' AND v2.price_coins IS NOT DISTINCT FROM v1.price_coins * 5 AND v2.recipe_plastic = v1.recipe_plastic * 5 AND v2.recipe_metal = v1.recipe_metal * 5")" = 22 ]
 [ "$(psql "$DATABASE_URL" -X -At -c "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'player' AND table_name = 'economic_operations' AND column_name = 'rejection_code'")" = 1 ]
 
 # Negative constraints and cross-schema DML must fail without leaving rows.
@@ -77,5 +80,5 @@ sh "$script_dir/backup.sh" "$backup_file"
 createdb -h 127.0.0.1 -U "$POSTGRES_USER" "$restore_db"
 DATABASE_URL="postgresql://$POSTGRES_USER@127.0.0.1:5432/$restore_db" RESTORE_CONFIRM=YES sh "$script_dir/restore.sh" "$backup_file"
 [ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$restore_db" -X -At -c "SELECT count(*) FROM match.rooms WHERE room_id='e42-backup-fixture'")" = 1 ]
-[ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$restore_db" -X -At -c 'SELECT count(*) FROM public.schema_migrations')" = 3 ]
+[ "$(psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$restore_db" -X -At -c 'SELECT count(*) FROM public.schema_migrations')" = 4 ]
 echo 'E42/F52/F48 migration, permissions, backup and restore smoke: PASS'
