@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # H66: build and deploy the current checkout with Docker Compose, then verify it.
-#   scripts/deploy/deploy.sh            # revision = git commit (with -dirty if modified)
+#   scripts/deploy/deploy.sh            # revision = git commit (with -dirty if modified; zip-<time> without Git)
 #   COMPUNUBE_REVISION=v1.0.0 scripts/deploy/deploy.sh
 # Secrets come only from the untracked env file (COMPUNUBE_ENV_FILE, default .env).
 source "$(dirname "$0")/lib.sh"
 
-revision=${COMPUNUBE_REVISION:-$(git rev-parse --short=12 HEAD)$(git diff --quiet HEAD -- || echo -dirty)}
+if [ -n "${COMPUNUBE_REVISION:-}" ]; then
+  revision=$COMPUNUBE_REVISION
+elif git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  revision=$(git rev-parse --short=12 HEAD)$(git diff --quiet HEAD -- || echo -dirty)
+else
+  revision=zip-$(date -u +%Y%m%d%H%M%S)   # ZIP download: no commit to name it after
+fi
 export COMPUNUBE_REVISION=$revision COMPUNUBE_IMAGE_TAG=$revision
 preflight
 mkdir -p "$STATE_DIR/backups" && chmod 700 "$STATE_DIR" "$STATE_DIR/backups"

@@ -23,7 +23,10 @@ preflight() {
   command -v docker >/dev/null || die "docker is required"
   docker compose version >/dev/null || die "Docker Compose v2 is required"
   [ -f "$ENV_FILE" ] || die "missing $ENV_FILE (copy .env.example and fill the secrets; it is not versioned)"
-  git check-ignore -q "$ENV_FILE" 2>/dev/null || [ "$ENV_FILE" != ".env" ] || die ".env must stay out of Git"
+  # A ZIP download (as in the lab) has no Git metadata to check against.
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git check-ignore -q "$ENV_FILE" || [ "$ENV_FILE" != ".env" ] || die ".env must stay out of Git"
+  fi
   local key
   for key in $SECRETS; do
     [ -n "$(setting "$key")" ] || die "$key is empty in $ENV_FILE"

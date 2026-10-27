@@ -2,10 +2,13 @@ name: CI Deploy
 
 # H66: exercises scripts/deploy on a clean runner before any lab attempt:
 # deploy revision A, deploy revision B (with a database backup), roll back to A.
+# lab-roles: the lab split by machine (scripts/lab.mjs), one Compose project per
+# role so the services only meet through published ports, as on separate PCs.
 on:
   pull_request:
     paths:
       - "scripts/deploy/**"
+      - "scripts/lab.mjs"
       - "compose.yml"
       - ".env.example"
       - "services/*/Dockerfile"
@@ -14,6 +17,7 @@ on:
     branches: [main]
     paths:
       - "scripts/deploy/**"
+      - "scripts/lab.mjs"
       - "compose.yml"
       - "services/*/Dockerfile"
       - ".github/workflows/ci-deploy.yml"
@@ -64,3 +68,72 @@ jobs:
       - name: Cleanup
         if: always()
         run: docker compose --env-file .env down -v --remove-orphans
+
+  lab-roles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: One folder per machine with the same .env, addressed by the runner IP
+        run: |
+          ip=$(hostname -I | awk '{print $1}')
+          for role in db rust go web; do cp -r . "../lab-$role"; done
+          (cd ../lab-db && node scripts/lab.mjs init --db "$ip" --rust "$ip" --go "$ip")
+          grep PASSWORD ../lab-db/.env | cut -d= -f2 | sed 's/^/::add-mask::/'
+          for role in rust go web; do cp ../lab-db/.env "../lab-$role/.env"; done
+          for role in db rust go web; do echo "COMPOSE_PROJECT_NAME=lab-$role" >> "../lab-$role/.env"; done
+          grep -E '^(POSTGRES_PORT|POSTGRES_ADDR|PLAYER_PROFILE_GRPC_ADDR|COMPUNUBE_GO_URL)=' ../lab-db/.env
+      - name: Database machine
+        working-directory: ../lab-db
+        run: node scripts/lab.mjs db
+      - name: Rust machine (Envoy + two replicas)
+        working-directory: ../lab-rust
+        run: node scripts/lab.mjs rust
+      - name: Go machine
+        working-directory: ../lab-go
+        run: node scripts/lab.mjs go
+      - name: Each machine runs only its role
+        run: |
+          docker ps --format '{{.Names}}' | sort
+          test "$(docker compose -p lab-rust ps -q postgres)" = ""
+          test "$(docker compose -p lab-go ps -q postgres envoy)" = ""
+          test "$(docker compose -p lab-db ps -q match-service-go player-profile-rust-1)" = ""
+          (cd ../lab-web && node scripts/lab.mjs check)
+      - name: Web machine proxies a browser session to the remote Go
+        working-directory: ../lab-web
+        run: |
+          node scripts/lab.mjs web > web.log 2>&1 &
+          for _ in $(seq 1 20); do curl -fs http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+          curl -fsS -c jar -X POST -H 'Origin: http://127.0.0.1:4173' http://127.0.0.1:4173/v1/sessions -o /dev/null
+          curl -fsS -b jar -H 'Origin: http://127.0.0.1:4173' http://127.0.0.1:4173/v1/profile | grep -q '"equipment"'
+          cat web.log
+      - name: Two clients race while both Rust replicas fail in turn
+        working-directory: apps/client-secondary
+        env:
+          COMPUNUBE_SERVER: http://127.0.0.1:8080
+        run: |
+          python -m pip install -q -r requirements.txt
+          mkdir -p ../../../pa ../../../pb
+          HOME=$(cd ../../../pa && pwd) python -u -m compunube_client play --create maracaibo --race-timeout 400 > a.log 2>&1 &
+          a=$!
+          for _ in $(seq 1 30); do room=$(grep -o 'room_[A-Za-z0-9_-]*' a.log | head -n 1); [ -n "$room" ] && break; sleep 1; done
+          HOME=$(cd ../../../pb && pwd) python -u -m compunube_client play --join "$room" --race-timeout 400 > b.log 2>&1 &
+          b=$!
+          for _ in $(seq 1 60); do grep -q 'Carrera iniciada' a.log && break; sleep 1; done
+          (cd ../../../lab-rust && docker compose kill player-profile-rust-1 && node scripts/lab.mjs rust && docker compose kill player-profile-rust-2 && node scripts/lab.mjs rust)
+          wait $a; wait $b
+          cat a.log b.log
+          grep -q 'Settlement de tu participación: confirmed' a.log
+          grep -q 'Settlement de tu participación: confirmed' b.log
+      - name: Logs on failure
+        if: failure()
+        run: for role in db rust go; do docker compose -p "lab-$role" logs --no-color --tail 60; done
+      - name: Cleanup
+        if: always()
+        run: for role in db rust go; do (cd "../lab-$role" 2>/dev/null && docker compose down -v --remove-orphans) || true; done
