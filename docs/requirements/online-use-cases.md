@@ -63,7 +63,7 @@ En cada ficha, **Actor** es siempre Jugador; las acciones automáticas de Go/Rus
 ### UC-07 · Participar en carrera autoritativa
 
 - **Actor / precondiciones / disparador:** Jugador; participación `racing`; usa giro, lado de red, impulso o salto.
-- **Flujo principal:** frontend envía solo intenciones; Go valida identidad, orden y rango, simula `surf-mvp-2` y publica estado recuperable; frontend presenta posiciones, vida, energía y progreso confirmados.
+- **Flujo principal:** frontend envía solo intenciones; Go valida identidad, orden y rango, simula `surf-mvp-3` y publica estado recuperable; frontend presenta posiciones, vida, energía y progreso confirmados.
 - **Alternos/errores:** entrada inválida, duplicada o terminal → no altera estado; pérdida de foco libera controles sin pausar sala; conexión perdida conduce a UC-09.
 - **Postcondición / dueño / fuentes:** estado de carrera autoritativo avanza para todos; **Go**; [B13](../product/core-gameplay-loop.md), [B16](../product/authoritative-race-rules.md).
 

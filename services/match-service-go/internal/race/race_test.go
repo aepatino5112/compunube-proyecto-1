@@ -24,20 +24,27 @@ func near(t *testing.T, got, want float64) {
 	}
 }
 
-// surf-mvp-1 is a released version: its manifests stay embedded byte for byte
-// (apps/web/tools/generate-course-manifests.mjs --check surf-mvp-1 900).
-func TestReleasedSurfMvp1ManifestsStayUnchanged(t *testing.T) {
-	for _, mapID := range []string{"maracaibo", "orinoco"} {
-		data, err := courseFiles.ReadFile("courses/" + mapID + "-surf-mvp-1.json")
-		if err != nil {
-			t.Fatal(err)
-		}
-		var c CourseManifest
-		if err := json.Unmarshal(data, &c); err != nil {
-			t.Fatal(err)
-		}
-		if c.CourseVersion != mapID+"-surf-mvp-1" || c.LengthUnits != 900 || len(c.Obstacles) != 54 || len(c.Trash) != 103 || len(c.Lifesavers) != 10 || c.Trash[102].Z != -856.7 {
-			t.Fatalf("released manifest %s changed", mapID)
+// Released versions stay embedded byte for byte
+// (apps/web/tools/generate-course-manifests.mjs --check <version>).
+func TestReleasedManifestsStayUnchanged(t *testing.T) {
+	for _, v := range []struct {
+		version                      string
+		length                       float64
+		obstacles, trash, lifesavers int
+		lastTrashZ                   float64
+	}{{"surf-mvp-1", 900, 54, 103, 10, -856.7}, {"surf-mvp-2", 1800, 113, 211, 21, -1753.1000000000001}} {
+		for _, mapID := range []string{"maracaibo", "orinoco"} {
+			data, err := courseFiles.ReadFile("courses/" + mapID + "-" + v.version + ".json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var c CourseManifest
+			if err := json.Unmarshal(data, &c); err != nil {
+				t.Fatal(err)
+			}
+			if c.CourseVersion != mapID+"-"+v.version || c.LengthUnits != v.length || len(c.Obstacles) != v.obstacles || len(c.Trash) != v.trash || len(c.Lifesavers) != v.lifesavers || c.Trash[v.trash-1].Z != v.lastTrashZ {
+				t.Fatalf("released manifest %s-%s changed", mapID, v.version)
+			}
 		}
 	}
 }
@@ -48,10 +55,10 @@ func TestVersionedCoursesAndWireShape(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if c.CourseVersion != mapID+"-surf-mvp-2" || c.LengthUnits != 1800 || len(c.Obstacles) != 113 || len(c.Trash) != 211 || len(c.Lifesavers) != 21 || len(c.StartSlotsX) != 4 || c.StartSlotsX[0] != -9 || c.StartSlotsX[3] != 9 {
+		if c.CourseVersion != mapID+"-surf-mvp-3" || c.LengthUnits != 1800 || len(c.Obstacles) != 113 || len(c.Trash) != 211 || len(c.Lifesavers) != 21 || len(c.StartSlotsX) != 4 || c.StartSlotsX[0] != -9 || c.StartSlotsX[3] != 9 {
 			t.Fatalf("course %s: %+v", mapID, c)
 		}
-		if c.Obstacles[0].ItemID != "o-001" || c.Trash[0].ItemID != "t-001" || c.Lifesavers[0].ItemID != "l-001" || c.Trash[0].X != 5.2 || c.Trash[0].Z != -6 || c.Trash[210].Z > -1753 || c.Trash[210].Z < -1754 {
+		if c.Obstacles[0].ItemID != "o-001" || c.Trash[0].ItemID != "t-001" || c.Lifesavers[0].ItemID != "l-001" || c.Trash[0].X != 5.2 || c.Trash[0].Z != -6 || c.Trash[210].Z > -1744 || c.Trash[210].Z < -1746 {
 			t.Fatalf("course anchors changed: %s", mapID)
 		}
 		if mapID == "maracaibo" {
@@ -86,7 +93,7 @@ func TestVersionedCoursesAndWireShape(t *testing.T) {
 				t.Fatal("unknown material")
 			}
 		}
-		if metal != 70 || plastic != 141 {
+		if want := map[string]int{"maracaibo": 74, "orinoco": 76}[mapID]; metal != want || plastic != 211-want {
 			t.Fatalf("material distribution %s: %d %d", mapID, metal, plastic)
 		}
 		for _, o := range c.Lifesavers {
