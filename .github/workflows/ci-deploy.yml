@@ -148,3 +148,62 @@ jobs:
       - name: Cleanup
         if: always()
         run: for role in db rust go; do (cd "../lab-$role" 2>/dev/null && docker compose down -v --remove-orphans) || true; done
+
+  # The lab machines run scripts/lab.mjs from PowerShell on Windows: entry point
+  # (also through a junction), .env creation and both web instances against a
+  # stand-in Go. Docker roles stay on Linux (lab-roles): the runner has no
+  # Linux containers.
+  lab-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The command runs, also through a junction and with other letter case
+        run: |
+          $out = node scripts/lab.mjs | Out-String
+          if ($out -notmatch 'Despliegue por roles') { throw "lab.mjs printed nothing: $out" }
+          New-Item -ItemType Junction -Path C:\labjunction -Target $PWD | Out-Null
+          Push-Location C:\labjunction
+          $out = node SCRIPTS\Lab.mjs | Out-String
+          Pop-Location
+          if ($out -notmatch 'Despliegue por roles') { throw "lab.mjs via junction printed nothing: $out" }
+      - name: init writes one .env and keeps its secrets
+        run: |
+          node scripts/lab.mjs init --db 10.0.0.16 --rust 10.0.0.14 --go 10.0.0.15
+          $env1 = Get-Content .env -Raw
+          if ($env1 -notmatch 'POSTGRES_ADDR=10.0.0.16:55432') { throw 'POSTGRES_ADDR missing' }
+          if ($env1 -notmatch 'PLAYER_PROFILE_GRPC_ADDR=10.0.0.14:50051') { throw 'PLAYER_PROFILE_GRPC_ADDR missing' }
+          if ($env1 -notmatch 'COMPUNUBE_GO_URL=http://10.0.0.15:8080') { throw 'COMPUNUBE_GO_URL missing' }
+          if ($env1 -notmatch 'POSTGRES_PASSWORD=[0-9a-f]{48}') { throw 'secret missing' }
+          $out = node scripts/lab.mjs init --db 10.0.0.16 --rust 10.0.0.14 --go 10.0.0.15 | Out-String
+          if ($out -notmatch 'secretos conservados') { throw "secrets not kept: $out" }
+          $secret = { param($t) ([regex]'POSTGRES_PASSWORD=(\w+)').Match($t).Groups[1].Value }
+          if ((& $secret $env1) -ne (& $secret (Get-Content .env -Raw))) { throw 'secret changed' }
+      - name: Both web instances serve the UI and forward /v1 to Go
+        run: |
+          Set-Content fake-go.mjs "import http from 'node:http'; http.createServer((q, r) => { r.writeHead(200, {'Content-Type': 'application/json'}); r.end(JSON.stringify({fake: true, path: q.url})) }).listen(18080, '127.0.0.1')"
+          Start-Process node -ArgumentList 'fake-go.mjs' -NoNewWindow
+          Start-Sleep 2
+          node scripts/lab.mjs check --go 127.0.0.1:18080
+          if ($LASTEXITCODE -ne 0) { throw 'check failed' }
+          $index = Get-Content apps/web/dist/index.html -Raw
+          foreach ($case in @(@{port = 4173; args = @()}, @{port = 4174; args = @('--python')})) {
+            $env:COMPUNUBE_WEB_PORT = $case.port
+            Start-Process node -ArgumentList (@('scripts/lab.mjs', 'web', '--go', '127.0.0.1:18080') + $case.args) -NoNewWindow
+            $ok = $false
+            foreach ($i in 1..30) { try { $page = Invoke-WebRequest "http://127.0.0.1:$($case.port)/" -UseBasicParsing; $ok = $true; break } catch { Start-Sleep 1 } }
+            if (-not $ok) { throw "web $($case.args) did not start" }
+            if ($page.Content -ne $index) { throw "web $($case.args) served another page" }
+            $api = Invoke-RestMethod "http://127.0.0.1:$($case.port)/v1/profile"
+            if ($api.path -ne '/v1/profile') { throw "web $($case.args) did not forward /v1" }
+            Write-Host "web $($case.args) on $($case.port): UI and /v1 OK"
+          }
