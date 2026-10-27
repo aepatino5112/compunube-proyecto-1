@@ -1,6 +1,7 @@
 // G56/G59 E2E: two independent browsers and the Python client race in one
-// room on the real Go stack, through the unchanged Surf Club UI and the Python
-// CLI. Requires COMPUNUBE_GO_URL and the Python client's pinned dependencies.
+// room on the real Go stack. The host browser uses the TypeScript/Node instance
+// (server.mjs) and the guest the Python instance (compunube_client.webhost),
+// both serving the same Surf Club UI; a third player uses the Python CLI. Requires COMPUNUBE_GO_URL and the Python client's pinned dependencies.
 // Headless Firefox on the CI runner cannot create a WebGL context, which the
 // game needs, so both browsers are separate Chromium processes.
 import { test, expect, chromium } from '@playwright/test';
@@ -13,11 +14,17 @@ const GO = process.env.COMPUNUBE_GO_URL;
 if (!GO) throw new Error('COMPUNUBE_GO_URL is required for browser E2E (no silent skip)');
 const serverFile = fileURLToPath(new URL('../server.mjs', import.meta.url));
 
-async function startWeb() {
+const clientDir = path.resolve(fileURLToPath(new URL('../../client-secondary/', import.meta.url)));
+
+// python: serve the UI from the Python instance instead of server.mjs.
+async function startWeb({ python = false } = {}) {
   const port = await new Promise(resolve => {
     const probe = net.createServer().listen(0, '127.0.0.1', () => { const { port } = probe.address(); probe.close(() => resolve(port)); });
   });
-  const child = spawn(process.execPath, [serverFile], { env: { ...process.env, COMPUNUBE_WEB_PORT: String(port) }, stdio: ['ignore', 'pipe', 'inherit'] });
+  const env = { ...process.env, COMPUNUBE_WEB_PORT: String(port) };
+  const child = python
+    ? spawn(process.env.PYTHON || 'python3', ['-m', 'compunube_client.webhost', '--server', GO], { cwd: clientDir, env, stdio: ['ignore', 'pipe', 'inherit'] })
+    : spawn(process.execPath, [serverFile], { env, stdio: ['ignore', 'pipe', 'inherit'] });
   await new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('exit', reject); });
   return { origin: `http://127.0.0.1:${port}`, stop: () => child.kill() };
 }
@@ -52,9 +59,8 @@ async function openClub(browserType, origin, name, info) {
 const shot = (client, info, label) => client.page.screenshot({ path: info.outputPath(`${client.name}-${label}.png`) });
 
 function startPythonClient(roomId) {
-  const cwd = path.resolve(fileURLToPath(new URL('../../client-secondary/', import.meta.url)));
   const child = spawn(process.env.PYTHON || 'python3', ['-m', 'compunube_client', '--server', GO, 'play', '--join', roomId, '--reduce', 'reusable'],
-    { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    { cwd: clientDir, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   child.stdout.on('data', chunk => { output += chunk; });
   child.stderr.on('data', chunk => { output += chunk; });
@@ -62,10 +68,11 @@ function startPythonClient(roomId) {
   return { done, stop: () => child.kill(), get output() { return output; } };
 }
 
-test('two browsers and the Python client share a real Go race from the lobby to the confirmed result and a second race', async ({}, info) => {
+test('browsers on the TypeScript and Python instances and the Python CLI share a real Go race from the lobby to the confirmed result and a second race', async ({}, info) => {
   const web = await startWeb();
+  const pyWeb = await startWeb({ python: true });
   const host = await openClub(chromium, web.origin, 'browser-host', info);
-  const guest = await openClub(chromium, web.origin, 'browser-guest', info);
+  const guest = await openClub(chromium, pyWeb.origin, 'browser-guest-python-instance', info);
   let python = null;
   try {
     // Host: "Con amigos" loads the Go profile (session cookie) and creates a room.
@@ -152,5 +159,6 @@ test('two browsers and the Python client share a real Go race from the lobby to 
     await host.browser.close();
     await guest.browser.close();
     web.stop();
+    pyWeb.stop();
   }
 });
