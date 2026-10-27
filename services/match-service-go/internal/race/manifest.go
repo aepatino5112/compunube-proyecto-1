@@ -10,10 +10,12 @@ import (
 var courseFiles embed.FS
 
 // RulesVersion is the ruleset Go simulates. surf-mvp-2 doubled the course of
-// surf-mvp-1 (900 -> 1800) with the same spacing between objects; the older
-// manifests stay embedded unchanged as released versions.
+// surf-mvp-1 (900 -> 1800) with the same spacing between objects; surf-mvp-3
+// keeps that course and lays the trash out in sections (forks, tridents and
+// coves) instead of one line the leader could sweep. Older manifests stay
+// embedded unchanged as released versions.
 const (
-	RulesVersion   = "surf-mvp-2"
+	RulesVersion   = "surf-mvp-3"
 	courseLength   = 1800
 	obstacleCount  = 113
 	trashCount     = 211

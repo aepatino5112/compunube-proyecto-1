@@ -21,7 +21,7 @@ else revisión distinta / perfil no disponible
 end
 note over Room : 2–4 miembros listos → COUNTDOWN 3 s;\nun cambio de roster o preparación vuelve a LOBBY.
 Room --> C : room.state (COUNTDOWN, countdownEndsAtMs)
-Room -> Room : fija roster, reglas surf-mvp-2\ny manifiesto versionado
+Room -> Room : fija roster, reglas surf-mvp-3\ny manifiesto versionado
 Room --> C : room.state (RACING, raceId)
 Room --> C : race.start {raceId, course, roster}
 C -> C : valida manifiesto (54/103/10)\ny cambia a la escena de carrera

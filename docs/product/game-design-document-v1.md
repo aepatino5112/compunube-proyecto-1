@@ -14,7 +14,7 @@ La comunidad **Surf Club** compite surfeando recorridos estilizados inspirados e
 | --- | --- | --- |
 | **Implementado local** | Web Surf Club con selección de Maracaibo/Orinoco; carrera de un humano y tres IA, red, salto, impulso, vidas, salvavidas, pulpo, meta y resultado; perfil offline, materiales, canje, tienda, Taller y cosméticos. | Todo se calcula en el navegador y el perfil se guarda en `localStorage`; no constituye autoridad online ni persistencia confiable. |
 | **Preparado frontend** | Lobby, adaptadores de sesión/perfil inyectables, envío de intenciones y presentación de snapshots/eventos/resultados; perfil online separado en la UI. | Los proveedores siguen en `null`; las pruebas con dobles no demuestran sala real, autenticación ni settlement. |
-| **Diseño online cerrado** | Decisiones B09–B17: 2–4 humanos sin bots, tres R, objetivo compartido de agua, reglas `surf-mvp-2`, ranking y ciclo de sala/reentrada. | Son especificaciones para implementar; no funciones jugables actuales. |
+| **Diseño online cerrado** | Decisiones B09–B17: 2–4 humanos sin bots, tres R, objetivo compartido de agua, reglas `surf-mvp-3`, ranking y ciclo de sala/reentrada. | Son especificaciones para implementar; no funciones jugables actuales. |
 | **Pendiente implementación** | Identidad/perfil online real, Go autoritativo, Rust de negocio, contratos E43, estado de sala, decisión jugable de Reducir, HUD/resumen de agua, PostgreSQL de negocio, settlement, clientes integrados y cliente Python. | No se presentan como completados por documentación, skeleton o DTO propuestos. |
 
 La web actual usa JavaScript/Three.js; **TypeScript es el objetivo de migración gradual**. La segunda interfaz funcional será **Python**, pendiente, según [ADR 0002](../adr/0002-client-language-strategy.md). El modo local sigue separado del perfil online y no migra monedas, materiales, compras o carreras de `localStorage` como verdad [B09](multiplayer-decisions.md).
@@ -31,9 +31,9 @@ Los objetivos OE1–OE5 de [B12](educational-goals.md) trazan **acción → feed
 
 ## Reglas de carrera del MVP online
 
-El ruleset vigente es **`rulesVersion = surf-mvp-2`** (curso doble que el inicial `surf-mvp-1`); [B16](authoritative-race-rules.md) contiene los umbrales, geometría y orden de adjudicación canónicos. Ambos mapas tienen manifiestos separados: **1800** unidades de recorrido (unos 1:50 min sin impulso), límite lateral **X ∈ [−15, +15]**, **113 obstáculos, 211 residuos y 21 salvavidas** por curso. Todos los humanos salen en **Z = 0**, en slots X no solapados del manifiesto, sin ventaja de tiempo o velocidad; countdown común de **3 s**.
+El ruleset vigente es **`rulesVersion = surf-mvp-3`** (curso doble que el inicial `surf-mvp-1`, con los residuos repartidos en tramos de varios carriles); [B16](authoritative-race-rules.md) contiene los umbrales, geometría y orden de adjudicación canónicos. Ambos mapas tienen manifiestos separados: **1800** unidades de recorrido (unos 1:50 min sin impulso), límite lateral **X ∈ [−15, +15]**, **113 obstáculos, 211 residuos y 21 salvavidas** por curso. Todos los humanos salen en **Z = 0**, en slots X no solapados del manifiesto, sin ventaja de tiempo o velocidad; countdown común de **3 s**.
 
-| Sistema | Regla resumida de `surf-mvp-2` |
+| Sistema | Regla resumida de `surf-mvp-3` |
 | --- | --- |
 | Movimiento | Mismos parámetros para todos: crucero objetivo **16,4 unidades/s**, desplazamiento lateral hasta **10 unidades/s** con `steer` validado en [−1, +1]. Go calcula posición; el cliente no la declara. |
 | Impulso y salto | Energía inicial 0; cada residuo confirmado suma **0,20** hasta 1; boost consume **0,25/s** y multiplica velocidad objetivo por **1,40**. Salto solo desde el agua, impulso vertical 6 y gravedad 16; sin doble salto. |
@@ -66,7 +66,7 @@ El resultado de Go y el perfil confirmado por Rust son pasos distintos. Solo `fi
 
 ## Versiones, límites y trabajo pendiente
 
-`rulesVersion` vigente **`surf-mvp-2`** (el inicial `surf-mvp-1` tenía un curso de 900) cambia cuando cambian simulación, elegibilidad, daño, pickups, ranking, fin global o recompensas. `courseVersion` es **separado por mapa/manifiesto** y cambia con posiciones/IDs/tipos de objetos, meta o slots; este GDD no inventa un identificador de curso. `catalogVersion` corresponde a economía/cosméticos y puede refrescarse fuera de carrera; `protocolVersion` gobierna compatibilidad de mensajes. Las versiones de reglas y curso quedan fijadas para cada carrera/sala; clientes incompatibles no inician. **E43** definirá formato y negociación, sin tratar los DTO propuestos del frontend como contratos aprobados.
+`rulesVersion` vigente **`surf-mvp-3`** (el inicial `surf-mvp-1` tenía un curso de 900; `surf-mvp-2`, una sola línea de residuos) cambia cuando cambian simulación, elegibilidad, daño, pickups, ranking, fin global o recompensas. `courseVersion` es **separado por mapa/manifiesto** y cambia con posiciones/IDs/tipos de objetos, meta o slots; este GDD no inventa un identificador de curso. `catalogVersion` corresponde a economía/cosméticos y puede refrescarse fuera de carrera; `protocolVersion` gobierna compatibilidad de mensajes. Las versiones de reglas y curso quedan fijadas para cada carrera/sala; clientes incompatibles no inician. **E43** definirá formato y negociación, sin tratar los DTO propuestos del frontend como contratos aprobados.
 
 Quedan por implementar: identidad y perfil online confiables, integración web TypeScript progresiva, segunda interfaz Python, Go autoritativo y su runtime **D28**, servicios Rust y persistencia de negocio, transporte/contratos **E43**, decisión jugable de Reducir, HUD/resultado de agua, settlement duradero y pruebas entre clientes. No se fijan aquí endpoints, payloads, tick Hz ni snapshots Hz. Los escenarios son **estilizados**: el juego no afirma kg retirados, litros salvados, porcentaje de contaminación, limpieza física, restauración ecológica ni aprendizaje demostrado. **ODS 14** es solo marco temático.
 
@@ -82,5 +82,5 @@ Quedan por implementar: identidad y perfil online confiables, integración web T
 | [B13](core-gameplay-loop.md) | Loop y fronteras de autoridad frontend/Go/Rust. |
 | [B14](three-r-design.md) | Significado de las tres R y decisión preventiva de Reducir. |
 | [B15](water-objective.md) | Agua como objetivo compartido de objetos virtuales. |
-| [B16](authoritative-race-rules.md) | Parámetros `surf-mvp-2`, ranking y premios autoritativos. |
+| [B16](authoritative-race-rules.md) | Parámetros `surf-mvp-3`, ranking y premios autoritativos. |
 | [B17](multiplayer-room-lifecycle.md) | Estados y transiciones de sala/participación. |

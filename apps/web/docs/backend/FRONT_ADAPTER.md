@@ -139,9 +139,9 @@ El servidor puede producir el recorrido o usar los fixtures como referencia, per
 |---|---|
 | Mapas | `maracaibo` u `orinoco`. |
 | Participantes | 1–4, IDs únicos, jugador propio incluido; controlador `human` o `bot` declarado por servidor. |
-| Longitud | `lengthMeters: 1800` (`surf-mvp-2`). |
+| Longitud | `lengthMeters: 1800` (`surf-mvp-2` y `surf-mvp-3`). |
 | Límite lateral | `lateralLimitMeters: 15`, es decir, jugador X en `[-15,15]`. |
-| Manifiesto | Exactamente 113 obstáculos, 211 residuos y 21 salvavidas (`surf-mvp-2`). |
+| Manifiesto | Exactamente 113 obstáculos, 211 residuos y 21 salvavidas (`surf-mvp-3`). |
 | Coordenadas del manifiesto | Números finitos: X en `[-64,64]`, Z en `[-1800,50]`; permiten objetos visibles cerca de las orillas y salida. |
 | Obstáculo | ID único y radio positivo. Los radios locales de referencia son 1.15 y 1.8; cualquier ajuste debe corresponder con su aspecto visible. |
 | Residuo | ID único, `kind: 0\|1\|2`, rotación y fase finitas. 0 botella/plástico, 1 tubo/metal, 2 envoltorio/plástico. |
