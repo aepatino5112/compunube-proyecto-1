@@ -1,16 +1,26 @@
 /* Surf Club: Acción por las Aguas — brand and legibility layer for the menus,
    dialogs and panels around the game. Loaded last, so it sets the type scale and
    text colours over the older per-screen sheets. The 3D scene and the race HUD
-   keep their own styles. Secondary text stays at 4.5:1 or more on every surface. */
+   keep their own styles. Secondary text stays at 4.5:1 or more on every surface.
+
+   Identity: the game's own sunset over the water. Peach sky fading into lagoon
+   mint, a lagoon-ink outline, sunset coral and sun yellow, and surf-club
+   stickers: die-cut labels and chunky buttons with a hard shadow that sinks
+   when pressed. Lilita One (OFL, bundled: the lab may be offline) is the
+   sign-painter display face, kept to the wordmark, titles and buttons. */
+@font-face{font-family:"Lilita One";src:url(/assets/fonts/LilitaOne-Regular.ttf) format("truetype");font-display:swap}
 :root{
-  --brand-ink:#1d473b;--brand-text:#2f5245;--brand-muted:#4a6255;--brand-eyebrow:#476152;
-  --brand-green:#285746;--brand-green-hover:#1f4a3b;--brand-coral:#e0674b;--brand-coral-text:#b6492f;
-  --brand-sand:#f6f5ef;--brand-line:#d8decf;
+  --brand-ink:#12393b;--brand-text:#23484a;--brand-muted:#44605f;--brand-eyebrow:#3f5f5d;
+  --brand-green:#1d5552;--brand-green-hover:#12393b;--brand-coral:#ff7452;--brand-coral-text:#b0402a;
+  --brand-sun:#ffd166;--brand-water:#c9f0e6;--brand-paper:#fffaf3;--brand-sky:#ffe6d0;
+  --brand-sand:#f3f6ef;--brand-line:#12393b2e;
   --font-ui:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Roboto,Ubuntu,Arial,sans-serif;
-  --font-display:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Roboto,Ubuntu,Arial,sans-serif;
+  --font-display:"Lilita One","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
   font-family:var(--font-ui);color:var(--brand-text);line-height:1.5}
-body{background:var(--brand-sand)}
-h1,h2,h3,.brand,dialog h2{font-family:var(--font-display)}
+/* Sky at the top of the page, water below: the horizon the game is played on. */
+:root{background:#e5f4ee}
+body{min-height:100dvh;background:linear-gradient(180deg,var(--brand-sky) 0,#fff1e4 170px,#f1f8f2 560px,#e5f4ee 100%) var(--brand-sand)}
+h1,h2,h3,.brand,dialog h2{font-family:var(--font-display);font-weight:400}
 
 /* Brand lockup: sun over two waves, name, motto. */
 .topbar{height:78px}
@@ -207,3 +217,128 @@ dialog li{margin-bottom:4px}
   #profile-dialog .pp-choice-note{font-size:12px}
 }
 @media(max-width:380px){.brand{font-size:20px}.brand svg{width:28px}h1{font-size:28px}}
+
+/* ---------------------------------------------------------------------------
+   Sticker identity. Display face only on titles, the wordmark and buttons;
+   Lilita has a single weight, so weight 400 avoids faux bold everywhere. */
+h1{font-size:50px;letter-spacing:-.5px;line-height:1;font-weight:400}
+h1 span{color:var(--brand-coral);text-shadow:none}
+.section-heading h2,.studio-caption h2,.map-info strong,.item-detail h3,.exchange-intro h3,.start-card h2,dialog h2,
+.error h2,#profile-dialog h2,#online-lobby h2,#online-lobby h3,.recycling-studio .studio-caption h2{font-family:var(--font-display);font-weight:400;letter-spacing:0}
+.section-heading h2{font-size:24px}
+.studio-caption h2{font-size:32px}
+.map-info strong{font-size:38px;text-shadow:0 3px 0 #0b2a2b80}
+.item-detail h3,.exchange-intro h3{font-size:30px}
+
+/* Wordmark: a die-cut decal. Striped sunset sun cut by two waves, the name in
+   sign-painter letters with a coral misprint, the motto on a tilted ribbon. */
+.topbar{border-bottom:0;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='10'%3E%3Cpath d='M0 5c7 0 7-4 14-4s7 4 14 4 7-4 14-4 7 4 14 4' fill='none' stroke='%2312393b' stroke-opacity='.22' stroke-width='2'/%3E%3C/svg%3E") left bottom/56px 10px repeat-x}
+.brand{gap:12px;font-size:31px;letter-spacing:.2px;color:var(--brand-ink)}
+.brand svg{width:46px;height:46px;stroke:none;fill:none;filter:drop-shadow(2px 2px 0 #12393b33)}
+.brand svg .brand-sun{fill:var(--brand-sun);stroke:none}
+.brand svg .brand-sun-low{fill:var(--brand-coral);stroke:none}
+.brand svg .brand-cut{fill:var(--brand-sky);stroke:none}
+.brand svg .brand-rim{fill:none;stroke:var(--brand-ink);stroke-width:2.6}
+.brand svg .brand-wave{fill:none;stroke:var(--brand-ink);stroke-width:3;stroke-linecap:round}
+.brand-name{text-shadow:2px 2px 0 var(--brand-coral)}
+.brand-divider{display:none}
+.club{font-family:var(--font-display);font-weight:400;font-size:13px;letter-spacing:.08em;line-height:1;max-width:none;white-space:nowrap;
+  color:var(--brand-sun);background:var(--brand-ink);padding:6px 10px 5px;border-radius:6px;transform:rotate(-3deg) translateY(2px);box-shadow:2px 2px 0 var(--brand-coral)}
+.racing .topbar:after{font-family:var(--font-display);font-weight:400;font-size:14px;letter-spacing:.06em;color:var(--brand-ink)}
+
+/* Navigation as menu tabs of a game: the current page is an ink sticker. */
+nav{align-self:center;gap:6px}
+nav button{font-family:var(--font-display);font-weight:400;font-size:18px;letter-spacing:.02em;padding:8px 18px;border:0;border-radius:999px;color:var(--brand-muted)}
+nav button:hover{color:var(--brand-ink);background:#12393b14}
+nav button[aria-pressed=true]{color:var(--brand-sun);background:var(--brand-ink);font-weight:400;box-shadow:2px 3px 0 var(--brand-coral)}
+.wallet>strong{font-family:var(--font-display);font-weight:400;font-size:24px}
+.coin-icon{color:#c4862a}
+
+/* Sticker buttons: ink outline, hard shadow, sink on press. */
+.primary,.friends-button,.secondary,.wallet>button,.progress-context button,.profile-operation button,#exchange-max,
+.equipment button,.preview-view,#online-lobby .ol-primary,#profile-dialog .pp-done,#profile-dialog .pp-refresh{
+  border:2.5px solid var(--brand-ink);box-shadow:0 4px 0 var(--brand-ink);transition:transform .08s ease-out,box-shadow .08s ease-out,background-color .15s}
+:is(.primary,.friends-button,.secondary,.wallet>button,.progress-context button,.profile-operation button,#exchange-max,.equipment button,.preview-view,#online-lobby .ol-primary,#profile-dialog .pp-done,#profile-dialog .pp-refresh):not(:disabled):active{transform:translateY(3px);box-shadow:0 1px 0 var(--brand-ink)}
+:is(.primary,.friends-button,.secondary,#exchange-max,#online-lobby .ol-primary):disabled{box-shadow:none;border-color:#12393b59}
+.primary,#online-lobby .ol-primary{font-family:var(--font-display);font-weight:400;font-size:22px;letter-spacing:.02em;border-radius:16px;min-height:60px;
+  background:var(--brand-coral);color:var(--brand-ink)}
+.primary:not(:disabled):hover,#online-lobby .ol-primary:not(:disabled):hover{background:#ff8b6e}
+.primary:disabled{background:#e9efec;color:#44605f;opacity:1}
+.recycle-counter .primary{background:var(--brand-coral);box-shadow:0 4px 0 var(--brand-ink)}
+.recycle-counter .primary:disabled{box-shadow:none}
+.friends-button,.secondary{font-family:var(--font-display);font-weight:400;font-size:19px;letter-spacing:.02em;border-radius:14px;background:var(--brand-water);color:var(--brand-ink)}
+.friends-button:hover,.secondary:hover{background:#b5e8db}
+.wallet>button,.progress-context button,.profile-operation button,#exchange-max,.preview-view{border-width:2px;box-shadow:0 3px 0 var(--brand-ink);border-radius:12px;background:var(--brand-paper);color:var(--brand-ink)}
+.wallet>button:hover,.progress-context button:hover,#exchange-max:hover,.preview-view:hover{background:#fff}
+.equipment button{border-width:2px;box-shadow:0 3px 0 var(--brand-ink);background:var(--brand-paper);border-radius:12px}
+#profile-dialog .pp-done{background:var(--brand-coral);color:var(--brand-ink);font-family:var(--font-display);font-weight:400;font-size:19px}
+#profile-dialog .pp-refresh{background:var(--brand-water);color:var(--brand-ink)}
+
+/* Panels: ink-outlined frames with a soft offset, like a comic panel. */
+.studio,.map-feature{border:2.5px solid var(--brand-ink);border-radius:24px;box-shadow:7px 7px 0 #12393b1f}
+.map-feature{box-shadow:7px 7px 0 #12393b1f}
+#home-panel .map-feature{border-radius:20px}
+.pill,.map-chip{font-family:var(--font-display);font-weight:400;font-size:14px;letter-spacing:.06em;color:var(--brand-ink);
+  background:var(--brand-sun);border:2px solid var(--brand-ink);box-shadow:2px 2px 0 var(--brand-ink);transform:rotate(-2deg)}
+.map-check{background:var(--brand-coral);color:var(--brand-ink);border:2px solid var(--brand-ink);width:28px;height:28px;font-weight:800}
+.map-options button,.item-card,.recipe-card,.future-map,.salvage-card{border:2px solid var(--brand-line);border-radius:16px;background:#ffffffa6}
+.map-options button:hover,.item-card:hover,.recipe-card:hover{border-color:#12393b80;background:#fff}
+.map-options button[aria-pressed=true],.item-card.selected,.recipe-card.selected,.salvage-card[aria-pressed=true]{border-color:var(--brand-ink);background:#fff;box-shadow:0 4px 0 var(--brand-ink)}
+.map-options strong,.item-card strong,.recipe-card strong{font-family:var(--font-display);font-weight:400;font-size:17px;letter-spacing:.01em}
+.future-map strong{font-family:var(--font-display);font-weight:400;font-size:18px}
+.future-map{background:#ffffff59;border-style:dashed}
+.category-tabs button{font-family:var(--font-display);font-weight:400;font-size:17px;letter-spacing:.02em}
+.recycle-counter{border:2px solid var(--brand-ink);border-radius:20px;background:var(--brand-paper);box-shadow:6px 6px 0 #12393b1f}
+.equipment{background:#fffaf3d9;border-top:2px solid #12393b26}
+.equipment strong{font-family:var(--font-display);font-weight:400;font-size:18px;letter-spacing:.01em}
+
+#profile-dialog h3{font-size:21px;letter-spacing:.01em}
+#exchange-action{font-size:inherit}
+.recycle-counter .primary:disabled{background:#e9efec;color:#44605f}
+
+/* Dialogs and the post-race card share the panel frame. */
+dialog,#online-lobby,#profile-dialog,.start-card{border:3px solid var(--brand-ink);box-shadow:9px 9px 0 #12393b40;background:var(--brand-paper)}
+dialog::backdrop{background:#12393b80;backdrop-filter:blur(4px)}
+.start-card{border-radius:22px}
+.menu-footer{border-top:2px solid #12393b1f}
+.menu-footer button{color:var(--brand-ink)}
+
+@media(prefers-reduced-motion:reduce){
+  :is(.primary,.friends-button,.secondary,.wallet>button,.progress-context button,.profile-operation button,#exchange-max,.equipment button,.preview-view,#online-lobby .ol-primary,#profile-dialog .pp-done,#profile-dialog .pp-refresh){transition:none}
+}
+@media(max-width:1050px){h1{font-size:42px}.brand{font-size:28px}}
+@media(max-width:700px){
+  h1{font-size:34px}
+  .brand{font-size:26px}.brand svg{width:38px;height:38px}
+  nav{gap:4px}nav button{font-size:17px;padding:7px 14px}
+  .primary,#online-lobby .ol-primary{font-size:20px;min-height:56px}
+  .studio-caption h2{font-size:26px}.map-info strong{font-size:30px}
+  .pill,.map-chip{font-size:12px}
+  .equipment strong{font-size:15px}
+}
+@media(max-width:380px){h1{font-size:30px}.brand{font-size:23px}}
+
+/* Heading: the motto is the lead under the title, with a sun-yellow marker
+   stroke on the promise, instead of a note floating at the right edge. */
+.menu-heading{display:block;margin-bottom:30px}
+.menu-heading>div>p,#page-intro{display:block;margin:14px 0 0;max-width:62ch;font-size:18px;line-height:1.5;color:var(--brand-text)}
+#page-intro mark{white-space:nowrap;color:var(--brand-ink);font-weight:600;background:linear-gradient(transparent 58%,var(--brand-sun) 58%,var(--brand-sun) 92%,transparent 92%);padding:0 2px}
+
+/* Footer as a dock: save status on the left, help and sound as round stickers. */
+.menu-footer{margin:40px 0 28px;padding:14px 16px 14px 22px;border:2px solid var(--brand-ink);border-radius:20px;background:var(--brand-paper);box-shadow:6px 6px 0 #12393b1f;font-size:14px;color:var(--brand-text)}
+.menu-footer>span{display:flex;align-items:center;gap:10px}
+.menu-footer .status-dot{width:10px;height:10px;margin:0;background:#2fbfae;box-shadow:0 0 0 3px #2fbfae33}
+.menu-footer>div{gap:10px}
+.menu-footer button{font-family:var(--font-display);font-weight:400;font-size:16px;letter-spacing:.02em;color:var(--brand-ink);
+  min-height:40px;padding:6px 16px;border:2px solid var(--brand-ink);border-radius:999px;background:#fff;box-shadow:0 3px 0 var(--brand-ink);transition:transform .08s ease-out,box-shadow .08s ease-out}
+.menu-footer button:hover{background:var(--brand-water);text-decoration:none}
+.menu-footer button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--brand-ink)}
+.version{font-family:var(--font-display);font-weight:400;font-size:14px;letter-spacing:.04em;color:var(--brand-muted);margin-left:6px}
+@media(prefers-reduced-motion:reduce){.menu-footer button{transition:none}}
+@media(max-width:1050px){.version{display:inline}}
+@media(max-width:700px){
+  #page-intro{font-size:16px}
+  .menu-footer{flex-direction:column;align-items:stretch;gap:14px;padding:16px}
+  .menu-footer>div{margin-left:0;justify-content:flex-start}
+  .menu-footer button{font-size:15px}
+}

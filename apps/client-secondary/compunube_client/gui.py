@@ -206,8 +206,8 @@ class CatalogTable:
             self.tree.heading(column, text=title, anchor="w")
             self.tree.column(column, width=width, minwidth=70, stretch=stretch, anchor="w")
         self.tree.tag_configure("equipped", foreground=theme.GREEN)
-        self.tree.tag_configure("locked", foreground="#7b8a7e")
-        self.tree.tag_configure("odd", background="#f8f9f2")
+        self.tree.tag_configure("locked", foreground="#5f7270")
+        self.tree.tag_configure("odd", background="#fff3e6")
         self.rows: list[view.CatalogRow] = []
 
     def set_rows(self, rows: list[view.CatalogRow]):
@@ -300,25 +300,37 @@ class Window:
 
     # Layout --------------------------------------------------------------------
     def _header(self, tk):
-        header = tk.Frame(self.root, background=theme.INK, padx=18, pady=10)
-        logo = tk.Canvas(header, width=46, height=38, background=theme.INK, highlightthickness=0)
-        logo.create_oval(29, 2, 41, 14, fill=theme.CORAL, outline="")
-        logo.create_line(3, 26, 12, 30, 19, 18, 25, 9, 29, 22, 35, 28, 44, 27, smooth=True, fill=theme.SAND,
-                         width=3, capstyle="round")
-        logo.create_line(3, 34, 12, 36, 20, 31, 28, 32, 36, 37, 44, 34, smooth=True, fill=theme.SAND, width=3,
-                         capstyle="round")
-        logo.pack(side="left", padx=(0, 12))
-        names = tk.Frame(header, background=theme.INK)
-        names.pack(side="left")
-        tk.Label(names, text="Surf Club", font=self.font["brand"], foreground=theme.SAND,
-                 background=theme.INK).pack(anchor="w")
-        tk.Label(names, text="ACCIÓN POR LAS AGUAS", font=self.font["eyebrow"], foreground=theme.CORAL_LIGHT,
-                 background=theme.INK).pack(anchor="w")
-        tk.Label(header, textvariable=self.player, font=self.font["small"], foreground=theme.SAND,
-                 background="#2c5a4c", padx=12, pady=6).pack(side="right")
-        tk.Label(header, text=f"Servidor {self.c.server}", font=self.font["small"], foreground="#b9cfc4",
-                 background=theme.INK).pack(side="right", padx=12)
-        return header
+        # A strip of the game's sunset sky with the Surf Club decal; redrawn on resize.
+        self.header = tk.Canvas(self.root, height=92, background=theme.SKY, highlightthickness=0)
+        try:
+            self.logo = tk.PhotoImage(file=str(theme.LOGO))
+        except tk.TclError:  # Tk without PNG support: the name is drawn as text instead
+            self.logo = None
+        self.header.bind("<Configure>", lambda _e: self.draw_header())
+        self.player.trace_add("write", lambda *_: self.draw_header())
+        return self.header
+
+    def draw_header(self):
+        canvas, width = self.header, max(self.header.winfo_width(), 1)
+        canvas.delete("all")
+        band = 92 / len(theme.SKY_BANDS)
+        for index, color in enumerate(theme.SKY_BANDS):
+            canvas.create_rectangle(0, index * band, width, (index + 1) * band + 1, fill=color, outline="")
+        wave = [coordinate for x in range(0, width + 28, 14) for coordinate in (x, 87 + (3 if (x // 14) % 2 else -2))]
+        canvas.create_line(*wave, smooth=True, fill=theme.INK, width=2)
+        if self.logo:
+            canvas.create_image(18, 8, image=self.logo, anchor="nw")
+        else:
+            canvas.create_text(18, 46, text="Surf Club · Acción por las Aguas", anchor="w", fill=theme.INK,
+                               font=self.font["brand"])
+        chip = canvas.create_text(width - 30, 44, text=self.player.get(), anchor="e", fill=theme.SUN,
+                                  font=self.font["bold"])
+        left, top, right, bottom = canvas.bbox(chip)
+        canvas.create_rectangle(left - 12, top - 7, right + 12, bottom + 7, fill=theme.INK, outline=theme.CORAL,
+                                width=2)
+        canvas.tag_raise(chip)
+        canvas.create_text(left - 26, 44, text=f"Servidor {self.c.server}", anchor="e", fill=theme.MUTED,
+                           font=self.font["small"])
 
     def _card(self, ttk, parent, title: str = "", hint: str = ""):
         card = ttk.Frame(parent, style="Card.TFrame", padding=(16, 12, 16, 14))
@@ -337,10 +349,10 @@ class Window:
         for column, (key, caption) in enumerate((("coins", "MONEDAS"), ("plastic", "PLÁSTICO"),
                                                  ("metal", "CHATARRA"))):
             tiles.columnconfigure(column, weight=1, uniform="tile")
-            tile = ttk.Frame(tiles, style="Tile.TFrame", padding=(12, 6, 12, 8))
+            tile = ttk.Frame(tiles, style=f"{key}.Tile.TFrame", padding=(12, 6, 12, 8))
             tile.grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else 8, 0))
-            ttk.Label(tile, textvariable=self.stats[key], style="TileValue.TLabel").pack(anchor="w")
-            ttk.Label(tile, text=caption, style="TileCaption.TLabel").pack(anchor="w")
+            ttk.Label(tile, textvariable=self.stats[key], style=f"{key}.TileValue.TLabel").pack(anchor="w")
+            ttk.Label(tile, text=caption, style=f"{key}.TileCaption.TLabel").pack(anchor="w")
         self.profile_label = ttk.Label(card, text=view.equipment_line(None), style="CardHint.TLabel")
         self.profile_label.pack(anchor="w", pady=(10, 0))
         return card
@@ -427,7 +439,7 @@ class Window:
         keys = ttk.Frame(card, style="Inner.TFrame")
         keys.pack(side="bottom", fill="x", pady=(10, 0))
         for key, action in (("← →", "girar"), ("Espacio", "saltar"), ("↑ W", "impulso"), ("Z X", "red")):
-            tk.Label(keys, text=key, font=self.font["kbd"], foreground=theme.INK, background=theme.TILE,
+            tk.Label(keys, text=key, font=self.font["kbd"], foreground=theme.INK, background=theme.SKY,
                      padx=6, pady=1, relief="solid", borderwidth=1).pack(side="left")
             ttk.Label(keys, text=action, style="CardHint.TLabel").pack(side="left", padx=(4, 10))
         ttk.Label(card, textvariable=self.hud, style="Hud.TLabel", wraplength=self.CANVAS_W - 24,
@@ -577,19 +589,35 @@ class Window:
         self.result_label.configure(text="\n".join(view.result_lines(result, c.player_id)))
 
     def draw_idle(self, text: str):
+        """Resting scene: the striped sun setting over the water, and a sticker with the next step."""
         canvas, w, h = self.canvas, self.CANVAS_W, self.CANVAS_H
-        band = h / len(theme.WATER_BANDS)
-        for index, color in enumerate(theme.WATER_BANDS):
+        horizon = h * .42
+        band = horizon / len(theme.SKY_BANDS)
+        for index, color in enumerate(theme.SKY_BANDS):
             canvas.create_rectangle(0, index * band, w, (index + 1) * band + 1, fill=color, outline="", tags="decor")
-        canvas.create_oval(w / 2 - 30, 46, w / 2 + 30, 106, fill="#ffd98a", outline="", tags="decor")
-        for row in range(5):
-            y = 150 + row * 62
-            points = [coordinate for x in range(-20, w + 40, 40)
-                      for coordinate in (x + (row % 2) * 20, y + (8 if (x // 40) % 2 else -8))]
-            canvas.create_line(*points, smooth=True, fill="#bfe6e2" if row < 2 else "#86c3c6", width=2, tags="decor")
-        canvas.create_text(w / 2, h / 2 + 30, text="Surf Club", fill=theme.SAND, font=self.font["brand"], tags="decor")
-        canvas.create_text(w / 2, h / 2 + 78, fill="white", text=text, width=w - 70, justify="center",
-                           font=self.font["bold"], tags="placeholder")
+        cx, r = w / 2, 52
+        # Coral disc with a yellow cap; the water drawn next hides the lower half.
+        canvas.create_oval(cx - r, horizon - r, cx + r, horizon + r, fill=theme.CORAL, outline="", tags="decor")
+        canvas.create_arc(cx - r, horizon - r, cx + r, horizon + r, start=30, extent=120, style="chord",
+                          fill=theme.SUN, outline="", tags="decor")
+        for offset, height in ((-.42, 3), (-.28, 4), (-.14, 5)):
+            y = horizon + offset * r
+            canvas.create_rectangle(cx - r, y, cx + r, y + height, fill=theme.SKY_BANDS[-1], outline="", tags="decor")
+        water = (h - horizon) / len(theme.WATER_BANDS)
+        for index, color in enumerate(theme.WATER_BANDS):
+            top = horizon + index * water
+            canvas.create_rectangle(0, top, w, top + water + 1, fill=color, outline="", tags="decor")
+        for row in range(4):
+            y = horizon + 28 + row * water * 1.6
+            points = [coordinate for x in range(-20, w + 40, 34)
+                      for coordinate in (x + (row % 2) * 17, y + (5 if (x // 34) % 2 else -5))]
+            canvas.create_line(*points, smooth=True, fill="#d8f6ef" if row < 2 else "#9fd9d3", width=2, tags="decor")
+        label = canvas.create_text(w / 2, horizon + (h - horizon) * .55, fill="#fff1e4", text=text, width=w - 90,
+                                   justify="center", font=self.font["bold"], tags="placeholder")
+        left, top, right, bottom = canvas.bbox(label)
+        sticker = canvas.create_rectangle(left - 16, top - 12, right + 16, bottom + 12, fill=theme.INK,
+                                          outline=theme.CORAL, width=3, tags="decor")
+        canvas.tag_lower(sticker, label)
 
     def draw(self, game_view):
         canvas = self.canvas
