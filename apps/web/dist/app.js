@@ -19,6 +19,11 @@ const equipment = () => ({...profile.equipped,...profile.appearance});
 for (const image of document.querySelectorAll('[data-waste-image]')) image.src = game.wasteImages[image.dataset.wasteImage];
 let selectedMap=MAPS[0];
 try { selectedMap=findMap(localStorage.getItem('compunube.map.v1')); } catch {}
+// Mi progreso reopens on the view last used: online when it was online and the
+// service answers, local otherwise (and on a first visit).
+const PROGRESS_MODE='compunube.progress-mode.v1';
+function rememberProgressMode(mode){try{localStorage.setItem(PROGRESS_MODE,mode);}catch{}}
+function rememberedProgressMode(){try{return localStorage.getItem(PROGRESS_MODE);}catch{return null;}}
 const mapImage=document.querySelector('.map-feature .map-art');
 $('map-options').innerHTML=MAPS.map(map=>`<button type="button" data-map="${map.id}" aria-label="Elegir ${map.name}" aria-pressed="false"><img src="${game.mapImages[map.id]}" alt=""><span><strong>${map.shortName}</strong><small>${map.id==='orinoco'?'Caños y bosque':'Puente y palafitos'}</small></span><i aria-hidden="true">✓</i></button>`).join('');
 function renderMap() {
@@ -60,6 +65,7 @@ function setProgressMode(next){
   if(!['local','online'].includes(next)||next==='online'&&(!onlineProfiles.state.profile||onlineProfiles.state.status!=='ready'))return false;
   if(next!==progressMode){progressMode=next;progressGeneration++;$('exchange-receipt').hidden=true;}
   profile=next==='online'?onlineProfiles.state.profile:offlineProfile;
+  rememberProgressMode(next);
   if($('race').hidden)render();else updateProgressStatus();
   return true;
 }
@@ -316,7 +322,11 @@ window.addEventListener('pagehide',()=>multiplayer.detach());
 if(backendAdapter&&profileAdapter)void multiplayer.resume(async playerId=>{
   if(onlineProfiles.state.status!=='ready'&&!(await onlineProfiles.load()))return false;
   return onlineProfiles.state.playerId===playerId&&setProgressMode('online');
-}).then(resumed=>{if(resumed&&multiplayer.state.status==='room')lobby.open();});
+}).then(resumed=>{if(resumed&&multiplayer.state.status==='room')lobby.open();})
+  .then(async()=>{
+    if(progressMode==='online'||rememberedProgressMode()!=='online')return;
+    if(onlineProfiles.state.status==='ready'||await onlineProfiles.load())setProgressMode('online');
+  });
 // A later visit restores the profile without creating demo coins or materials.
 persist(); render();
 $('play').disabled = false;
