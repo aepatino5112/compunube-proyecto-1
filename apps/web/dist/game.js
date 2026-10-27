@@ -103,7 +103,7 @@ for (let z = 8; z > -LENGTH - 30; z -= 35) { buoy(-20, z, 0xff8c6d, .72); buoy(2
 const obstacles = [];
 const obstacleFoam=createContactFoam(THREE,scene,OBSTACLE_CAPACITY);
 const obstacleRocks=createRockKit(THREE,scene,rockAssets,OBSTACLE_CAPACITY-Math.ceil(OBSTACLE_CAPACITY/3));
-for (let i = 0; i < 54; i++) {
+for (let i = 0; i < initialCourse.obstacles.length; i++) {
   const {x,z,rotation}=initialCourse.obstacles[i];
   if (i % 3) {
     const group = new THREE.Group(); group.position.set(x, 0, z); scene.add(group);
@@ -116,7 +116,7 @@ for (let i = 0; i < 54; i++) {
 
 // Shared, finite lifesavers. Full-health racers leave them for someone else.
 const lifesavers = [];
-for (let i = 0; i < 10; i++) {
+for (let i = 0; i < initialCourse.lifesavers.length; i++) {
   const {x,z}=initialCourse.lifesavers[i];
   const group = new THREE.Group(); group.position.set(x, .3, z); scene.add(group);
   for (let part = 0; part < 8; part++) {
