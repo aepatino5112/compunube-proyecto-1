@@ -10,7 +10,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ENV_FILE = path.join(ROOT, '.env');
@@ -291,4 +291,8 @@ async function main() {
   if (command && command !== 'help') process.exit(1);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await main();
+// Run as a command, not when the tests import it. Compared by file name: on
+// Windows a junction or letter case can make the full paths differ, and
+// a full-path check would then silently do nothing.
+const self = name => path.basename(name).toLowerCase();
+if (process.argv[1] && self(process.argv[1]) === self(fileURLToPath(import.meta.url))) await main();
