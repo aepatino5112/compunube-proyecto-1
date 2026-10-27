@@ -31,6 +31,7 @@ test('a browser enters the online lobby and creates a room over HTTPS', async ({
     page.on('pageerror', error => errors.push(String(error)));
     await page.goto(ORIGIN);
     await expect(page.locator('#play')).toBeEnabled({ timeout: 180_000 });
+    await page.click('#title-club');
 
     await page.click('#play-friends');
     await expect(page.locator('#online-lobby')).toBeVisible({ timeout: 30_000 });

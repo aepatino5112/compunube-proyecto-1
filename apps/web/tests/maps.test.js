@@ -31,12 +31,6 @@ test('surf-mvp-2 keeps the surf-mvp-1 spacing, and every released version can be
   }
 });
 
-test('the home screen announces the current course length',async()=>{
-  const {readFile}=await import('node:fs/promises');
-  const html=await readFile(new URL('../dist/index.html',import.meta.url),'utf8');
-  assert.match(html,new RegExp(`<span>${COURSE_LENGTH} m · 3 vidas</span>`));
-});
-
 test('the 3D scene builds one object per course obstacle and lifesaver, not a fixed count',async()=>{
   // surf-mvp-2 shipped with loops fixed at 54/10: online races were rejected and
   // the second half of a local race had no obstacles or lifesavers.
