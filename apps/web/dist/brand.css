@@ -18,6 +18,7 @@
   --font-display:"Lilita One","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
   font-family:var(--font-ui);color:var(--brand-text);line-height:1.5}
 /* Sky at the top of the page, water below: the horizon the game is played on. */
+:root{background:#e5f4ee}
 body{min-height:100dvh;background:linear-gradient(180deg,var(--brand-sky) 0,#fff1e4 170px,#f1f8f2 560px,#e5f4ee 100%) var(--brand-sand)}
 h1,h2,h3,.brand,dialog h2{font-family:var(--font-display);font-weight:400}
 
@@ -262,7 +263,7 @@ nav button[aria-pressed=true]{color:var(--brand-sun);background:var(--brand-ink)
 .primary,#online-lobby .ol-primary{font-family:var(--font-display);font-weight:400;font-size:22px;letter-spacing:.02em;border-radius:16px;min-height:60px;
   background:var(--brand-coral);color:var(--brand-ink)}
 .primary:not(:disabled):hover,#online-lobby .ol-primary:not(:disabled):hover{background:#ff8b6e}
-.primary:disabled{background:#f2d2c6;color:#12393bb3;opacity:1}
+.primary:disabled{background:#e9efec;color:#44605f;opacity:1}
 .recycle-counter .primary{background:var(--brand-coral);box-shadow:0 4px 0 var(--brand-ink)}
 .recycle-counter .primary:disabled{box-shadow:none}
 .friends-button,.secondary{font-family:var(--font-display);font-weight:400;font-size:19px;letter-spacing:.02em;border-radius:14px;background:var(--brand-water);color:var(--brand-ink)}
@@ -293,7 +294,7 @@ nav button[aria-pressed=true]{color:var(--brand-sun);background:var(--brand-ink)
 
 #profile-dialog h3{font-size:21px;letter-spacing:.01em}
 #exchange-action{font-size:inherit}
-.recycle-counter .primary:disabled{background:#f2d2c6;color:#12393bb3}
+.recycle-counter .primary:disabled{background:#e9efec;color:#44605f}
 
 /* Dialogs and the post-race card share the panel frame. */
 dialog,#online-lobby,#profile-dialog,.start-card{border:3px solid var(--brand-ink);box-shadow:9px 9px 0 #12393b40;background:var(--brand-paper)}
@@ -316,3 +317,28 @@ dialog::backdrop{background:#12393b80;backdrop-filter:blur(4px)}
   .equipment strong{font-size:15px}
 }
 @media(max-width:380px){h1{font-size:30px}.brand{font-size:23px}}
+
+/* Heading: the motto is the lead under the title, with a sun-yellow marker
+   stroke on the promise, instead of a note floating at the right edge. */
+.menu-heading{display:block;margin-bottom:30px}
+.menu-heading>div>p,#page-intro{display:block;margin:14px 0 0;max-width:62ch;font-size:18px;line-height:1.5;color:var(--brand-text)}
+#page-intro mark{white-space:nowrap;color:var(--brand-ink);font-weight:600;background:linear-gradient(transparent 58%,var(--brand-sun) 58%,var(--brand-sun) 92%,transparent 92%);padding:0 2px}
+
+/* Footer as a dock: save status on the left, help and sound as round stickers. */
+.menu-footer{margin:40px 0 28px;padding:14px 16px 14px 22px;border:2px solid var(--brand-ink);border-radius:20px;background:var(--brand-paper);box-shadow:6px 6px 0 #12393b1f;font-size:14px;color:var(--brand-text)}
+.menu-footer>span{display:flex;align-items:center;gap:10px}
+.menu-footer .status-dot{width:10px;height:10px;margin:0;background:#2fbfae;box-shadow:0 0 0 3px #2fbfae33}
+.menu-footer>div{gap:10px}
+.menu-footer button{font-family:var(--font-display);font-weight:400;font-size:16px;letter-spacing:.02em;color:var(--brand-ink);
+  min-height:40px;padding:6px 16px;border:2px solid var(--brand-ink);border-radius:999px;background:#fff;box-shadow:0 3px 0 var(--brand-ink);transition:transform .08s ease-out,box-shadow .08s ease-out}
+.menu-footer button:hover{background:var(--brand-water);text-decoration:none}
+.menu-footer button:active{transform:translateY(2px);box-shadow:0 1px 0 var(--brand-ink)}
+.version{font-family:var(--font-display);font-weight:400;font-size:14px;letter-spacing:.04em;color:var(--brand-muted);margin-left:6px}
+@media(prefers-reduced-motion:reduce){.menu-footer button{transition:none}}
+@media(max-width:1050px){.version{display:inline}}
+@media(max-width:700px){
+  #page-intro{font-size:16px}
+  .menu-footer{flex-direction:column;align-items:stretch;gap:14px;padding:16px}
+  .menu-footer>div{margin-left:0;justify-content:flex-start}
+  .menu-footer button{font-size:15px}
+}
