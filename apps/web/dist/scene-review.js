@@ -25,7 +25,8 @@ try{
   const art=createArtDirection(THREE,scene,bridge.scene);
   const environments=Object.fromEntries(['maracaibo','orinoco'].map(mapId=>[mapId,createEnvironment(THREE,scene,{islands:createCourse(mapId).islands,palmAsset,mangroveAsset,houseAsset,boatAsset,treeAsset,rockAssets,shoreAssets,mapId})]));
   for(const env of Object.values(environments))markShadowReceivers(env.root);
-  const rocks=createRockKit(THREE,scene,rockAssets,36),foam=createContactFoam(THREE,scene,36);
+  const rockCount=createCourse('maracaibo').obstacles.filter((_,i)=>i%3).length;
+  const rocks=createRockKit(THREE,scene,rockAssets,rockCount),foam=createContactFoam(THREE,scene,rockCount);
   const gallery=new THREE.Group();gallery.name='RockContactSheet';scene.add(gallery);
   const displayRocks=createRockKit(THREE,gallery,rockAssets,4);
   displayRocks.sync(ROCK_NAMES.map((_,i)=>({x:(i-1.5)*3.5,y:0,z:-2,variant:i,angle:.4+i*.3})));

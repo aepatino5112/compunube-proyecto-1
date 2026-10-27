@@ -4,7 +4,7 @@ import * as THREE from '../dist/vendor/three.module.js';
 import { createIllustratedShore } from '../dist/illustrated-shore.js';
 import { createCoastalRibbon } from '../dist/coastal-ribbon.js';
 import { createShoreLayout,SHORE_CLEARANCE,shoreVisible } from '../dist/shore-layout.js';
-import { createCourse } from '../dist/maps.js';
+import { createCourse, COURSE_LENGTH } from '../dist/maps.js';
 import { ROCK_NAMES } from '../dist/rock-kit.js';
 import { WATER_BASE,WATER_AMPLITUDE,sampleWater } from '../dist/water-surface.js';
 import { loadGLBFixture } from './helpers/gltf-fixture.js';
@@ -41,9 +41,12 @@ test('coastal foam stays just above the shared water level, with continuous samp
     smallestZ=Math.min(smallestZ,...zs);largestZ=Math.max(largestZ,...zs);
     assert.ok(Math.max(...zs)-Math.min(...zs)<=4.001,'long triangles visibly cut across the water waves');
   }
-  assert.equal(smallestZ,-1500);assert.equal(largestZ,100);
-  assert.equal(coast.land.geometry.index.count/3,1440,'extra water sampling must not change the broader terrain');
-  assert.equal(index.count/3,1600,'contact refinement keeps a bounded mesh cost');
+  // The coast runs 600 m past the finish with surf-mvp-1's sample spacing (90 land / 400 foam rows per 1.6 km).
+  const span=100+COURSE_LENGTH+600;
+  assert.equal(smallestZ,-(COURSE_LENGTH+600));assert.equal(largestZ,100);
+  assert.equal(coast.land.geometry.index.count/3,16*Math.round(span*90/1600),'extra water sampling must not change the broader terrain');
+  assert.equal(index.count/3,4*Math.round(span*400/1600),'foam keeps four triangles per sample row');
+  assert.ok(index.count/3<=4000,'contact refinement keeps a bounded mesh cost');
   assert.equal(coast.foam.material.forceSinglePass,true,'a thin double-sided sheet does not need two transparent draws');
 });
 

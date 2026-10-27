@@ -86,9 +86,9 @@ test('malformed settlement IDs and impossible result totals are rejected before 
   for (const mutate of [
     result => { result.participants[0].settlementId = {}; },
     result => { delete result.participants[0].settlementId; },
-    result => { result.participants[0].collected = { plastic: 103, metal: 103 }; },
+    (result, start) => { const total = start.course.trash.length; result.participants[0].collected = { plastic: total, metal: total }; },
   ]) {
-    const { start, presentation } = setup(), result = resultFixture(start); mutate(result);
+    const { start, presentation } = setup(), result = resultFixture(start); mutate(result, start);
     assert.equal(presentation.result(result), null);
   }
 });

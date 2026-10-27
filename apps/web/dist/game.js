@@ -92,14 +92,18 @@ for(const environment of Object.values(environments))markShadowReceivers(environ
 let activeMap=MAPS[0],environment=environments[activeMap.id];
 environments.orinoco.root.visible=false;
 
-const buoyKit=createBuoyKit(THREE,scene,white);
+// Every obstacle gets foam; two of every three are rocks and the third a buoy,
+// which shares the kit with the lane markers placed every 35 m on both sides.
+const OBSTACLE_CAPACITY=Math.max(...MAPS.map(map=>createCourse(map.id).obstacles.length));
+const LANE_BUOYS=2*Math.ceil((LENGTH+38)/35);
+const buoyKit=createBuoyKit(THREE,scene,white,LANE_BUOYS+Math.ceil(OBSTACLE_CAPACITY/3)+1);
 const buoy=(x,z,color,size=1)=>buoyKit.add(x,z,color,size);
 for (let z = 8; z > -LENGTH - 30; z -= 35) { buoy(-20, z, 0xff8c6d, .72); buoy(20, z, 0xff8c6d, .72); }
 
 const obstacles = [];
-const obstacleFoam=createContactFoam(THREE,scene,54);
-const obstacleRocks=createRockKit(THREE,scene,rockAssets,36);
-for (let i = 0; i < 54; i++) {
+const obstacleFoam=createContactFoam(THREE,scene,OBSTACLE_CAPACITY);
+const obstacleRocks=createRockKit(THREE,scene,rockAssets,OBSTACLE_CAPACITY-Math.ceil(OBSTACLE_CAPACITY/3));
+for (let i = 0; i < initialCourse.obstacles.length; i++) {
   const {x,z,rotation}=initialCourse.obstacles[i];
   if (i % 3) {
     const group = new THREE.Group(); group.position.set(x, 0, z); scene.add(group);
@@ -112,7 +116,7 @@ for (let i = 0; i < 54; i++) {
 
 // Shared, finite lifesavers. Full-health racers leave them for someone else.
 const lifesavers = [];
-for (let i = 0; i < 10; i++) {
+for (let i = 0; i < initialCourse.lifesavers.length; i++) {
   const {x,z}=initialCourse.lifesavers[i];
   const group = new THREE.Group(); group.position.set(x, .3, z); scene.add(group);
   for (let part = 0; part < 8; part++) {
@@ -364,6 +368,10 @@ function showHit(s, cause) {
   }
 }
 
+// Rubber band for the simulated rivals: one more than this far ahead of the
+// player neither hunts trash nor boosts, so a leader cannot sweep the course
+// before the player gets there. Rivals near the player still compete.
+const RIVAL_LEAD = 35;
 function simulate(dt) {
   if(networkRace)return;
   elapsed += dt;
@@ -377,9 +385,10 @@ function simulate(dt) {
     const boardStart = { x: s.x, z: s.z };
     let desiredTurn = steer;
     const reachStart = netReach(s);
+    const farAhead = s.index > 0 && s.z < player.z - RIVAL_LEAD;
     if (s.index) {
       let target = Math.sin(elapsed * .36 + s.phase) * 10;
-      const wasteAhead = trash.find(item => item.collectedBy === null && item.z < s.z - 3 && item.z > s.z - 20 && Math.abs(item.x - s.x) < 7);
+      const wasteAhead = !farAhead && trash.find(item => item.collectedBy === null && item.z < s.z - 3 && item.z > s.z - 20 && Math.abs(item.x - s.x) < 7);
       if (wasteAhead) { s.netSide = wasteAhead.x >= s.x ? 1 : -1; target = THREE.MathUtils.clamp(wasteAhead.x - s.netSide * 2.05, -WIDTH, WIDTH); }
       const lifeAhead = s.lives < 3 && lifesavers.find(item => item.collectedBy === null && item.z < s.z && item.z > s.z - 26);
       if (lifeAhead) target = lifeAhead.x;
@@ -389,7 +398,7 @@ function simulate(dt) {
     }
     s.netAngle = advanceNetAngle(s.netAngle,s.netSide,dt);
     const wasBoosting = s.boosting;
-    const boost = spendBoost(s.energy, dt, s.index ? s.energy >= .8 || (s.boosting && s.energy > 0) : wantsBoost);
+    const boost = spendBoost(s.energy, dt, s.index ? !farAhead && (s.energy >= .8 || (s.boosting && s.energy > 0)) : wantsBoost);
     s.energy = boost.energy; s.boosting = boost.boosting;
     if (!s.index && s.boosting && !wasBoosting) audio.cue('boost');
     s.turn = THREE.MathUtils.damp(s.turn, desiredTurn, 8, dt);

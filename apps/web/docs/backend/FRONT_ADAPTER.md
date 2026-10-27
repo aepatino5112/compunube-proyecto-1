@@ -139,15 +139,15 @@ El servidor puede producir el recorrido o usar los fixtures como referencia, per
 |---|---|
 | Mapas | `maracaibo` u `orinoco`. |
 | Participantes | 1–4, IDs únicos, jugador propio incluido; controlador `human` o `bot` declarado por servidor. |
-| Longitud | `lengthMeters: 900`. |
+| Longitud | `lengthMeters: 1800` (`surf-mvp-2`). |
 | Límite lateral | `lateralLimitMeters: 15`, es decir, jugador X en `[-15,15]`. |
-| Manifiesto | Exactamente 54 obstáculos, 103 residuos y 10 salvavidas. |
-| Coordenadas del manifiesto | Números finitos: X en `[-64,64]`, Z en `[-900,50]`; permiten objetos visibles cerca de las orillas y salida. |
+| Manifiesto | Exactamente 113 obstáculos, 211 residuos y 21 salvavidas (`surf-mvp-2`). |
+| Coordenadas del manifiesto | Números finitos: X en `[-64,64]`, Z en `[-1800,50]`; permiten objetos visibles cerca de las orillas y salida. |
 | Obstáculo | ID único y radio positivo. Los radios locales de referencia son 1.15 y 1.8; cualquier ajuste debe corresponder con su aspecto visible. |
 | Residuo | ID único, `kind: 0\|1\|2`, rotación y fase finitas. 0 botella/plástico, 1 tubo/metal, 2 envoltorio/plástico. |
 | IDs de objetos | Únicos entre las tres colecciones del manifiesto. No se usa el índice como propietario de red. |
 
-Cada snapshot debe incluir **todos** los participantes de esa carrera y la propiedad de **todos los 103 residuos y los 10 salvavidas**, no sólo los modificados. Cada entrada lleva `itemId` y `collectedBy: playerId | null`. El orden puede variar: se relacionan por ID. Las listas deben estar completas, sin huecos ni IDs repetidos/desconocidos.
+Cada snapshot debe incluir **todos** los participantes de esa carrera y la propiedad de **todos los 211 residuos y los 21 salvavidas**, no sólo los modificados. Cada entrada lleva `itemId` y `collectedBy: playerId | null`. El orden puede variar: se relacionan por ID. Las listas deben estar completas, sin huecos ni IDs repetidos/desconocidos.
 
 `PlayerState` usa Z hacia delante negativo y altura de salto lógica, sin la oscilación del agua. Debe incluir entradas procesadas, contadores, vida, energía, estado individual y todos los campos del tipo propuesto. Las vidas admiten 0–3; energía 0–1. Un descalificado tiene cero vidas; un llegado tiene tiempo de llegada. `collected` debe coincidir con `plastic + metal`.
 

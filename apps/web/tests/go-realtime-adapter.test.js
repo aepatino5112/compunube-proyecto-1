@@ -7,7 +7,7 @@ import * as translate from '../dist/net/translate.js';
 import { createNetworkRace } from '../dist/network-race.js';
 import { createMultiplayerClient } from '../dist/multiplayer-client.js';
 
-const manifest = JSON.parse(await readFile(new URL('../dist/courses/maracaibo-surf-mvp-1.json', import.meta.url)));
+const manifest = JSON.parse(await readFile(new URL('../dist/courses/maracaibo-surf-mvp-2.json', import.meta.url)));
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -25,11 +25,11 @@ function prepared(playerId, extra = {}) {
 }
 function roomState(state = 'LOBBY', members = [member('p1')], extra = {}) {
   return { type: 'room.state', protocolVersion: 1, selfPlayerId: 'p1', room: {
-    roomId: 'room-1', mapId: 'maracaibo', capacity: 4, state, rulesVersion: 'surf-mvp-1',
-    courseVersion: 'maracaibo-surf-mvp-1', raceId: state === 'LOBBY' ? null : 'race-1', countdownEndsAtMs: null, members, ...extra } };
+    roomId: 'room-1', mapId: 'maracaibo', capacity: 4, state, rulesVersion: 'surf-mvp-2',
+    courseVersion: 'maracaibo-surf-mvp-2', raceId: state === 'LOBBY' ? null : 'race-1', countdownEndsAtMs: null, members, ...extra } };
 }
 const raceStart = (ids = ['p1', 'p2']) => ({ type: 'race.start', protocolVersion: 1, roomId: 'room-1', raceId: 'race-1',
-  serverTimeMs: 1000, startedAtMs: 1000, rulesVersion: 'surf-mvp-1', course: manifest,
+  serverTimeMs: 1000, startedAtMs: 1000, rulesVersion: 'surf-mvp-2', course: manifest,
   roster: ids.map((playerId, i) => ({ playerId, startSlotX: manifest.startSlotsX[i], equipment: EQUIP, appearance: LOOK, reduceChoice: 'reusable' })) });
 function snapshot(tick = 2, ids = ['p1', 'p2'], extra = {}) {
   return { raceId: 'race-1', tick, serverTimeMs: 1000 + tick * 50, elapsedMs: tick * 50,
@@ -41,7 +41,7 @@ function snapshot(tick = 2, ids = ['p1', 'p2'], extra = {}) {
     pursuits: ids.map(id => ({ targetPlayerId: id, gap: 48, retreatRemainingMs: 0 })) };
 }
 const ended = settlementState => ({ type: 'race.ended', protocolVersion: 1, result: { raceId: 'race-1', roomId: 'room-1',
-  rulesVersion: 'surf-mvp-1', courseVersion: 'maracaibo-surf-mvp-1', endedAtMs: 9000, participants: [
+  rulesVersion: 'surf-mvp-2', courseVersion: 'maracaibo-surf-mvp-2', endedAtMs: 9000, participants: [
     { playerId: 'p1', outcome: 'finished', rank: 1, finishTimeMs: 55000, collected: { plastic: 1, metal: 0 }, credited: { plastic: 1, metal: 0 }, reduceChoice: 'reusable', settlementState },
     { playerId: 'p2', outcome: 'dnf', rank: null, finishTimeMs: null, collected: { plastic: 0, metal: 0 }, credited: { plastic: 0, metal: 0 }, reduceChoice: 'disposable', settlementState: 'confirmed' }] } });
 
@@ -75,7 +75,7 @@ const session = () => ({ 'GET /v1/sessions/current': [[200, { playerId: 'p1' }]]
 test('translations of real Go manifests pass the presentation validators', () => {
   const room = roomState('RACING', [prepared('p1'), prepared('p2', { equipment: { ...EQUIP, characterId: 'samuel' } })]).room;
   const start = translate.raceStart(raceStart(), room);
-  assert.equal(start.course.lengthMeters, 900);
+  assert.equal(start.course.lengthMeters, 1800);
   assert.deepEqual([...new Set(start.course.trash.map(item => item.kind))].sort(), [0, 1, 2]);
   assert.deepEqual(start.members.map(m => m.displayName), ['Luna', 'Luna'], 'opaque playerId is never shown as a name');
   const race = createNetworkRace({ start, selfPlayerId: 'p1', now: () => 0 });
@@ -158,7 +158,7 @@ test('resume without a session does not create one, and a racing room is rebuilt
   assert.equal(await none.adapter.resume(), null);
   assert.equal(none.sockets.length, 0); assert.deepEqual(none.calls, ['GET /v1/sessions/current']);
 
-  const h = harness({ routes: session(), options: { loadManifest: async version => { assert.equal(version, 'maracaibo-surf-mvp-1'); return manifest; } } });
+  const h = harness({ routes: session(), options: { loadManifest: async version => { assert.equal(version, 'maracaibo-surf-mvp-2'); return manifest; } } });
   const pending = h.adapter.resume();
   await tick(); await tick(); await tick();
   h.sockets[0].receive(roomState('RACING', [prepared('p1', { participantState: 'racing' }), prepared('p2', { participantState: 'racing' })]));

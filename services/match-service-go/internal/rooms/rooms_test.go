@@ -332,7 +332,7 @@ func TestRaceInputGatewayAndReentrySequences(t *testing.T) {
 	for _, v := range old.messages {
 		if message, ok := v.(race.StartMessage); ok {
 			foundStart = true
-			if len(message.Course.Trash) != 103 || len(message.Roster) != 2 {
+			if len(message.Course.Trash) != 211 || len(message.Roster) != 2 {
 				t.Fatal("incomplete race.start")
 			}
 		}

@@ -70,7 +70,7 @@ function fixture(map = 'maracaibo', clearObstacles = false) {
 function runCleanRace(map, fps) {
   const f = fixture(map, true), { context: c } = f, clock = createFrameClock();
   clock.tick(0, true, () => {});
-  for (let frame = 1; frame <= fps * 75; frame++) {
+  for (let frame = 1; frame <= fps * 150; frame++) {
     clock.tick(frame * 1000 / fps, c.state === 'running', dt => {
       c.simulate(dt);
       return c.state === 'running';
@@ -85,12 +85,12 @@ test('actual simulation reaches both finish lines once and preserves finite shar
     for (const { context: c, results } of [baseline, slower]) {
       assert.equal(c.state, 'finished');
       assert.equal(c.player.z, -LENGTH);
-      assert.ok(c.elapsed > 50 && c.elapsed < 60);
+      assert.ok(c.elapsed > 105 && c.elapsed < 115); // surf-mvp-2: 1800 m, about 1:50 without boost
       assert.equal(results.length, 1);
       assert.equal(results[0].plastic, c.player.plastic);
       assert.equal(results[0].metal, c.player.metal);
       assert.equal(c.surfers.reduce((sum, racer) => sum + racer.collected, 0), c.trash.filter(item => item.collectedBy !== null).length);
-      assert.ok(c.surfers.reduce((sum, racer) => sum + racer.collected, 0) <= 103);
+      assert.ok(c.surfers.reduce((sum, racer) => sum + racer.collected, 0) <= c.trash.length);
       for (const racer of c.surfers.filter(racer => racer.finishTime !== null)) assert.equal(racer.boosting, false);
     }
     assert.equal(slower.context.elapsed, baseline.context.elapsed);

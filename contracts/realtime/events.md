@@ -226,9 +226,9 @@ interface CoursePoint { x: number; z: number; }
 interface CourseManifest {
   mapId: 'maracaibo' | 'orinoco';
   courseVersion: string;
-  lengthUnits: number;          // surf-mvp-1: 900
-  lateralLimitUnits: number;    // surf-mvp-1: 15
-  startSlotsX: number[];        // surf-mvp-1: [-9,-3,3,9]
+  lengthUnits: number;          // surf-mvp-2: 1800 (surf-mvp-1: 900)
+  lateralLimitUnits: number;    // surf-mvp-1/2: 15
+  startSlotsX: number[];        // surf-mvp-1/2: [-9,-3,3,9]
   obstacles: Array<CoursePoint & {
     itemId: string;
     radius: number;
@@ -262,7 +262,7 @@ interface RaceStart {
 }
 ```
 
-Para `surf-mvp-1`, cada manifiesto contiene 54 obstáculos, 103 residuos y 10 salvavidas. El cliente valida estructura/versión, pero Go sigue siendo autoridad.
+Para `surf-mvp-2` (vigente), cada manifiesto contiene 113 obstáculos, 211 residuos y 21 salvavidas; para `surf-mvp-1`, 54, 103 y 10. El cliente valida estructura/versión, pero Go sigue siendo autoridad.
 
 ### `race.snapshot`
 
@@ -329,7 +329,7 @@ Mensaje:
 Reglas de recuperación:
 
 - incluye todos los participantes de la carrera;
-- incluye propiedad de los 103 residuos y 10 salvavidas del manifiesto actual;
+- incluye propiedad de todos los residuos y salvavidas del manifiesto actual (211 y 21 en `surf-mvp-2`);
 - una lista completa posterior reemplaza la verdad anterior por `itemId`;
 - eventos perdidos no son necesarios para reconstruir ownership/vidas/estado terminal;
 - un cliente que reentra recibe de inmediato un snapshot completo antes de reanudar inputs.
@@ -495,7 +495,7 @@ Un cliente v1 ignora campos desconocidos, pero no inventa defaults para campos r
 
 ### Relación con versiones de dominio
 
-- `rulesVersion = surf-mvp-1`: simulación/ranking/premios;
+- `rulesVersion = surf-mvp-2` (antes `surf-mvp-1`): simulación/ranking/premios;
 - `courseVersion`: manifiesto de un mapa;
 - `catalogVersion`: economía/cosméticos;
 - `protocolVersion = 1`: forma/semántica de red.

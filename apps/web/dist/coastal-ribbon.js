@@ -1,10 +1,15 @@
 import { WATER_GLSL,WATER_BASE,WATER_AMPLITUDE } from './water-surface.js';
+import { COURSE_LENGTH } from './maps.js';
 
 const edge=z=>27.8+1.6*Math.sin(z*.025)+.85*Math.cos(z*.047+.8);
-const SEGMENTS=90,START=100,END=-1500;
+// The shore runs 600 m past the finish (surf-mvp-1: 100 to -1500 m) with the
+// same sample spacing for any course length.
+const START=100,END=-(COURSE_LENGTH+600),SEGMENTS=Math.round((START-END)*90/1600);
 // The narrow foam needs enough samples to follow the shortest water wave.
 // The broader land keeps its original mesh and channel silhouette.
-const FOAM_SEGMENTS=400,FOAM_LIFT=.032;
+const FOAM_SEGMENTS=Math.round((START-END)*400/1600),FOAM_LIFT=.032;
+// Ground plants in pairs every 14.8 m, to 204 m past the finish.
+const PLANTS=2*Math.ceil((80+COURSE_LENGTH+204)/14.8);
 
 export function createCoastalRibbon(THREE,parent) {
   const positions=[],colors=[],indices=[];
@@ -83,9 +88,9 @@ function createGroundPlants(THREE,parent) {
   }
   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();
-  const plants=new THREE.InstancedMesh(geometry,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,side:THREE.DoubleSide}),160);
+  const plants=new THREE.InstancedMesh(geometry,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,side:THREE.DoubleSide}),PLANTS);
   plants.name='CoastalGroundPlants';const pose=new THREE.Object3D();
-  for(let i=0;i<160;i++){
+  for(let i=0;i<PLANTS;i++){
     const side=i%2?1:-1,z=80-Math.floor(i/2)*14.8,offset=8.2+(Math.sin(i*7.1)*.5+.5)*7;
     pose.position.set(side*(edge(z)+offset),.23+(offset-6)*.027,z);
     pose.rotation.set(0,i*2.37,0);pose.scale.setScalar(.75+(Math.sin(i*2.9)*.5+.5)*.65);pose.updateMatrix();plants.setMatrixAt(i,pose.matrix);

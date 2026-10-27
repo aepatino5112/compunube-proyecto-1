@@ -9,6 +9,19 @@ import (
 //go:embed courses/*.json
 var courseFiles embed.FS
 
+// RulesVersion is the ruleset Go simulates. surf-mvp-2 doubled the course of
+// surf-mvp-1 (900 -> 1800) with the same spacing between objects; the older
+// manifests stay embedded unchanged as released versions.
+const (
+	RulesVersion   = "surf-mvp-2"
+	courseLength   = 1800
+	obstacleCount  = 113
+	trashCount     = 211
+	lifesaverCount = 21
+)
+
+func CourseVersion(mapID string) string { return mapID + "-" + RulesVersion }
+
 type Point struct {
 	X float64 `json:"x"`
 	Z float64 `json:"z"`
@@ -50,7 +63,7 @@ func LoadCourse(mapID string) (CourseManifest, error) {
 	if mapID != "maracaibo" && mapID != "orinoco" {
 		return CourseManifest{}, fmt.Errorf("unknown map")
 	}
-	data, err := courseFiles.ReadFile("courses/" + mapID + "-surf-mvp-1.json")
+	data, err := courseFiles.ReadFile("courses/" + CourseVersion(mapID) + ".json")
 	if err != nil {
 		return CourseManifest{}, err
 	}
@@ -58,7 +71,7 @@ func LoadCourse(mapID string) (CourseManifest, error) {
 	if err := json.Unmarshal(data, &c); err != nil {
 		return CourseManifest{}, err
 	}
-	if c.MapID != mapID || c.CourseVersion != mapID+"-surf-mvp-1" || c.LengthUnits != 900 || c.LateralLimitUnits != 15 || len(c.StartSlotsX) != 4 || len(c.Obstacles) != 54 || len(c.Trash) != 103 || len(c.Lifesavers) != 10 {
+	if c.MapID != mapID || c.CourseVersion != CourseVersion(mapID) || c.LengthUnits != courseLength || c.LateralLimitUnits != 15 || len(c.StartSlotsX) != 4 || len(c.Obstacles) != obstacleCount || len(c.Trash) != trashCount || len(c.Lifesavers) != lifesaverCount {
 		return CourseManifest{}, fmt.Errorf("invalid course manifest")
 	}
 	return c, nil

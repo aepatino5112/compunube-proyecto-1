@@ -132,7 +132,7 @@ class GameSession:
             pass
 
     def race(self, controller: Callable[[dict, dict, str], Intent] = decide,
-             timeout: float = 180.0, leave_after: float | None = None) -> dict:
+             timeout: float = 300.0, leave_after: float | None = None) -> dict:
         """Play until race.ended arrives; returns the authoritative RaceResult."""
         if self.view.start is None or self.view.result is not None:
             self.wait_for(lambda m: m is not None and m["type"] == "race.start", 60.0)

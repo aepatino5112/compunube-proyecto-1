@@ -6,7 +6,8 @@ import { createIllustratedWater } from './illustrated-water.js';
 import { createIllustratedBinding } from './illustrated-materials.js';
 import { instanceScenery as instanceAsset } from './scenery-instancing.js';
 import { createIllustratedShore } from './illustrated-shore.js';
-import { createWaterGeometry } from './water-geometry.js';
+import { createWaterGeometry, followWater, WATER_START_Z } from './water-geometry.js';
+import { COURSE_LENGTH } from './maps.js';
 // Decorative scenery uses its own deterministic variation, never the course RNG.
 const variation = (index) => Math.sin(index * 12.9898 + 4.17) * .5 + .5;
 
@@ -41,7 +42,7 @@ export function createWater(THREE,parent,delta=false,look='classic') {
     shader.vertexShader=`uniform float uWaterTime; varying vec2 vWater; ${WATER_GLSL}
 ${shader.vertexShader}`.replace('#include <begin_vertex>',`
       vec3 transformed = vec3(position);
-      vWater = vec2(position.x, position.z - 700.0);
+      vWater = vec2(position.x, position.z + modelMatrix[3].z);
       transformed.y += waterHeight(vWater,uWaterTime);
     `);
     shader.fragmentShader=`uniform float uWaterTime; uniform vec3 uShallow; uniform vec3 uDeep; varying vec2 vWater; ${WATER_GLSL}
@@ -78,7 +79,7 @@ ${shader.fragmentShader}`.replace('#include <color_fragment>',`
     `);
   };
   material.customProgramCacheKey=()=> `compunube-cartoon-water-v3-sun-${look}`;
-  const water=new THREE.Mesh(geometry,material); water.name='LagoonWater';water.position.set(0,-.15,-700);
+  const water=new THREE.Mesh(geometry,material); water.name='LagoonWater';water.position.set(0,-.15,WATER_START_Z);
   // Bounds include the shader displacement, so both cameras can cull safely.
   geometry.computeBoundingBox();geometry.boundingBox.min.y-=WATER_AMPLITUDE;geometry.boundingBox.max.y+=WATER_AMPLITUDE;
   geometry.computeBoundingSphere();geometry.boundingSphere.radius+=WATER_AMPLITUDE;parent.add(water);
@@ -93,7 +94,7 @@ export function createEnvironment(THREE,scene,{islands,palmAsset,mangroveAsset,h
     const {shoreFoam,layout,setView,coast}=createIllustratedShore(THREE,root,{islands,shoreAssets,boatAsset,rockAssets});
     addAtmosphere(THREE,root,false);
     const illustrated=createIllustratedBinding(root);
-    return {root,water,shoreFoam,illustrated,layout,update(visualTime,reducedMotion=false,viewZ){time.value=reducedMotion?0:visualTime;shoreFoam.update(visualTime,reducedMotion);coast.update(visualTime,reducedMotion);setView(viewZ);}};
+    return {root,water,shoreFoam,illustrated,layout,update(visualTime,reducedMotion=false,viewZ){time.value=reducedMotion?0:visualTime;followWater(water,viewZ);shoreFoam.update(visualTime,reducedMotion);coast.update(visualTime,reducedMotion);setView(viewZ);}};
   }
   const geometry=islandGeometry(THREE),pose=new THREE.Object3D();
   const surface=(color)=>new THREE.MeshStandardMaterial({color,roughness:.95});
@@ -134,7 +135,8 @@ export function createEnvironment(THREE,scene,{islands,palmAsset,mangroveAsset,h
   instanceAsset(THREE,boatAsset.scene,boats,root);
   if(delta && treeAsset) {
     // A second bank layer creates a continuous forest silhouette outside the lane.
-    for(let i=0;i<80;i++) for(const side of [-1,1]) trees.push({x:side*(82+variation(i*11)*18),y:0,z:35-i*13,angle:i*.43,scale:1.5+variation(i*23)*.65});
+    // Outer tree rows every 13 m, to about 100 m past the finish.
+    for(let i=0,rows=Math.ceil((137+COURSE_LENGTH)/13);i<rows;i++) for(const side of [-1,1]) trees.push({x:side*(82+variation(i*11)*18),y:0,z:35-i*13,angle:i*.43,scale:1.5+variation(i*23)*.65});
     instanceAsset(THREE,treeAsset.scene,trees,root);
   }
   const rocks=createRockKit(THREE,root,rockAssets,stones.length);
@@ -146,14 +148,15 @@ export function createEnvironment(THREE,scene,{islands,palmAsset,mangroveAsset,h
   reeds.computeBoundingSphere();root.add(reeds);
   addAtmosphere(THREE,root,delta);
   const illustrated=createIllustratedBinding(root);
-  return {root,water,shoreFoam,illustrated,update(visualTime,reducedMotion=false){time.value=reducedMotion?0:visualTime;shoreFoam.update(visualTime,reducedMotion);}};
+  return {root,water,shoreFoam,illustrated,update(visualTime,reducedMotion=false,viewZ){time.value=reducedMotion?0:visualTime;followWater(water,viewZ);shoreFoam.update(visualTime,reducedMotion);}};
 }
 
 function addAtmosphere(THREE,root,delta) {
   const pose=new THREE.Object3D();
   // Sparse broken rings reinforce the illustrated water near the racing canal.
-  const ripples=new THREE.InstancedMesh(new THREE.TorusGeometry(1,.014,4,18,Math.PI*.75),new THREE.MeshBasicMaterial({color:delta?0xe3e6b3:0xc6f5de,transparent:true,opacity:.24,depthWrite:false}),100);
-  for(let i=0;i<100;i++) {
+  const count=Math.ceil((40+COURSE_LENGTH)/9.4);
+  const ripples=new THREE.InstancedMesh(new THREE.TorusGeometry(1,.014,4,18,Math.PI*.75),new THREE.MeshBasicMaterial({color:delta?0xe3e6b3:0xc6f5de,transparent:true,opacity:.24,depthWrite:false}),count);
+  for(let i=0;i<count;i++) {
     pose.position.set(Math.sin(i*31.7)*30,.015,20-i*9.4);pose.rotation.set(-Math.PI/2,0,Math.sin(i)*.2);pose.scale.set(1.2+i%4*.5,.45,1);pose.updateMatrix();ripples.setMatrixAt(i,pose.matrix);
   }
   ripples.computeBoundingSphere();root.add(ripples);
