@@ -51,7 +51,7 @@ export function mountProfilePanel({ store, getMode, setMode }) {
     dialog.innerHTML = `
     <button type="button" class="pp-close" aria-label="Cerrar mi progreso">×</button>
     <header class="pp-heading">
-      <span class="pp-eyebrow">COMPUNUBE / TU HUELLA</span>
+      <span class="pp-eyebrow">SURF CLUB / TU HUELLA</span>
       <h2 id="profile-panel-title" tabindex="-1">Tu progreso,<br>a bordo<span>.</span></h2>
       <p id="profile-panel-description">Elige con qué progreso recorres el club.</p>
     </header>

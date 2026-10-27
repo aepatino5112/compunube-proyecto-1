@@ -1,4 +1,4 @@
-# Compunube · Surf Club
+# Surf Club: Acción por las Aguas (cliente web)
 
 ## Frontend dentro del repositorio del equipo
 
@@ -56,7 +56,7 @@ Probado con **Node.js 24**. Desde la raíz de la carpeta completa:
 npm start
 ```
 
-Abre [Compunube local](http://127.0.0.1:4173/). También sirve `node server.mjs`. Para jugar no hace falta `npm install`: el servidor usa módulos de Node y Three.js está incluido en `dist/vendor/`. Modelos, recursos y audio se resuelven localmente; no hacen falta CDN, cuentas, servicios en la nube ni Blender instalado. El servidor debe seguir abierto y el navegador debe permitir WebGL.
+Abre [Surf Club local](http://127.0.0.1:4173/). También sirve `node server.mjs`. Para jugar no hace falta `npm install`: el servidor usa módulos de Node y Three.js está incluido en `dist/vendor/`. Modelos, recursos y audio se resuelven localmente; no hacen falta CDN, cuentas, servicios en la nube ni Blender instalado. El servidor debe seguir abierto y el navegador debe permitir WebGL.
 
 Usa siempre la misma dirección: `localhost:4173` y `127.0.0.1:4173` tienen perfiles separados por el navegador.
 
@@ -121,6 +121,7 @@ Los estudios no compran ni equipan objetos en el perfil. Para diagnosticar local
 
 - `dist/index.html`: interfaz.
 - `dist/style.css`: diseño y adaptación a móvil.
+- `dist/brand.css`: marca «Surf Club: Acción por las Aguas» y escala tipográfica de menús, diálogos y paneles (se carga la última; textos secundarios con contraste de 4,5:1 o más). La escena 3D y el HUD de carrera conservan sus estilos.
 - `dist/game.js`: escena, animación y simulación local.
 - `dist/environment.js`: paisaje instanciado y agua animada en la GPU.
 - `dist/art-direction.js`: horizonte escénico, cielo y dirección solar compartida.

@@ -46,7 +46,7 @@ export function mountMultiplayerLobby({ client, getEquipment, getMap, getAppeara
     <button type="button" class="ol-close" aria-label="Cerrar sala con amigos">×</button>
     <div class="ol-layout">
       <aside class="ol-story">
-        <span class="ol-eyebrow">COMPUNUBE / EN COMPAÑÍA</span>
+        <span class="ol-eyebrow">SURF CLUB / EN COMPAÑÍA</span>
         <h2 id="online-lobby-title" tabindex="-1">Una ola,<br>cuatro tablas<span>.</span></h2>
         <p id="online-lobby-description">El mismo recorrido. Una orilla más limpia entre todos.</p>
         <div class="ol-seascape" aria-hidden="true"><span class="ol-sun"></span><span class="ol-horizon"></span><span class="ol-wave ol-wave-back"></span><span class="ol-board"><i></i></span><span class="ol-wave ol-wave-front"></span><span class="ol-foam"></span></div>
