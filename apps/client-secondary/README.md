@@ -1,6 +1,20 @@
 # Cliente secundario (Python) · Surf Club: Acción por las Aguas
 
-Segunda interfaz requerida por la asignatura ([ADR 0002](../../docs/adr/0002-client-language-strategy.md), tarjeta G58). Tiene dos interfaces, una **ventana gráfica** (Tkinter) y una de **terminal**, y ambas usan **solo** la frontera pública de Go:
+Instancia Python del cliente, requerida por la asignatura junto a la de TypeScript ([ADR 0002](../../docs/adr/0002-client-language-strategy.md), tarjeta G58).
+
+## Instancia web en Python (la de la demo)
+
+```sh
+python -m compunube_client.webhost --server http://<IP de Go>:8080
+```
+
+Abre `http://127.0.0.1:4173`: es **la misma interfaz de Surf Club** que la instancia TypeScript (`apps/web`, `node server.mjs`), servida por Python. [`webhost.py`](compunube_client/webhost.py) entrega los archivos de `apps/web/dist` y reenvía `/v1` (HTTP y el WebSocket de tiempo real) a Go, manteniendo el mismo origen para que la cookie de sesión y la comprobación de `Origin` de Go funcionen igual. Solo usa la biblioteca estándar: no hace falta `pip install`. Opciones: `--port` (o `COMPUNUBE_WEB_PORT`), `--host` (por defecto `127.0.0.1`; no abrir a la red).
+
+En el laboratorio un equipo web corre la instancia TypeScript y el otro esta (`node scripts/lab.mjs web --python`). Los dos navegadores comparten sala y carrera; CI Integration lo prueba con Chromium (un navegador en cada instancia, más un tercer jugador por terminal).
+
+## Herramientas de terminal y ventana (pruebas)
+
+El paquete también trae un cliente de **terminal** y una **ventana** Tkinter, que CI usa para jugar carreras reales (G58, I72, I73) y para demostrar la idempotencia de la economía. No son la interfaz de la demo. Ambos usan **solo** la frontera pública de Go:
 
 - HTTP E45 ([OpenAPI](../../contracts/http/openapi.yaml)): sesión, perfil, catálogo, mutaciones económicas y crear/entrar sala.
 - WebSocket E43 ([contrato](../../contracts/realtime/events.md)): `/v1/realtime`, subprotocolo `compunube.realtime.v1`, mensajes `room.ready`, `room.leave`, `race.input` hacia Go y `room.state`, `race.start`, `race.snapshot`, `race.event`, `race.ended`, `error` desde Go.
@@ -30,7 +44,7 @@ python -m pip install -r requirements.txt
 
 En WSL la ventana se abre en Windows a través de WSLg (Windows 11). El stack debe estar levantado (`docker compose up -d --wait`); si no, la barra inferior de la ventana lo indica.
 
-## Ventana gráfica
+## Ventana gráfica (herramienta)
 
 ```sh
 python -m compunube_client --server http://127.0.0.1:8080 gui
