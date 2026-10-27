@@ -18,6 +18,9 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      # First start on an empty volume runs initdb and restarts once; on slow
+      # Windows disks that took ~90 s. Failures in this window do not count.
+      start_period: 120s
     restart: unless-stopped
 
   db-migrate:
