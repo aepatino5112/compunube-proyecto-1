@@ -187,7 +187,7 @@ for (let x = -19; x < 19; x += 2) {
 function nameSprite(text, color) {
   const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 80;
   const ctx = canvas.getContext('2d');ctx.font='bold 27px Arial';ctx.textAlign='center';
-  ctx.lineWidth=5;ctx.strokeStyle='#24483dcc';ctx.strokeText(text,128,46);ctx.fillStyle='#fff6df';ctx.fillText(text,128,46);
+  ctx.lineWidth=5;ctx.strokeStyle='#24483dcc';ctx.strokeText(text,128,46,240);ctx.fillStyle='#fff6df';ctx.fillText(text,128,46,240);
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false, toneMapped: false }));
   sprite.scale.set(1.6, .50, 1); sprite.position.y = 3.6; return sprite;

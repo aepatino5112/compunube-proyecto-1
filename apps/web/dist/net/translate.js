@@ -13,12 +13,19 @@ function equipment(e) {
 function appearance(a) {
     return filled(a.skinId, a.hairColorId) ? { skin: a.skinId, hairColor: a.hairColorId } : null;
 }
-/** Go publishes the opaque playerId as displayName; show the chosen character instead. */
+/** First characters of the opaque playerId, the same on every client (the Python CLI prints p_ plus these). */
+export function playerTag(playerId) {
+    return playerId.replace(/^p_/, '').slice(0, 4);
+}
+/** Go publishes the opaque playerId as displayName; show the chosen character
+ *  instead, with a short tag so players with the same character can be told apart. */
 export function displayName(member, characterId) {
     const name = member.displayName.trim();
     if (name && name !== member.playerId)
         return name.slice(0, 80);
-    return (characterId && CHARACTER_NAMES[characterId]) || 'Surfista';
+    const base = (characterId && CHARACTER_NAMES[characterId]) || 'Surfista';
+    const tag = playerTag(member.playerId);
+    return tag ? `${base} · #${tag}` : base;
 }
 export function roomState(room) {
     if (room.state === 'CLOSED')
