@@ -7,8 +7,8 @@ Cinco equipos, cada uno con un papel, como pidió el profesor. Todo se hace con 
 | A | **BD** | PostgreSQL + migraciones | 55432 |
 | B | **Rust** | `player-profile-rust-1`, `player-profile-rust-2` y Envoy | 50051 |
 | C | **Go** | Match Service (salas, carreras, tiempo real) | 8080 |
-| D | **Web 1** | cliente web en `http://127.0.0.1:4173` | ninguno |
-| E | **Web 2** | igual que D | ninguno |
+| D | **Web 1** | instancia **TypeScript** del cliente (`server.mjs`) en `http://127.0.0.1:4173` | ninguno |
+| E | **Web 2** | instancia **Python** del cliente (`compunube_client.webhost`), misma interfaz | ninguno |
 
 ```text
 navegador (D, E) -> server.mjs local -> Go (C:8080) -> Envoy (B:50051) -> rust-1 / rust-2 -> PostgreSQL (A:55432)
@@ -48,12 +48,13 @@ Antes de arrancar, Rust y Go comprueban que llegan al equipo anterior y, si no, 
 ## Paso 4 · Clientes web (D y E)
 
 ```powershell
-node scripts/lab.mjs web --go <IP C>
+node scripts/lab.mjs web --go <IP C>            # D: instancia TypeScript
+node scripts/lab.mjs web --go <IP C> --python   # E: instancia Python (necesita Python 3.11+, sin pip install)
 ```
 
-Abre `http://127.0.0.1:4173` **en ese mismo equipo**. No hace falta HTTPS ni abrir puertos: el navegador habla con `server.mjs` en su propio equipo, y este reenvía `/v1` y el WebSocket a Go. Si copias el `.env` también aquí, basta `node scripts/lab.mjs web`.
+Abre `http://127.0.0.1:4173` **en ese mismo equipo**. Las dos instancias muestran la misma interfaz de Surf Club; cambia el programa que la sirve y habla con Go (TypeScript/Node en D, Python en E). No hace falta HTTPS ni abrir puertos: el navegador habla con `server.mjs` en su propio equipo, y este reenvía `/v1` y el WebSocket a Go. Si copias el `.env` también aquí, basta `node scripts/lab.mjs web`.
 
-Cliente Python (opcional, desde cualquier equipo): `python -m compunube_client --server http://<IP C>:8080 gui`.
+Sin el script, la instancia Python es: `cd apps/client-secondary` y `python -m compunube_client.webhost --server http://<IP C>:8080`.
 
 ## Demostración del failover (en B)
 

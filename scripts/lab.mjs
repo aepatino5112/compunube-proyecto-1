@@ -3,7 +3,7 @@
 // started with plain Node and Docker Compose. Runs the same from PowerShell,
 // cmd or Git Bash, so it needs neither .ps1/.sh scripts nor administrator rights.
 //   node scripts/lab.mjs init --db <ip> --rust <ip> --go <ip>   # once, then copy .env
-//   node scripts/lab.mjs db | rust | go | web | all | check | status | stop
+//   node scripts/lab.mjs db | rust | go | web [--python] | all | check | status | stop
 import { spawnSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -217,14 +217,28 @@ async function up(role, opts) {
   }
 }
 
+// First Python 3.11+ on the PATH: Windows usually has python or py, Linux python3.
+function pythonCommand() {
+  for (const command of ['python', 'python3', 'py']) {
+    const result = spawnSync(command, ['-c', 'import sys; print(sys.version_info >= (3, 11))'], { encoding: 'utf8' });
+    if (!result.error && result.status === 0 && result.stdout.trim() === 'True') return command;
+  }
+  return null;
+}
+
 async function web(opts) {
   const env = loadEnv();
   const go = opts.go ? hostPort(opts.go, 8080) : env.COMPUNUBE_GO_URL ? hostPort(env.COMPUNUBE_GO_URL) : { host: '127.0.0.1', port: Number(env.GO_HTTP_PORT || 8080) };
   const url = `http://${go.host}:${go.port}`;
   console.log(`Comprobando Go en ${url} ...`);
   if ((await status(`${url}/readyz`)) !== 200) die(`Go no responde en ${url}/readyz.`, '¿Está arriba el equipo Go ("node scripts/lab.mjs go")? Revisa la IP y prueba: node scripts/lab.mjs check');
-  console.log(`Go responde. Abre http://127.0.0.1:${process.env.COMPUNUBE_WEB_PORT || 4173} en el navegador de ESTE equipo (Ctrl+C para parar).\n`);
-  const child = spawn(process.execPath, [path.join(ROOT, 'apps', 'web', 'server.mjs')], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, COMPUNUBE_GO_URL: url } });
+  const python = opts.python && pythonCommand();
+  if (opts.python && !python) die('no se encontró Python 3.11 o superior (python, python3 o py).', 'Instala Python desde python.org o usa la instancia TypeScript: node scripts/lab.mjs web');
+  console.log(`Go responde. Instancia ${python ? 'Python' : 'TypeScript'}: abre http://127.0.0.1:${process.env.COMPUNUBE_WEB_PORT || 4173} en el navegador de ESTE equipo (Ctrl+C para parar).\n`);
+  const env2 = { ...process.env, COMPUNUBE_GO_URL: url };
+  const child = python
+    ? spawn(python, ['-m', 'compunube_client.webhost', '--server', url], { cwd: path.join(ROOT, 'apps', 'client-secondary'), stdio: 'inherit', env: env2 })
+    : spawn(process.execPath, [path.join(ROOT, 'apps', 'web', 'server.mjs')], { cwd: ROOT, stdio: 'inherit', env: env2 });
   child.on('exit', code => process.exit(code ?? 0));
 }
 
@@ -255,7 +269,8 @@ const HELP = `Despliegue por roles del laboratorio (docs/deployment/lab-roles.md
   node scripts/lab.mjs db       equipo BD:   PostgreSQL + migraciones
   node scripts/lab.mjs rust     equipo Rust: rust-1, rust-2 y Envoy
   node scripts/lab.mjs go       equipo Go:   Match Service
-  node scripts/lab.mjs web [--go <ip>]   equipo cliente: web en http://127.0.0.1:4173
+  node scripts/lab.mjs web [--go <ip>] [--python]   equipo cliente: web en http://127.0.0.1:4173
+                (--python: la misma interfaz servida por la instancia Python)
   node scripts/lab.mjs all      todo en este equipo (plan B)
   node scripts/lab.mjs check [--go <ip>]  prueba las conexiones desde este equipo
   node scripts/lab.mjs status   estado de los contenedores de este equipo
