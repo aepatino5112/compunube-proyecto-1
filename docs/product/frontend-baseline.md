@@ -27,7 +27,7 @@ Los controles locales son giro lateral (flechas/A-D o botones móviles), salto (
 
 | Valor observado | Baseline local | Fuente |
 |---|---:|---|
-| Recorrido y límite lateral | 1800 m desde `surf-mvp-2` (900 m hasta `surf-mvp-1`); X entre −15 y +15 (ancho total 30) | [`maps.js`](../../apps/web/dist/maps.js) |
+| Recorrido y límite lateral | 1800 m desde `surf-mvp-2` (900 m hasta `surf-mvp-1`); desde `surf-mvp-3` los residuos van por tramos de varios carriles; X entre −15 y +15 (ancho total 30) | [`maps.js`](../../apps/web/dist/maps.js) |
 | Semillas de Maracaibo / Orinoco | 57 / 819 | [`fixture`](../../apps/web/docs/backend/fixtures/current-front.json) |
 | Vidas máximas y protección tras golpe | 3; 2,6 s | [`survival.js`](../../apps/web/dist/survival.js) |
 | Energía de impulso por residuo y consumo al usarla | +0,2; −0,25 por segundo | [`mechanics.js`](../../apps/web/dist/mechanics.js) |

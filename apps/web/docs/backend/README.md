@@ -99,7 +99,7 @@ No se puede conectar un socket y conservar dos simulaciones independientes repar
 - Escala de juego tratada como metros; tiempos y `dt` en segundos, ángulos en radianes.
 - X es lateral, Y es altura visual, el avance va hacia **Z negativo**.
 - Salida del humano: `(x=3, z=0)`; meta: `z=-1800`. Los rivales parten en `(-5,-3)`, `(7,-7)` y `(-10,-10)`; esos desfases actuales deben revisarse para humanos.
-- `COURSE_LENGTH=1800` (`surf-mvp-2`; era 900 en `surf-mvp-1`). `COURSE_WIDTH=15` es el **límite lateral por lado**, por lo que X se limita a `[-15,15]`; no significa un canal total de 15 m.
+- `COURSE_LENGTH=1800` (desde `surf-mvp-2`; era 900 en `surf-mvp-1`). `COURSE_VERSION=surf-mvp-3`. `COURSE_WIDTH=15` es el **límite lateral por lado**, por lo que X se limita a `[-15,15]`; no significa un canal total de 15 m.
 - La simulación del navegador consume pasos de `1/60 s`; el reloj usa marcas `performance.now()` en milisegundos y las convierte a segundos.
 - `elapsed` empieza al iniciar la carrera efectiva, después de la cuenta atrás de tres segundos.
 
@@ -148,7 +148,7 @@ La colisión de obstáculos se evalúa en la posición del paso, sin barrido con
 | 1 | Tubo metálico en J → `metal` |
 | 2 | Envoltorio → `plastic` |
 
-Hay 211 residuos finitos por recorrido: **141 de plástico y 70 de chatarra** entre todos los participantes. `collectedBy` empieza en `null`; actualmente su propietario es un índice local 0–3. Un residuo solo puede adjudicarse una vez. No es un recurso que reaparece por esperar o bajar la velocidad.
+Hay 211 residuos finitos por recorrido: en `surf-mvp-3`, **137 de plástico y 74 de chatarra** en Maracaibo y **135 y 76** en el Orinoco, entre todos los participantes. `collectedBy` empieza en `null`; actualmente su propietario es un índice local 0–3. Un residuo solo puede adjudicarse una vez. No es un recurso que reaparece por esperar o bajar la velocidad.
 
 La recogida usa el segmento entre la posición lógica anterior y actual de la boca de la red, radio 1.25 m. Se suspende si `jump > 0.45`. No depende del halo, flotación del modelo, animación de manos o bolsa visual. Los siete recogedores comparten contacto y ventajas.
 
@@ -179,7 +179,7 @@ En un empate de contacto, el código local recorre jugadores en orden y el prime
 
 ### Recorridos y determinismo
 
-`createCourse(mapId)` produce 45 islas visuales, 113 obstáculos, 21 salvavidas y 211 residuos; `createCourse(mapId, 900)` reproduce exactamente `surf-mvp-1` (24, 54, 10 y 103). [`tools/generate-course-manifests.mjs`](../../tools/generate-course-manifests.mjs) escribe y comprueba los manifiestos de Go. Semillas iniciales: `maracaibo=57`, `orinoco=819`. Usa el generador `seed=(seed*1664525+1013904223)>>>0` y normaliza con `2^32`. Devuelve también la semilla avanzada, que no debe confundirse con la semilla inicial del mapa.
+`createCourse(mapId)` produce 45 islas visuales, 113 obstáculos, 21 salvavidas y 211 residuos; `createCourse(mapId, version)` reproduce exactamente cada versión publicada (`surf-mvp-1`: 24, 54, 10 y 103; `surf-mvp-2`: residuos en una sola línea; `surf-mvp-3`: residuos por tramos). [`tools/generate-course-manifests.mjs`](../../tools/generate-course-manifests.mjs) escribe y comprueba los manifiestos de Go. Semillas iniciales: `maracaibo=57`, `orinoco=819`. Usa el generador `seed=(seed*1664525+1013904223)>>>0` y normaliza con `2^32`. Devuelve también la semilla avanzada, que no debe confundirse con la semilla inicial del mapa.
 
 Las entidades todavía se identifican por posición en sus arrays; no traen IDs persistentes ni versión de curso. `fixtures/current-front.json` contiene los dos recorridos exactos antes de recoger objetos. Las islas, el puente y el paisaje aportan composición visual; los obstáculos de juego son el array `obstacles`.
 

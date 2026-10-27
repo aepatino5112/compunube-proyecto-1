@@ -1,24 +1,24 @@
 // Writes Go's versioned course manifests from the deterministic generator in
 // dist/maps.js. A version is immutable once released: run this only to create a
 // new one, then `npm run build` copies it next to the page.
-//   node tools/generate-course-manifests.mjs surf-mvp-2 1800
-//   node tools/generate-course-manifests.mjs --check surf-mvp-1 900
+//   node tools/generate-course-manifests.mjs surf-mvp-3
+//   node tools/generate-course-manifests.mjs --check surf-mvp-1
 import { readFile, writeFile } from 'node:fs/promises';
-import { MAPS, createCourse, COURSE_WIDTH } from '../dist/maps.js';
+import { MAPS, createCourse, courseLength, COURSE_WIDTH, COURSE_VERSIONS } from '../dist/maps.js';
 
 const args = process.argv.slice(2);
 const check = args[0] === '--check';
-const [version, length] = check ? args.slice(1) : args;
-if (!/^surf-mvp-\d+$/.test(version || '') || !(Number(length) > 0)) throw new Error('usage: [--check] surf-mvp-N <length>');
+const [version] = check ? args.slice(1) : args;
+if (!COURSE_VERSIONS.includes(version)) throw new Error(`usage: [--check] ${COURSE_VERSIONS.join('|')}`);
 const id = (prefix, index) => `${prefix}-${String(index + 1).padStart(3, '0')}`;
 const KINDS = ['bottle', 'pipe', 'wrapper'];
 
 for (const map of MAPS) {
-  const course = createCourse(map.id, Number(length));
+  const course = createCourse(map.id, version);
   const manifest = {
     mapId: map.id,
     courseVersion: `${map.id}-${version}`,
-    lengthUnits: Number(length),
+    lengthUnits: courseLength(version),
     lateralLimitUnits: COURSE_WIDTH,
     startSlotsX: [-9, -3, 3, 9],
     obstacles: course.obstacles.map((o, i) => ({ itemId: id('o', i), x: o.x, z: o.z, radius: o.radius })),
