@@ -77,7 +77,9 @@ test('translations of real Go manifests pass the presentation validators', () =>
   const start = translate.raceStart(raceStart(), room);
   assert.equal(start.course.lengthMeters, 1800);
   assert.deepEqual([...new Set(start.course.trash.map(item => item.kind))].sort(), [0, 1, 2]);
-  assert.deepEqual(start.members.map(m => m.displayName), ['Luna', 'Luna'], 'opaque playerId is never shown as a name');
+  assert.deepEqual(start.members.map(m => m.displayName), ['Luna · #p1', 'Luna · #p2'], 'the opaque playerId is never the name; a short tag tells players apart');
+  assert.equal(translate.displayName({ playerId: 'p_DBcQvE9xk', displayName: 'p_DBcQvE9xk' }, 'nico'), 'Nico · #DBcQ');
+  assert.equal(translate.displayName({ playerId: 'p_DBcQvE9xk', displayName: '' }), 'Surfista · #DBcQ');
   const race = createNetworkRace({ start, selfPlayerId: 'p1', now: () => 0 });
   assert.equal(race.push(translate.raceSnapshot(snapshot(2)), 10), true, race.error);
   const self = race.latest.players.find(p => p.playerId === 'p1');
