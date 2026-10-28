@@ -370,3 +370,13 @@ dialog::backdrop{background:#12393b80;backdrop-filter:blur(4px)}
 .title-primary{background:var(--brand-coral)}
 .title-button:focus-visible{outline:3px solid var(--brand-sun);outline-offset:4px}
 @media (prefers-reduced-motion:reduce){.title-button{transition:none}}
+
+/* The title screen is the loader: shown from the first paint, buttons waiting
+   until the game is ready. */
+.title-loading{display:none;margin:0;align-items:center;gap:10px;font-size:18px;font-weight:700;color:var(--brand-paper);text-shadow:0 2px 0 var(--brand-ink)}
+.title-screen.is-loading .title-loading{display:flex}
+.title-screen.is-loading .title-actions{opacity:.55}
+.title-loading span{width:18px;height:18px;border-radius:50%;border:3px solid var(--brand-paper);border-top-color:var(--brand-coral);animation:title-spin .9s linear infinite}
+.title-screen.is-loading{background:linear-gradient(180deg,#ffe6d0 0%,#f6c9a3 55%,#2b7a76 55%,#1f5a5c 100%)}
+@keyframes title-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.title-loading span{animation:none}}
