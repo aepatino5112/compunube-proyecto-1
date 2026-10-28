@@ -2,6 +2,8 @@ name: E2E Race
 
 # Full races on demand, kept out of CI Integration because each 1800 m race
 # takes minutes on a hosted runner. Run it from the Actions tab:
+# - G58: the Python client completes a real race;
+# - I73: Rust replicas and PostgreSQL fail during races, settlements recover;
 # - I72: concurrent rooms of four clients;
 # - G58: the Python graphical window races against Go;
 # - G56/G59: a browser on each web instance (TypeScript and Python) and the
@@ -15,7 +17,7 @@ permissions:
 jobs:
   race:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - name: Prepare environment
@@ -32,6 +34,14 @@ jobs:
           python-version: "3.12"
       - name: Python client dependencies
         run: python3 -m pip install -r apps/client-secondary/requirements.txt
+      - name: Python client completes a real race (G58)
+        env:
+          G58_SKIP_BUILD: "1"
+        run: python3 scripts/validation/g58-python-client.py
+      - name: Resilience and failover with real clients (I73)
+        env:
+          I73_SKIP_BUILD: "1"
+        run: python3 scripts/validation/i73-resilience.py
       - name: Concurrent rooms of four clients (I72)
         env:
           I72_SKIP_BUILD: "1"
