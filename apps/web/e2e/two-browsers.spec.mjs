@@ -42,6 +42,8 @@ async function openClub(browserType, origin, name, info) {
   await page.goto(origin);
   try {
     await expect(page.locator('#play')).toBeEnabled({ timeout: 180_000 });
+    // The title screen opens first; "El club" leads to the club menu.
+    await page.click('#title-club');
   } catch (error) {
     const webgl = await page.evaluate(() => {
       const canvas = document.createElement('canvas');

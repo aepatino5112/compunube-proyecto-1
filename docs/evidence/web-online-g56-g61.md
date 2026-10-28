@@ -17,3 +17,5 @@ Pruebas unitarias web: 149 en CI Web (`npm test`), más compilación TypeScript 
 - Al reatar, Go envía el snapshot vigente, que puede repetir el último tick; `network-race` lo rechaza y el juego lo ignora (comportamiento correcto).
 - Firefox headless en el runner no crea contexto WebGL; el E2E usa dos Chromium. No se ha probado Firefox con aceleración.
 - Con renderizado por software, dos escenas Three.js compiten por CPU; el E2E usa ventana de 640×400 y `reducedMotion`.
+
+**Desde #112:** la carrera con dos navegadores (`two-browsers.spec.mjs`) ya no corre en CI Integration. Con carreras de 1800 m y render por software tardaba de 6 a 15 minutos. Ahora corre bajo demanda en el workflow **E2E Race** (Actions → E2E Race → Run workflow). CI Integration sigue ejecutando Swagger UI y el lobby por HTTPS en Chromium.

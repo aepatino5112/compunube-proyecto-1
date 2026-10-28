@@ -30,7 +30,6 @@ function renderMap() {
   mapImage.src=game.mapImages[selectedMap.id];
   $('map-name').textContent=selectedMap.name;$('map-region').textContent=selectedMap.region;
   $('map-description').textContent=selectedMap.description;
-  document.querySelector('.studio-coordinate').textContent=selectedMap.coordinate;
   for(const button of document.querySelectorAll('[data-map]'))button.setAttribute('aria-pressed',String(button.dataset.map===selectedMap.id));
   $('play').innerHTML=`Jugar en ${selectedMap.shortName} <span>↗</span>`;
 }
@@ -123,8 +122,24 @@ function actionMarkup(item, craft = false) {
   const action = owned ? 'equip' : craft ? 'craft' : 'buy';
   const text = equipped ? 'Equipado ✓' : owned ? 'Equipar' : craft ? 'Fabricar esta red' : `Comprar · ${item.price} ◈`;
   const missing = craft && !owned ? [['plastic', 'plástico'], ['metal', 'chatarra']].filter(([type]) => profile[type] < item.recipe[type]).map(([type, name]) => `${item.recipe[type] - profile[type]} de ${name}`).join(' y ') : '';
-  const note = owned ? 'Ya es tuyo. Puedes volver a equiparlo cuando quieras.' : craft ? missing ? `Te faltan ${missing}. Recupera materiales en una carrera para fabricar esta red.` : 'Los materiales se consumen al fabricar. Es cosmética: mismo alcance, velocidad y recogida.' : afford ? 'Una nueva apariencia. La velocidad depende de cómo juegues.' : `Te faltan ${item.price - profile.coins} monedas. Consíguelas canjeando lo que recojas.`;
-  return `<button class="primary" data-action="${action}" data-id="${item.id}" ${onlineReadOnly()||equipped || (!owned && !afford) ? 'disabled' : ''}>${text}<span>↗</span></button><p class="detail-note">${note}</p>`;
+  // Only say what the player can act on: what is still missing.
+  const note = owned ? '' : craft ? missing ? `Te faltan ${missing}.` : '' : afford ? '' : `Te faltan ${item.price - profile.coins} ◈.`;
+  return `<button class="primary" data-action="${action}" data-id="${item.id}" ${onlineReadOnly()||equipped || (!owned && !afford) ? 'disabled' : ''}>${text}<span>↗</span></button>${note?`<p class="detail-note">${note}</p>`:''}`;
+}
+// Selecting an item only changes which card is marked: lists, images and the 3D
+// views are rebuilt when their content really changes, so the shop does not blink.
+const renderedHtml = new WeakMap();
+function setHtml(element, html) { if (renderedHtml.get(element) !== html) { element.innerHTML = html; renderedHtml.set(element, html); } }
+function markSelected(container, key, value) {
+  for (const button of container.querySelectorAll(`[data-${key}]`)) {
+    const on = button.dataset[key] === value; button.classList.toggle('selected', on); button.setAttribute('aria-pressed', String(on));
+  }
+}
+const ITEM_KINDS={board:'Tabla',outfit:'Ropa',hair:'Peinado',net:'Red',character:'Personaje'};
+// Name and story of the selected item, presented as a card: kind and rarity,
+// the name in the display face and its description as a short quote.
+function itemHero(item) {
+  return `<div class="item-hero"><span class="item-kind">${ITEM_KINDS[item.type]}${item.rarity?` · ${item.rarity}`:''}</span><h3>${item.name}</h3><p class="item-story">${item.description}</p></div>`;
 }
 function renderShop() {
   const exchange = category === 'exchange';
@@ -136,12 +151,13 @@ function renderShop() {
   if(characters){selected=profile.equipped.character;renderCharacters();return;}
   const items = CATALOG.filter(item => item.type === category);
   if (!items.some(item => item.id === selected)) selected = profile.equipped[category];
-  $('shop-items').innerHTML = items.map(item => `<button class="item-card ${item.id === selected ? 'selected' : ''}" data-item="${item.id}" aria-pressed="${item.id === selected}"><span class="item-state">${profile.equipped[item.type] === item.id ? '✓' : ''}</span><span class="item-art" aria-hidden="true">${['board','hair'].includes(category) ? `<img class="equipment-photo board-photo" src="${game.equipmentImages[item.id]}" alt="">` : `<span class="shirt-icon" style="--item-color:${item.color}"></span>`}</span><strong>${item.name}</strong><small>${profile.equipped[item.type] === item.id ? 'Equipado' : profile.owned.includes(item.id) ? 'En tu equipo' : `${item.price} ◈`}</small></button>`).join('');
+  setHtml($('shop-items'), items.map(item => `<button class="item-card" data-item="${item.id}" aria-pressed="false"><span class="item-state">${profile.equipped[item.type] === item.id ? '✓' : ''}</span><span class="item-art" aria-hidden="true">${['board','hair'].includes(category) ? `<img class="equipment-photo board-photo" src="${game.equipmentImages[item.id]}" alt="">` : `<span class="shirt-icon" style="--item-color:${item.color}"></span>`}</span><strong>${item.name}</strong><small>${profile.equipped[item.type] === item.id ? 'Equipado' : profile.owned.includes(item.id) ? 'En tu equipo' : `${item.price} ◈`}</small></button>`).join(''));
+  markSelected($('shop-items'), 'item', selected);
   const item = findItem(selected);
-  $('item-detail').innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>${actionMarkup(item)}`;
+  setHtml($('item-detail'), `${itemHero(item)}${actionMarkup(item)}`);
 }
 function renderCharacters() {
-  $('character-items').innerHTML=CHARACTERS.map(character=>`<button type="button" class="character-card" data-character="${character.id}" aria-label="Elegir ${character.name}" aria-pressed="${profile.equipped.character===character.id}"><img src="${game.equipmentImages[character.id]}" alt=""><span><strong>${character.name}</strong><small>${character.gender}</small></span><i aria-hidden="true">${profile.equipped.character===character.id?'✓':'↗'}</i></button>`).join('');
+  setHtml($('character-items'),CHARACTERS.map(character=>`<button type="button" class="character-card" data-character="${character.id}" aria-label="Elegir ${character.name}" aria-pressed="${profile.equipped.character===character.id}"><img src="${game.equipmentImages[character.id]}" alt=""><span><strong>${character.name}</strong><small>${character.gender}</small></span><i aria-hidden="true">${profile.equipped.character===character.id?'✓':'↗'}</i></button>`).join(''));
   const character=findItem(profile.equipped.character);
   $('character-description').textContent=character.description;
   for(const [id,choices,field] of [['skin-options',SKIN_TONES,'skin'],['hair-color-options',HAIR_COLORS,'hairColor']]) {
@@ -149,11 +165,13 @@ function renderCharacters() {
   }
 }
 function renderWorkshop() {
-  $('workshop-items').innerHTML = CATALOG.filter(item => item.type === 'net').map(item => `<button class="recipe-card ${recipe === item.id ? 'selected' : ''}" data-recipe="${item.id}" aria-pressed="${recipe === item.id}"><img class="equipment-photo net-photo" src="${game.equipmentImages[item.id]}" alt=""><span><strong>${item.name} <i class="rarity">${item.rarity}</i></strong><small>${item.recipe ? `${item.recipe.plastic} plástico + ${item.recipe.metal} chatarra` : 'Tu herramienta inicial'}</small></span><span class="recipe-state">${profile.equipped.net === item.id ? 'Equipada ✓' : profile.owned.includes(item.id) ? 'Fabricada' : '↗'}</span></button>`).join('');
+  setHtml($('workshop-items'), CATALOG.filter(item => item.type === 'net').map(item => `<button class="recipe-card" data-recipe="${item.id}" aria-pressed="false"><img class="equipment-photo net-photo" src="${game.equipmentImages[item.id]}" alt=""><span><strong>${item.name} <i class="rarity">${item.rarity}</i></strong><small>${item.recipe ? `${item.recipe.plastic} plástico + ${item.recipe.metal} chatarra` : 'Tu herramienta inicial'}</small></span><span class="recipe-state">${profile.equipped.net === item.id ? 'Equipada ✓' : profile.owned.includes(item.id) ? 'Fabricada' : '↗'}</span></button>`).join(''));
+  markSelected($('workshop-items'), 'recipe', recipe);
   const item = findItem(recipe);
   const materials = item.recipe && !profile.owned.includes(item.id) ? `<p class="detail-note">Tienes / necesitas</p><div class="recipe-materials">${[['plastic', 'Plástico'], ['metal', 'Chatarra']].map(([type, name]) => `<div class="${profile[type] < item.recipe[type] ? 'missing' : ''}"><img class="recipe-waste" src="${game.wasteImages[type]}" alt=""><span>${name}</span><strong>${profile[type]} / ${item.recipe[type]}</strong></div>`).join('')}</div>` : '';
-  $('recipe-detail').innerHTML = `<h3>${item.name}</h3><p>${item.description}</p><p class="cosmetic-note">${item.rarity} · Diseño cosmético · Sin ventajas en carrera</p>${materials}${actionMarkup(item, !!item.recipe)}`;
+  setHtml($('recipe-detail'), `${itemHero(item)}${materials}${actionMarkup(item, !!item.recipe)}`);
 }
+let lastEquipKey = '', lastPreviewKey = '';
 function render() {
   // Cards are rebuilt when a selection changes; keep keyboard navigation and the
   // workshop scroll position on that selection instead of returning to the body.
@@ -172,7 +190,11 @@ function render() {
   const recycling = page === 'shop' && category === 'exchange';
   document.querySelector('.studio').classList.toggle('recycling-studio',recycling);
   $('recycle-steps').hidden = !recycling;
-  game.equip(equipment()); game.preview(palette, recycling ? $('exchange-material').value : item?.type === 'board' ? 'board' : item?.type === 'net' ? 'net' : 'surfer');
+  const equipKey = JSON.stringify(equipment());
+  if (equipKey !== lastEquipKey) { lastEquipKey = equipKey; game.equip(equipment()); }
+  const previewType = recycling ? $('exchange-material').value : item?.type === 'board' ? 'board' : item?.type === 'net' ? 'net' : 'surfer';
+  const previewKey = JSON.stringify([palette, previewType]);
+  if (previewKey !== lastPreviewKey) { lastPreviewKey = previewKey; game.preview(palette, previewType); }
   $('preview-badge').textContent = item ? (profile.owned.includes(item.id) ? 'EN TU EQUIPO' : 'VISTA PREVIA') : 'TU SURFISTA';
   $('preview-kicker').textContent = item ? 'DEL CLUB AL AGUA' : 'LISTO PARA VOLVER AL AGUA';
   $('preview-title').textContent = item ? item.name : findItem(profile.equipped.character).name;
@@ -274,11 +296,23 @@ $('leave-race').addEventListener('click', () => confirmRaceChange(false)); $('re
 $('controls-help').addEventListener('click', () => dialog('Encuentra tu ritmo.', '<ul><li><b>← → o A / D</b> para girar.</li><li><b>Z / X</b> para llevar la red a izquierda o derecha.</li><li><b>Espacio</b> para saltar obstáculos.</li><li><b>Shift</b> para gastar el impulso que cargas al recoger.</li><li><b>P</b> para pausar. En móvil, usa los botones en pantalla.</li></ul><p><b>Plástico:</b> halo azul con aro continuo. <b>Chatarra:</b> halo naranja con aro segmentado. Acerca la red a los residuos: se recogen al contacto.</p><p>Empiezas con <b>3 vidas</b>. Los choques y el pulpo restan una; los salvavidas recuperan una (máximo 3). Tras un golpe tendrás protección. Mira la vista trasera y usa el impulso cuando el pulpo se acerque. Termina la carrera para guardar tus materiales; una descalificación no suma recursos.</p>'));
 $('three-r-help').addEventListener('click', () => dialog('Tres R. Una buena costumbre.', '<p><b>Reciclar.</b> Clasifica lo recogido: botellas y envoltorios son plástico; tubos metálicos, chatarra. Canjéalos por monedas.</p><p><b>Reutilizar.</b> Guarda materiales y transfórmalos en una nueva red en el taller.</p><p><b>Reducir.</b> La mejor basura es la que no se genera. Reutiliza tu equipo y evita productos de un solo uso fuera del juego. Su mecánica propia llegará en una siguiente etapa.</p>'));
 
-document.querySelector('.brand').addEventListener('click', event => { event.preventDefault(); if (!$('race').hidden) confirmRaceChange(false); else setPage('home'); });
+// Title screen: Surf Club over the Maracaibo course in motion, and three ways in.
+function showTitle() {
+  $('title-screen').hidden = false; $('menu').inert = true; document.querySelector('.topbar').inert = true;
+  game.title($('title-world')); $('title-play').focus({ preventScroll: true });
+}
+function hideTitle() {
+  if ($('title-screen').hidden) return;
+  $('title-screen').hidden = true; game.title(null); $('menu').inert = false; document.querySelector('.topbar').inert = false;
+}
+$('title-play').addEventListener('click', () => { hideTitle(); $('play').click(); });
+$('title-friends').addEventListener('click', () => { hideTitle(); $('play-friends').click(); });
+$('title-club').addEventListener('click', () => { hideTitle(); setPage('home'); $('play').focus({ preventScroll: true }); });
+document.querySelector('.brand').addEventListener('click', event => { event.preventDefault(); if (!$('race').hidden) confirmRaceChange(false); else { setPage('home'); showTitle(); } });
 const multiplayer=createMultiplayerClient({adapter:backendAdapter,callbacks:{
   onStart(data){
     if(profileAdapter&&(!onlineProfiles.state.profile||data.selfPlayerId!==onlineProfiles.state.playerId))return false;
-    game.enterOnline(data);
+    hideTitle();game.enterOnline(data);
     $('menu').hidden=true;$('race').hidden=false;document.body.classList.add('racing');
     $('materials-popover').hidden=true;$('materials-button').setAttribute('aria-expanded','false');window.scrollTo(0,0);
     requestAnimationFrame(()=>$('world').focus({preventScroll:true}));return true;
@@ -322,7 +356,7 @@ window.addEventListener('pagehide',()=>multiplayer.detach());
 if(backendAdapter&&profileAdapter)void multiplayer.resume(async playerId=>{
   if(onlineProfiles.state.status!=='ready'&&!(await onlineProfiles.load()))return false;
   return onlineProfiles.state.playerId===playerId&&setProgressMode('online');
-}).then(resumed=>{if(resumed&&multiplayer.state.status==='room')lobby.open();})
+}).then(resumed=>{if(resumed){hideTitle();if(multiplayer.state.status==='room')lobby.open();}})
   .then(async()=>{
     if(progressMode==='online'||rememberedProgressMode()!=='online')return;
     if(onlineProfiles.state.status==='ready'||await onlineProfiles.load())setProgressMode('online');
@@ -334,3 +368,4 @@ $('loading-status').hidden = true;
 $('menu').removeAttribute('aria-busy');
 $('menu').inert = false;
 document.querySelector('.topbar').inert = false;
+showTitle();

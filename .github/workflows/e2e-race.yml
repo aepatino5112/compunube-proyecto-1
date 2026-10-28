@@ -1,0 +1,77 @@
+name: E2E Race
+
+# Full races on demand, kept out of CI Integration because each 1800 m race
+# takes minutes on a hosted runner. Run it from the Actions tab:
+# - I72: concurrent rooms of four clients;
+# - G58: the Python graphical window races against Go;
+# - G56/G59: a browser on each web instance (TypeScript and Python) and the
+#   Python CLI share a room, then a second race.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare environment
+        run: |
+          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD GRAFANA_ADMIN_PASSWORD; do
+            value=$(openssl rand -hex 24)
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Start the stack
+        run: docker compose up -d --build --wait --wait-timeout 300
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python client dependencies
+        run: python3 -m pip install -r apps/client-secondary/requirements.txt
+      - name: Concurrent rooms of four clients (I72)
+        env:
+          I72_SKIP_BUILD: "1"
+        run: python3 scripts/validation/i72-e2e-concurrency.py
+      - name: Python graphical window races against Go (G58)
+        env:
+          COMPUNUBE_GO_URL: http://127.0.0.1:8080
+          G58_GUI_EVIDENCE: ${{ runner.temp }}/g58-gui/race-canvas.ps
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends python3-tk xvfb
+          mkdir -p "$RUNNER_TEMP/g58-gui"
+          xvfb-run -a python3 scripts/validation/g58-python-gui.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies and Chromium
+        working-directory: apps/web
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Race with two browsers and the Python client
+        working-directory: apps/web
+        env:
+          COMPUNUBE_GO_URL: http://127.0.0.1:8080
+          PYTHON: python3
+        run: npx playwright test e2e/two-browsers.spec.mjs
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-race-results
+          path: |
+            apps/web/e2e-results
+            ${{ runner.temp }}/g58-gui
+          if-no-files-found: ignore
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 100
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v --remove-orphans
