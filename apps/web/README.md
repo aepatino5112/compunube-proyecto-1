@@ -187,3 +187,16 @@ El visor ajusta el encuadre a la pose y al tamaño del panel para mostrar person
 El [pase 09 de deformaciones](art/CHARACTER_DEFORMATION.md) corrige los brazos que se ensanchaban al alcanzar el mango, las sisas que formaban solapas invertidas y las uniones de cintura, muñeca y tobillo. Los paneles y dobladillos de los shorts forman parte de la tela; Luna tiene una V de espalda continua. Los cuatro recursos Blender se regeneraron y mantienen sus anclajes y personalización. [QA-character-deformation.md](tests/QA-character-deformation.md) recoge las capturas y las 65 pruebas aprobadas.
 
 El [pase 10 de tablas](art/BOARD_FINISH.md) corrige dibujos que se cruzaban con la cubierta, baja la goma al apoyo de los pies y añade quillas curvas. Coral, Manglar y Sol mantienen sus identidades y precios. El estudio de movimiento permite compararlas sin equiparlas. [QA-board-finish.md](tests/QA-board-finish.md) registra las capturas y las 67 pruebas aprobadas. Este pase precedió a la revisión de contacto, giro, espuma y estela de la entrega v1.
+
+## Música
+
+Una pista por pantalla, en bucle y con fundido entre pistas (`dist/audio.js`, `createMusic`). El botón «Sonido» la controla junto con los efectos, y suena desde el primer clic o tecla (los navegadores bloquean el audio antes).
+
+| Pantalla | Pista | Autor | Licencia |
+|---|---|---|---|
+| Inicio | Summer Adventure | Flixberry Entertainment | CC BY 4.0 |
+| Club y salas | Racing Game Menu | MintoDog | CC0 |
+| Lago de Maracaibo (y última recta) | Sunny City (y su versión *climax*) | MintoDog | CC0 |
+| Río Orinoco (y última recta) | Joyful Jungle (y su versión *climax*) | MintoDog | CC0 |
+
+Fuentes y licencias en `dist/assets/music/CREDITS.txt`; en el juego, «Créditos» en el pie del club.

@@ -150,29 +150,9 @@ jobs:
       - name: Install Python client dependencies (G58)
         run: python3 -m pip install -r apps/client-secondary/requirements.txt
 
-      - name: Validate the Python client against a real race (G58)
-        env:
-          G58_SKIP_BUILD: "1"
-        run: python3 scripts/validation/g58-python-client.py
-
-      - name: Install Tk and Xvfb for the Python window (G58)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends python3-tk xvfb
-
-      - name: Race the Python graphical window against Go (G58)
-        env:
-          COMPUNUBE_GO_URL: http://127.0.0.1:8080
-          G58_GUI_EVIDENCE: ${{ runner.temp }}/g58-gui/race-canvas.ps
-        run: |
-          mkdir -p "$RUNNER_TEMP/g58-gui"
-          xvfb-run -a python3 scripts/validation/g58-python-gui.py
-
-      - name: Upload Python window evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: g58-python-gui
-          path: ${{ runner.temp }}/g58-gui
-          if-no-files-found: ignore
+      # Every full race (G58 client and window, I72 rooms, I73 failover and the
+      # two-browser race) runs on demand in E2E Race: each 1800 m race takes
+      # minutes on a hosted runner.
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -192,12 +172,14 @@ jobs:
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
 
-      - name: Race with two browsers and the Python client against Go (G56/G59); browser over HTTPS (H66)
+      # The full two-browser race (two-browsers.spec.mjs, G56/G59) renders in
+      # software for 6-15 minutes on this runner; it runs on demand in E2E Race.
+      - name: Browser checks against Go - Swagger UI and the lobby over HTTPS (H66)
         working-directory: apps/web
         env:
           COMPUNUBE_GO_URL: http://127.0.0.1:8080
           COMPUNUBE_HTTPS_ORIGIN: https://127.0.0.1:4443
-        run: npm run test:e2e
+        run: npx playwright test e2e/api-docs.spec.mjs e2e/https.spec.mjs
 
       - name: Upload browser E2E evidence
         if: always()
@@ -207,15 +189,6 @@ jobs:
           path: apps/web/e2e-results
           if-no-files-found: ignore
 
-      - name: End-to-end races with concurrent rooms of four clients (I72)
-        env:
-          I72_SKIP_BUILD: "1"
-        run: python3 scripts/validation/i72-e2e-concurrency.py
-
-      - name: Resilience and failover with real clients (I73)
-        env:
-          I73_SKIP_BUILD: "1"
-        run: python3 scripts/validation/i73-resilience.py
 
       - name: Validate gRPC Compose readiness and recovery (J85)
         env:

@@ -26,3 +26,5 @@ Harness: [`scripts/validation/i72-e2e-concurrency.py`](../../scripts/validation/
 | Memoria al final | Go 11,7 MiB · Rust 1,7–1,9 MiB · PostgreSQL 64,4 MiB · Envoy 21,7 MiB |
 
 Limitaciones: hardware del runner, no del laboratorio; clientes Python sin renderizado (la carga de navegadores no se midió); no se probó el límite de salas/conexiones (cubierto por pruebas Go de admisión).
+
+**Desde #112:** esta validación corre bajo demanda en el workflow **E2E Race** (Actions → E2E Race → Run workflow), no en CI Integration: cada carrera de 1800 m tarda minutos en un runner alojado.

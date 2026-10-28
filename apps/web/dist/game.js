@@ -517,6 +517,42 @@ function updateDrops(dt) {
   droplets.count=count; droplets.instanceMatrix.needsUpdate=true;
 }
 let previous = performance.now(),lastRenderMs=0;
+// Title screen (attract mode): with nobody racing, the camera travels the
+// Maracaibo course in a straight line behind the home screen. The race canvas
+// is lent to the title screen and returned when it closes.
+let attractHost = null, attractZ = -20, attractVisibility = null, attractRatio = 1, attractWait = 0;
+const ATTRACT_SPEED = 12;
+const attractObserver = new ResizeObserver(() => resizeAttract());
+function resizeAttract() {
+  if (!attractHost?.clientWidth || !attractHost.clientHeight) return;
+  camera.aspect = attractHost.clientWidth / attractHost.clientHeight; camera.updateProjectionMatrix();
+  renderer.setSize(attractHost.clientWidth, attractHost.clientHeight);
+}
+function setAttract(target) {
+  const hidden = [octopusAsset.scene, boardFoam.mesh, ...surfers.flatMap(s => [s.group, s.shadow, s.wake, s.landing, s.shield])];
+  if (target && !attractHost) {
+    attractHost = target; attractZ = -20; selectMap('maracaibo');
+    attractVisibility = hidden.map(object => object.visible); hidden.forEach(object => object.visible = false);
+    // A background, not the race: pixel ratio 1 and 30 fps keep it light.
+    attractRatio = renderer.getPixelRatio(); renderer.setPixelRatio(1); attractWait = 0;
+    target.appendChild(renderer.domElement); attractObserver.observe(target); resizeAttract();
+  } else if (!target && attractHost) {
+    attractObserver.unobserve(attractHost); attractHost = null;
+    hidden.forEach((object, i) => object.visible = attractVisibility[i]); attractVisibility = null;
+    renderer.setPixelRatio(attractRatio); host.appendChild(renderer.domElement); camera.fov = 48; resize(); renderDirty = true; cameraChanged = true;
+  }
+}
+function renderAttract(dt) {
+  attractWait += dt; if (attractWait < 1 / 30) return; dt = attractWait; attractWait = 0;
+  if (!reducedMotion.matches) { attractZ -= dt * ATTRACT_SPEED; visualTime += dt; }
+  if (attractZ < -(LENGTH - 60)) attractZ = -20;
+  environment.update(visualTime, reducedMotion.matches, attractZ);
+  artDirection.update(attractZ, activeMap.id);
+  obstacleFoam.update(visualTime, reducedMotion.matches);
+  for (const bird of birds) bird.object.position.set(bird.x + Math.sin(visualTime * .16 + bird.phase) * 13, 15 + Math.sin(visualTime * .4 + bird.phase), bird.z);
+  camera.fov = 52; camera.position.set(0, 6.5, attractZ + 10); camera.lookAt(0, 1.6, attractZ - 45); camera.updateProjectionMatrix();
+  surfShadows.invalidate(); renderer.render(scene, camera);
+}
 function animate(now) {
   requestAnimationFrame(animate);
   const updateBegin=performance.now();
@@ -537,9 +573,12 @@ function animate(now) {
   }
   const dt = networkRace?(networkLive(now)?frameDt:0):tick.dt;
   audio.update(menuActive||suspended?'menu':state,player.boosting);
+  // Title screen, club and lobby, or the race track of this map; the final
+  // stretch switches to the race track's final-lap version.
+  audio.music(attractHost?'home':menuActive?'menu':player.z<-(LENGTH-250)?`${activeMap.id}-final`:activeMap.id);
   if(state==='running'&&!suspended&&chase.gap<15&&chase.retreat===0)audio.cue('danger');
   if (!suspended && state !== 'paused' && state !== 'finished') visualTime += dt;
-  if (menuActive) { renderPreview(frameDt); return; }
+  if (menuActive) { if (attractHost) renderAttract(frameDt); else renderPreview(frameDt); return; }
   if (suspended) return;
   if(['paused','finished'].includes(state)&&lastRenderedState===state&&!renderDirty)return;
   const poseDt = state === 'paused' || state === 'finished' ? 0 : dt;
@@ -659,6 +698,7 @@ function updateNetworkFrame(now,dt) {
 function enterOnline({start,selfPlayerId}) {
   // Validate everything before changing the local game or its inventory.
   const race=createNetworkRace({start,selfPlayerId});
+  setAttract(null);
   networkRace=null;selectMap(race.start.course.mapId);reset();
   networkRace=race;networkConnected=true;networkResultReceived=false;networkWasLive=false;inputSeq=0;jumpSeq=0;requestedNetSide=1;lastInputAt=-Infinity;
   raceId=race.start.raceId;menuActive=false;suspended=false;state='countdown';elapsed=0;visualTime=0;
@@ -864,7 +904,9 @@ export const game = {
     }
     renderDirty=true;
   },
-  enter(mapId='maracaibo') { clearNetworkRace();selectMap(mapId); menuActive = false; suspended = false; reset(); start(); resize(); },
+  /** Attract mode behind the title screen: an element to render into, or null to stop. */
+  title(target) { setAttract(target || null); },
+  enter(mapId='maracaibo') { setAttract(null); clearNetworkRace();selectMap(mapId); menuActive = false; suspended = false; reset(); start(); resize(); },
   enterOnline,
   applySnapshot(snapshot) {
     if(!networkRace||networkResultReceived)return false;
