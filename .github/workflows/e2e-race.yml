@@ -1,9 +1,11 @@
 name: E2E Race
 
-# G56/G59 on demand: a browser on each web instance (TypeScript and Python)
-# and the Python CLI race in one room against the real stack, then a second
-# race. Rendering two browsers in software takes 6-15 minutes on a hosted
-# runner, so it is not part of CI Integration. Run it from the Actions tab.
+# Full races on demand, kept out of CI Integration because each 1800 m race
+# takes minutes on a hosted runner. Run it from the Actions tab:
+# - I72: concurrent rooms of four clients;
+# - G58: the Python graphical window races against Go;
+# - G56/G59: a browser on each web instance (TypeScript and Python) and the
+#   Python CLI share a room, then a second race.
 on:
   workflow_dispatch:
 
@@ -13,7 +15,7 @@ permissions:
 jobs:
   race:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Prepare environment
@@ -30,6 +32,18 @@ jobs:
           python-version: "3.12"
       - name: Python client dependencies
         run: python3 -m pip install -r apps/client-secondary/requirements.txt
+      - name: Concurrent rooms of four clients (I72)
+        env:
+          I72_SKIP_BUILD: "1"
+        run: python3 scripts/validation/i72-e2e-concurrency.py
+      - name: Python graphical window races against Go (G58)
+        env:
+          COMPUNUBE_GO_URL: http://127.0.0.1:8080
+          G58_GUI_EVIDENCE: ${{ runner.temp }}/g58-gui/race-canvas.ps
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends python3-tk xvfb
+          mkdir -p "$RUNNER_TEMP/g58-gui"
+          xvfb-run -a python3 scripts/validation/g58-python-gui.py
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -46,12 +60,14 @@ jobs:
           COMPUNUBE_GO_URL: http://127.0.0.1:8080
           PYTHON: python3
         run: npx playwright test e2e/two-browsers.spec.mjs
-      - name: Upload browser evidence
+      - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-race-results
-          path: apps/web/e2e-results
+          path: |
+            apps/web/e2e-results
+            ${{ runner.temp }}/g58-gui
           if-no-files-found: ignore
       - name: Logs on failure
         if: failure()

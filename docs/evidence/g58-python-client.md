@@ -31,3 +31,5 @@ Pruebas unitarias del cliente (`pytest`, 20 en #70; 33 desde #92) en CI Client S
 CI Client Secondary: 33 pruebas, 0 omitidas, en Ubuntu (Xvfb) y Windows, con la prueba de ventana obligatoria (`CLIENT_GUI_REQUIRED=1`). Los checks `client-secondary (ubuntu-latest)` y `client-secondary (windows-latest)` son obligatorios en `main`.
 
 Limitación: Docker no está disponible en el WSL usado para desarrollar; la carrera real solo se ejecutó en CI.
+
+**Desde #112:** esta validación corre bajo demanda en el workflow **E2E Race** (Actions → E2E Race → Run workflow), no en CI Integration: cada carrera de 1800 m tarda minutos en un runner alojado. Aplica solo a la ventana gráfica; el cliente de terminal (`g58-python-client.py`) sigue en CI Integration.
