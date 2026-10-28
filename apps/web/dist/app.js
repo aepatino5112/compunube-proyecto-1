@@ -13,6 +13,9 @@ const STORAGE = 'compunube.profile.v1';
 let offlineProfile = freshProfile(), storageAvailable = true;
 try { offlineProfile = restoreProfile(JSON.parse(localStorage.getItem(STORAGE))); } catch { storageAvailable = false; }
 let profile=offlineProfile,progressMode='local',progressGeneration=0;
+// A solo race is practice: its materials go to the local progress, and the club
+// returns to the online profile afterwards when that was the one on screen.
+let onlineAfterRace=false;
 const onlineProfiles=createOnlineProfileStore({adapter:profileAdapter});
 let page = 'home', category = 'board', selected = profile.equipped.board, recipe = 'red-reuso', messageTimer;
 const equipment = () => ({...profile.equipped,...profile.appearance});
@@ -46,7 +49,7 @@ function persist() {
   try { localStorage.setItem(STORAGE, JSON.stringify(offlineProfile)); storageAvailable = true; }
   catch { storageAvailable = false; }
   updateProgressStatus();
-  if(game.mode==='local')$('result-save-note').textContent = storageAvailable ? 'Los materiales de esta carrera ya están guardados.' : 'Materiales disponibles en esta sesión. El navegador no permite guardarlos.';
+  if(game.mode==='local')$('result-save-note').textContent = !storageAvailable ? 'Materiales disponibles en esta sesión. El navegador no permite guardarlos.' : onlineAfterRace ? 'Carrera de práctica: los materiales quedan en tu progreso local. Tu progreso online no cambia.' : 'Los materiales de esta carrera ya están guardados.';
 }
 function onlineReadOnly(){return progressMode==='online'&&onlineProfiles.state.status!=='ready';}
 function updateProgressStatus(){
@@ -60,11 +63,11 @@ function updateProgressStatus(){
   $('profile-operation-text').textContent=status==='pending'?'Estamos confirmando tu cambio. Tus saldos siguen mostrando la última confirmación.':status==='uncertain'?'Falta confirmar el último cambio. Consulta la misma operación antes de hacer otra.':'Actualiza tu perfil para volver a realizar cambios online.';
   for(const id of ['shop-panel','workshop-panel'])$(id).setAttribute('aria-busy',String(online&&['loading','pending'].includes(status)));
 }
-function setProgressMode(next){
+function setProgressMode(next,remember=true){
   if(!['local','online'].includes(next)||next==='online'&&(!onlineProfiles.state.profile||onlineProfiles.state.status!=='ready'))return false;
   if(next!==progressMode){progressMode=next;progressGeneration++;$('exchange-receipt').hidden=true;}
   profile=next==='online'?onlineProfiles.state.profile:offlineProfile;
-  rememberProgressMode(next);
+  if(remember)rememberProgressMode(next);
   if($('race').hidden)render();else updateProgressStatus();
   return true;
 }
@@ -256,13 +259,16 @@ document.addEventListener('click', event => { if (!event.target.closest('.wallet
 document.addEventListener('keydown', event => { if (event.code === 'Escape') { $('materials-popover').hidden = true; $('materials-button').setAttribute('aria-expanded', 'false'); } });
 
 function enterRace() {
-  setProgressMode('local');
+  if(progressMode==='online')onlineAfterRace=true;
+  setProgressMode('local',false);
   $('menu').hidden = true; $('race').hidden = false; document.body.classList.add('racing');
   $('materials-popover').hidden = true; $('materials-button').setAttribute('aria-expanded', 'false'); game.equip(equipment()); game.enter(selectedMap.id); window.scrollTo(0, 0);
 }
 function leaveRace() {
   if(game.mode==='online')multiplayer.leave();
-  game.exit(); $('race').hidden = true; $('menu').hidden = false; document.body.classList.remove('racing'); setPage('home'); $('play').focus();
+  game.exit(); $('race').hidden = true; $('menu').hidden = false; document.body.classList.remove('racing');
+  if(onlineAfterRace){onlineAfterRace=false;setProgressMode('online');}
+  setPage('home'); $('play').focus();
 }
 game.onFinish = settleLocalRace;
 $('play').addEventListener('click', enterRace);

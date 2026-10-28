@@ -24,7 +24,7 @@ function fixture(perform){
   const c={offlineProfile,profile:offlineProfile,progressMode:'local',progressGeneration:0,storageAvailable:true,STORAGE:'compunube.profile.v1',onlineProfiles,transact,$,
     game:{mode:'local'},localStorage:{setItem(key,value){writes.push({key,profile:JSON.parse(value)});}},render(){renders.push(c.profile);},message:text=>messages.push(text),
     materialName:type=>type==='plastic'?'plástico':'chatarra',updateExchange(){},Number,JSON,
-    remembered:[],rememberProgressMode(mode){c.remembered.push(mode);}};
+    onlineAfterRace:false,remembered:[],rememberProgressMode(mode){c.remembered.push(mode);}};
   vm.createContext(c);vm.runInContext(bridge+'\n'+exchange+'\n'+subscription,c);
   return {c,$,onlineProfiles,sent,writes,messages,renders,submit:()=>$('exchange-form').handlers.submit({preventDefault(){}})};
 }
@@ -36,6 +36,14 @@ test('actual app persists only the offline wallet and online selection requires 
   assert.equal(h.$('progress-scope').textContent,'ONLINE');
   h.c.setProgressMode('local');assert.equal(h.c.profile.coins,150);
   assert.deepEqual(h.c.remembered,['online','local'],'only confirmed switches are remembered for the next visit');
+  h.onlineProfiles.dispose();
+});
+test('a solo practice race shows the local wallet without forgetting the online choice',async()=>{
+  const h=fixture();await h.onlineProfiles.load();h.c.setProgressMode('online');
+  h.c.onlineAfterRace=true;h.c.setProgressMode('local',false);h.c.persist();
+  assert.equal(h.c.profile.coins,150);
+  assert.deepEqual(h.c.remembered,['online'],'the practice race keeps online as the remembered progress');
+  assert.match(h.$('result-save-note').textContent,/progreso local.*online no cambia/);
   h.onlineProfiles.dispose();
 });
 
