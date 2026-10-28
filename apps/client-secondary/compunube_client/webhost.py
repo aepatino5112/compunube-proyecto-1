@@ -21,7 +21,8 @@ DIST = Path(__file__).resolve().parents[2] / "web" / "dist"
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
          ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".glb": "model/gltf-binary",
          ".json": "application/json; charset=utf-8", ".yaml": "application/yaml; charset=utf-8",
-         ".png": "image/png", ".ttf": "font/ttf", ".txt": "text/plain; charset=utf-8"}
+         ".png": "image/png", ".ttf": "font/ttf", ".txt": "text/plain; charset=utf-8",
+         ".ogg": "audio/ogg", ".mp3": "audio/mpeg"}
 MAX_HEAD = 64 * 1024
 
 

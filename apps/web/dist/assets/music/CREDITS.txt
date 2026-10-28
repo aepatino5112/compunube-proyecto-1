@@ -1,0 +1,23 @@
+Surf Club: Acción por las Aguas — música
+
+home-summer-adventure.mp3
+  "Summer Adventure" by Flixberry Entertainment
+  https://opengameart.org/content/summer-adventure-background-music
+  License: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+
+menu-racing-game-menu.ogg
+  "Racing Game Menu" by MintoDog
+  https://opengameart.org/content/racing-game-menu
+  License: CC0 1.0 (public domain dedication)
+
+maracaibo-sunny-city.ogg, maracaibo-sunny-city-final.ogg
+  "Sunny City" and "Sunny City (climax)" by MintoDog
+  https://opengameart.org/content/sunny-city
+  License: CC0 1.0
+
+orinoco-joyful-jungle.ogg, orinoco-joyful-jungle-final.ogg
+  "Joyful Jungle" and "Joyful Jungle (climax)" by MintoDog
+  https://opengameart.org/content/joyful-jungle
+  License: CC0 1.0
+
+Files are unmodified apart from their names.
