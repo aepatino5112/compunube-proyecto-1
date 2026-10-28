@@ -192,12 +192,14 @@ jobs:
         working-directory: apps/web
         run: npx playwright install --with-deps chromium
 
-      - name: Race with two browsers and the Python client against Go (G56/G59); browser over HTTPS (H66)
+      # The full two-browser race (two-browsers.spec.mjs, G56/G59) renders in
+      # software for 6-15 minutes on this runner; it runs on demand in E2E Race.
+      - name: Browser checks against Go - Swagger UI and the lobby over HTTPS (H66)
         working-directory: apps/web
         env:
           COMPUNUBE_GO_URL: http://127.0.0.1:8080
           COMPUNUBE_HTTPS_ORIGIN: https://127.0.0.1:4443
-        run: npm run test:e2e
+        run: npx playwright test e2e/api-docs.spec.mjs e2e/https.spec.mjs
 
       - name: Upload browser E2E evidence
         if: always()

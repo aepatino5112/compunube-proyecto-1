@@ -1,0 +1,61 @@
+name: E2E Race
+
+# G56/G59 on demand: a browser on each web instance (TypeScript and Python)
+# and the Python CLI race in one room against the real stack, then a second
+# race. Rendering two browsers in software takes 6-15 minutes on a hosted
+# runner, so it is not part of CI Integration. Run it from the Actions tab.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare environment
+        run: |
+          for key in POSTGRES_PASSWORD MATCH_DB_PASSWORD PLAYER_DB_PASSWORD MONITOR_DB_PASSWORD GRAFANA_ADMIN_PASSWORD; do
+            value=$(openssl rand -hex 24)
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Start the stack
+        run: docker compose up -d --build --wait --wait-timeout 300
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python client dependencies
+        run: python3 -m pip install -r apps/client-secondary/requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies and Chromium
+        working-directory: apps/web
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Race with two browsers and the Python client
+        working-directory: apps/web
+        env:
+          COMPUNUBE_GO_URL: http://127.0.0.1:8080
+          PYTHON: python3
+        run: npx playwright test e2e/two-browsers.spec.mjs
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-race-results
+          path: apps/web/e2e-results
+          if-no-files-found: ignore
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 100
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v --remove-orphans
