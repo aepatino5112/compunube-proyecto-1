@@ -72,7 +72,7 @@ use player_profile_service::{
     repository::{postgres, LockMode, Repositories},
 };
 
-pub const CATALOG: &str = "online-v1";
+pub const CATALOG: &str = "online-v2";
 
 pub struct Env {
     pub pool: PgPool,

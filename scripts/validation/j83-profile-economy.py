@@ -124,7 +124,7 @@ def public_profile(token):
 
 
 def mutate(method, path, token, request_id, **payload):
-    body = {"requestId": request_id, "catalogVersion": "online-v1", **payload}
+    body = {"requestId": request_id, "catalogVersion": "online-v2", **payload}
     status, result = http(method, path, token, body)
     check(status == 200 and result.get("requestId") == request_id and result.get("replayed") is False,
           f"{path} applied through public Go HTTP")
@@ -179,10 +179,10 @@ def main():
     check(profile["playerId"] == player and db_profile(player) == (0, 0, 0, 1),
           "Rust provisioned the session player in player.profiles")
     status, catalog = http("GET", "/v1/catalog", token)
-    check(status == 200 and catalog.get("catalogVersion") == "online-v1", "GET /v1/catalog returns online-v1")
+    check(status == 200 and catalog.get("catalogVersion") == "online-v2", "GET /v1/catalog returns online-v2")
     items = {item["itemId"]: item for item in catalog["items"]}
-    check(items["manglar"]["priceCoins"] == 60 and items["red-reuso"]["recipePlastic"] == 6,
-          "published catalog contains the expected economy items")
+    check(items["manglar"]["priceCoins"] == 300 and items["red-reuso"]["recipePlastic"] == 30,
+          "published catalog contains the rebalanced economy items")
 
     # Same shape as matchstore.Postgres.Save, as in F54. From this point the
     # normal Go coordinator and Rust SettleRace own the delivery and credit.
@@ -194,39 +194,39 @@ INSERT INTO match.rooms(room_id,map_id) VALUES('{room}','maracaibo');
 INSERT INTO match.races(race_id,room_id,rules_version,course_version,started_at,ended_at)
 VALUES('{race}','{room}','rules-j83','course-j83',now()-interval '2 minutes',now()-interval '1 minute');
 INSERT INTO match.race_participants(race_id,player_id,outcome,rank,finish_time_ms,collected_plastic,collected_metal,credited_plastic,credited_metal,reduce_choice)
-VALUES('{race}','{player}','finished',1,61000,30,12,30,12,'reusable');
+VALUES('{race}','{player}','finished',1,61000,150,60,150,60,'reusable');
 INSERT INTO match.settlement_delivery(race_id,player_id,state) VALUES('{race}','{player}','pending');
 """)
     wait_for("Go confirmed the fixture via SettleRace", 90,
              lambda: sql(f"SELECT state FROM match.settlement_delivery WHERE race_id='{race}' AND player_id='{player}';") == "confirmed")
     print(f"settlement confirmation: {time.monotonic() - settlement_started:.1f}s", flush=True)
-    check(db_profile(player) == (0, 30, 12, 2), "Rust credited exactly 30 plastic and 12 metal")
+    check(db_profile(player) == (0, 150, 60, 2), "Rust credited exactly 150 plastic and 60 metal")
     check(sql(f"SELECT count(*) FROM player.settlements WHERE race_id='{race}' AND player_id='{player}';") == "1",
           "one durable player.settlements row")
-    check(tuple(public_profile(token)[k] for k in ("coins", "plastic", "metal")) == (0, 30, 12),
+    check(tuple(public_profile(token)[k] for k in ("coins", "plastic", "metal")) == (0, 150, 60),
           "Go HTTP sees the settlement credit")
 
     exchange_body, exchange_result = mutate("POST", "/v1/profile/exchanges", token, "j83-exchange",
-                                            material="plastic", amount=15)
-    check(tuple(exchange_result["profile"][k] for k in ("coins", "plastic", "metal")) == (60, 15, 12),
-          "exchange used online-v1 rate once")
+                                            material="plastic", amount=75)
+    check(tuple(exchange_result["profile"][k] for k in ("coins", "plastic", "metal")) == (300, 75, 60),
+          "exchange used the online-v2 rate once")
     status, replay = http("POST", "/v1/profile/exchanges", token, exchange_body)
     check(status == 200 and replay["replayed"] is True and replay["profile"] == exchange_result["profile"],
           "same requestId and payload replays without a second effect")
-    check(db_profile(player) == (60, 15, 12, 3), "replay preserved balance and revision")
-    status, conflict = http("POST", "/v1/profile/exchanges", token, {**exchange_body, "amount": 14})
+    check(db_profile(player) == (300, 75, 60, 3), "replay preserved balance and revision")
+    status, conflict = http("POST", "/v1/profile/exchanges", token, {**exchange_body, "amount": 74})
     check(status == 409 and conflict.get("code") == "IDEMPOTENCY_CONFLICT",
           "same requestId with a different payload returns HTTP 409")
-    check(db_profile(player) == (60, 15, 12, 3), "conflict preserved balance and revision")
+    check(db_profile(player) == (300, 75, 60, 3), "conflict preserved balance and revision")
     check(sql(f"SELECT count(*) FROM player.economic_operations WHERE player_id='{player}' AND request_id='j83-exchange';") == "1",
           "one durable operation for replay and conflict")
 
     _, bought = mutate("POST", "/v1/profile/purchases", token, "j83-purchase", itemId="manglar")
     check("manglar" in bought["profile"]["ownedItemIds"] and bought["profile"]["coins"] == 0,
-          "purchase acquired manglar and spent 60 coins")
+          "purchase acquired manglar and spent 300 coins")
     _, crafted = mutate("POST", "/v1/profile/crafts", token, "j83-craft", itemId="red-reuso")
     check("red-reuso" in crafted["profile"]["ownedItemIds"] and
-          (crafted["profile"]["plastic"], crafted["profile"]["metal"]) == (9, 9),
+          (crafted["profile"]["plastic"], crafted["profile"]["metal"]) == (45, 45),
           "craft acquired red-reuso and spent its materials")
     _, equipped = mutate("POST", "/v1/profile/equipment", token, "j83-equip", itemId="manglar")
     check(equipped["profile"]["equipment"]["boardId"] == "manglar", "equipment updated board slot")
@@ -235,16 +235,20 @@ INSERT INTO match.settlement_delivery(race_id,player_id,state) VALUES('{race}','
     check(appeared["profile"]["appearance"] == {"skinId": "deep", "hairColorId": "black"},
           "appearance persisted")
 
-    rejection_body = {"requestId": "j83-insufficient", "catalogVersion": "online-v1", "itemId": "sol"}
+    rejection_body = {"requestId": "j83-insufficient", "catalogVersion": "online-v2", "itemId": "sol"}
     status, rejected = http("POST", "/v1/profile/purchases", token, rejection_body)
     check(status == 422 and rejected.get("code") == "INSUFFICIENT_COINS",
           "business rejection crosses Rust, Envoy and Go as HTTP 422")
+    retired_body = {"requestId": "j83-retired-catalog", "catalogVersion": "online-v1", "itemId": "brisa"}
+    status, retired = http("POST", "/v1/profile/purchases", token, retired_body)
+    check(status == 422 and retired.get("code") == "INVALID_CATALOG_VERSION",
+          "the retired online-v1 catalog cannot be used to buy at its old prices")
     final_profile = public_profile(token)
-    check(final_profile == appeared["profile"], "business rejection did not mutate profile")
+    check(final_profile == appeared["profile"], "business rejections did not mutate profile")
     check(sql(f"SELECT count(*) FROM player.economic_operations WHERE player_id='{player}' AND status='applied';") == "5",
           "five applied mutations persisted in player.economic_operations")
-    check(sql(f"SELECT count(*) FROM player.economic_operations WHERE player_id='{player}' AND status='rejected';") == "1",
-          "business rejection persisted in player.economic_operations")
+    check(sql(f"SELECT count(*) FROM player.economic_operations WHERE player_id='{player}' AND status='rejected';") == "2",
+          "both business rejections persisted in player.economic_operations")
     check(sql(f"SELECT count(*) FROM match.races WHERE race_id='{race}';") == "1" and
           sql(f"SELECT state FROM match.settlement_delivery WHERE race_id='{race}';") == "confirmed",
           "match fixture remains a single confirmed delivery after economy traffic")

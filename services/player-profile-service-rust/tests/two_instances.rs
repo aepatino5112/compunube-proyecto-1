@@ -15,7 +15,7 @@ use player_profile_service::pb::{
 };
 use sqlx::PgPool;
 
-const V: &str = "online-v1";
+const V: &str = "online-v2";
 
 struct Pair {
     a: Client,
@@ -118,7 +118,7 @@ fn rejection_code(response: &ProfileMutationResponse) -> i32 {
 async fn concurrent_buys_across_replicas_charge_once() {
     let p = pair!("concurrent_buys_across_replicas_charge_once");
     let player = unique("two-buy");
-    p.fund(&player, 100, 0, 0).await;
+    p.fund(&player, 500, 0, 0).await;
     let mut tasks = Vec::new();
     for n in 0..16 {
         let mut client = p.pick(n);
@@ -143,7 +143,7 @@ async fn concurrent_buys_across_replicas_charge_once() {
     }
     assert_eq!(applied, 1);
     let profile = p.profile(&player).await;
-    assert_eq!((profile.coins, profile.profile_revision), (40, 2));
+    assert_eq!((profile.coins, profile.profile_revision), (200, 2));
     assert_eq!(
         profile
             .owned_item_ids
@@ -158,7 +158,7 @@ async fn concurrent_buys_across_replicas_charge_once() {
 async fn one_request_id_sent_to_both_replicas_is_applied_exactly_once() {
     let p = pair!("one_request_id_sent_to_both_replicas");
     let player = unique("two-dup");
-    p.fund(&player, 100, 0, 0).await;
+    p.fund(&player, 500, 0, 0).await;
     let mut tasks = Vec::new();
     for n in 0..16 {
         let mut client = p.pick(n);
@@ -171,7 +171,7 @@ async fn one_request_id_sent_to_both_replicas_is_applied_exactly_once() {
     for task in tasks {
         let response = task.await.unwrap();
         let (replayed, profile) = is_success(&response).expect("every duplicate succeeds");
-        assert_eq!(profile.coins, 40);
+        assert_eq!(profile.coins, 200);
         if replayed {
             replays += 1
         } else {
@@ -226,7 +226,7 @@ async fn concurrent_exchanges_across_replicas_never_overspend() {
 async fn concurrent_crafts_across_replicas_grant_the_net_once_and_spend_once() {
     let p = pair!("concurrent_crafts_across_replicas");
     let player = unique("two-craft");
-    p.fund(&player, 0, 20, 10).await;
+    p.fund(&player, 0, 100, 50).await;
     let mut tasks = Vec::new();
     for n in 0..12 {
         let mut client = p.pick(n);
@@ -245,8 +245,8 @@ async fn concurrent_crafts_across_replicas_grant_the_net_once_and_spend_once() {
     let profile = p.profile(&player).await;
     assert_eq!(
         (profile.plastic, profile.metal),
-        (14, 7),
-        "recipe 6/3 charged once"
+        (70, 35),
+        "recipe 30/15 charged once"
     );
 }
 
@@ -366,9 +366,9 @@ async fn mixed_buy_craft_exchange_and_settlement_across_replicas_keep_the_ledger
     };
     let exchanged_plastic = sum("SELECT count(*) * 3 FROM player.economic_operations WHERE player_id = $1 AND operation_type = 'exchange' AND status = 'applied' AND request_id IN (SELECT 'm' || n FROM generate_series(0, 29) n WHERE n % 5 = 2)").await;
     let exchanged_metal = sum("SELECT count(*) * 2 FROM player.economic_operations WHERE player_id = $1 AND operation_type = 'exchange' AND status = 'applied' AND request_id IN (SELECT 'm' || n FROM generate_series(0, 29) n WHERE n % 5 = 4)").await;
-    let bought = sum("SELECT COALESCE(SUM(e.price_coins), 0)::bigint FROM player.owned_items o JOIN player.catalog_entries e ON e.item_id = o.item_id AND e.catalog_version = 'online-v1' WHERE o.player_id = $1 AND o.acquisition_type = 'buy'").await;
-    let crafted_plastic = sum("SELECT COALESCE(SUM(e.recipe_plastic), 0)::bigint FROM player.owned_items o JOIN player.catalog_entries e ON e.item_id = o.item_id AND e.catalog_version = 'online-v1' WHERE o.player_id = $1 AND o.acquisition_type = 'craft'").await;
-    let crafted_metal = sum("SELECT COALESCE(SUM(e.recipe_metal), 0)::bigint FROM player.owned_items o JOIN player.catalog_entries e ON e.item_id = o.item_id AND e.catalog_version = 'online-v1' WHERE o.player_id = $1 AND o.acquisition_type = 'craft'").await;
+    let bought = sum("SELECT COALESCE(SUM(e.price_coins), 0)::bigint FROM player.owned_items o JOIN player.catalog_entries e ON e.item_id = o.item_id AND e.catalog_version = 'online-v2' WHERE o.player_id = $1 AND o.acquisition_type = 'buy'").await;
+    let crafted_plastic = sum("SELECT COALESCE(SUM(e.recipe_plastic), 0)::bigint FROM player.owned_items o JOIN player.catalog_entries e ON e.item_id = o.item_id AND e.catalog_version = 'online-v2' WHERE o.player_id = $1 AND o.acquisition_type = 'craft'").await;
+    let crafted_metal = sum("SELECT COALESCE(SUM(e.recipe_metal), 0)::bigint FROM player.owned_items o JOIN player.catalog_entries e ON e.item_id = o.item_id AND e.catalog_version = 'online-v2' WHERE o.player_id = $1 AND o.acquisition_type = 'craft'").await;
     let settled_plastic = sum("SELECT COALESCE(SUM(credited_plastic), 0)::bigint FROM player.settlements WHERE player_id = $1").await;
     let settled_metal = sum("SELECT COALESCE(SUM(credited_metal), 0)::bigint FROM player.settlements WHERE player_id = $1").await;
 
@@ -529,7 +529,7 @@ async fn a_replacement_instance_continues_where_a_stopped_one_left_off() {
         race_id: race.clone(),
         player_id: player.clone(),
         outcome: 1,
-        credited_plastic: 40,
+        credited_plastic: 200,
         credited_metal: 0,
     };
     c1.settle_race(race_request.clone()).await.unwrap();
@@ -538,7 +538,7 @@ async fn a_replacement_instance_continues_where_a_stopped_one_left_off() {
         request_id: "ex-1".into(),
         catalog_version: V.into(),
         material: Material::Plastic as i32,
-        amount: 25,
+        amount: 125,
     };
     let done = c1
         .exchange_materials(exchange.clone())
@@ -573,7 +573,7 @@ async fn a_replacement_instance_continues_where_a_stopped_one_left_off() {
         SettleArm::Rejection(r) => panic!("{r:?}"),
     }
     let changed = SettleRaceRequest {
-        credited_plastic: 41,
+        credited_plastic: 201,
         ..SettleRaceRequest {
             race_id: race,
             player_id: player.clone(),
@@ -603,6 +603,6 @@ async fn a_replacement_instance_continues_where_a_stopped_one_left_off() {
         .unwrap()
         .into_inner();
     let (_, profile) = is_success(&next).unwrap();
-    assert_eq!(profile.coins, before.coins - 60);
+    assert_eq!(profile.coins, before.coins - 300);
     assert_eq!(profile.profile_revision, before.profile_revision + 1);
 }

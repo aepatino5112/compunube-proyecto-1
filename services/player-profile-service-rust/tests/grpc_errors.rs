@@ -114,7 +114,7 @@ async fn enums_must_be_specified_and_known() {
             .exchange_materials(ExchangeMaterialsRequest {
                 player_id: "p".into(),
                 request_id: "r".into(),
-                catalog_version: "online-v1".into(),
+                catalog_version: "online-v2".into(),
                 material,
                 amount: 1,
             })
@@ -127,7 +127,7 @@ async fn enums_must_be_specified_and_known() {
             .exchange_materials(ExchangeMaterialsRequest {
                 player_id: "p".into(),
                 request_id: "r".into(),
-                catalog_version: "online-v1".into(),
+                catalog_version: "online-v2".into(),
                 material: Material::Plastic as i32,
                 amount,
             })
@@ -154,7 +154,7 @@ async fn enums_must_be_specified_and_known() {
 #[tokio::test]
 async fn an_unreachable_store_is_unavailable_with_a_fixed_message() {
     let (mut c, stop) = start().await;
-    let item = |id: &str| (id.to_string(), "r1".to_string(), "online-v1".to_string());
+    let item = |id: &str| (id.to_string(), "r1".to_string(), "online-v2".to_string());
     let (player, request, version) = item("p1");
     let results = [
         (
@@ -247,7 +247,7 @@ fn failing(error: RepositoryError) -> Repositories {
 /// One well-formed request per RPC: every one passes validation and reaches
 /// the storage ports.
 async fn well_formed_on_every_rpc(c: &mut Client) -> Vec<(&'static str, Option<Status>)> {
-    let (player, request, version) = ("p1".to_string(), "r1".to_string(), "online-v1".to_string());
+    let (player, request, version) = ("p1".to_string(), "r1".to_string(), "online-v2".to_string());
     vec![
         (
             "GetProfile",
@@ -429,7 +429,7 @@ async fn oversized_or_control_character_ids_and_out_of_range_amounts_are_invalid
         (
             player.to_string(),
             request.to_string(),
-            "online-v1".to_string(),
+            "online-v2".to_string(),
             item_id.to_string(),
         )
     };
@@ -467,7 +467,7 @@ async fn oversized_or_control_character_ids_and_out_of_range_amounts_are_invalid
         .set_appearance(SetAppearanceRequest {
             player_id: "p".into(),
             request_id: long.clone(),
-            catalog_version: "online-v1".into(),
+            catalog_version: "online-v2".into(),
             skin_id: "light".into(),
             hair_color_id: "blue".into(),
         })
@@ -477,7 +477,7 @@ async fn oversized_or_control_character_ids_and_out_of_range_amounts_are_invalid
         .exchange_materials(ExchangeMaterialsRequest {
             player_id: bad.clone(),
             request_id: "r".into(),
-            catalog_version: "online-v1".into(),
+            catalog_version: "online-v2".into(),
             material: Material::Metal as i32,
             amount: 1,
         })

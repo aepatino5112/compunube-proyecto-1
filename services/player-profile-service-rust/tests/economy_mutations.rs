@@ -64,11 +64,11 @@ async fn persisted(env: &common::Env, player: &str) -> Persisted {
 async fn buy_applies_once_and_a_replay_has_no_extra_effect() {
     let env = env!("buy_applies_once_and_a_replay_has_no_extra_effect");
     let player = unique("buy");
-    env.fund(&player, 100, 0, 0).await;
+    env.fund(&player, 500, 0, 0).await;
 
     let (replayed, profile) = applied(env.buy(&player, "r1", "manglar").await);
     assert!(!replayed);
-    assert_eq!((profile.coins, profile.revision), (40, 2));
+    assert_eq!((profile.coins, profile.revision), (200, 2));
     assert!(profile.owns("manglar"));
 
     let (replayed, again) = applied(env.buy(&player, "r1", "manglar").await);
@@ -106,7 +106,7 @@ async fn the_same_request_id_with_a_different_payload_is_an_idempotency_conflict
     );
     // different catalog version string is also a different payload
     assert_eq!(
-        rejected(env.buy_in(&player, "r1", "online-v2", "manglar").await),
+        rejected(env.buy_in(&player, "r1", "online-v1", "manglar").await),
         (R::IdempotencyConflict, false)
     );
     assert_eq!(
@@ -252,7 +252,7 @@ async fn the_first_mutation_provisions_the_profile_lazily() {
 async fn craft_spends_materials_and_grants_the_net() {
     let env = env!("craft_spends_materials_and_grants_the_net");
     let player = unique("craft");
-    env.fund(&player, 5, 10, 5).await;
+    env.fund(&player, 5, 34, 17).await;
     let (_, profile) = applied(env.craft(&player, "c1", "red-reuso").await);
     assert_eq!((profile.plastic, profile.metal, profile.coins), (4, 2, 5));
     assert!(profile.owns("red-reuso"));
@@ -306,7 +306,7 @@ async fn craft_reusing_a_request_id_for_another_payload_is_a_conflict_that_chang
                 .craft_item(common::item_command(
                     &player,
                     "c1",
-                    "online-v2",
+                    "online-v1",
                     "red-reuso"
                 ))
                 .await
@@ -546,7 +546,7 @@ async fn equip_reusing_a_request_id_for_another_payload_is_a_conflict_that_chang
     assert_eq!(
         rejected(
             env.app
-                .equip_item(common::item_command(&player, "q1", "online-v2", "manglar"))
+                .equip_item(common::item_command(&player, "q1", "online-v1", "manglar"))
                 .await
                 .unwrap()
                 .outcome
@@ -657,7 +657,7 @@ async fn appearance_reusing_a_request_id_for_another_payload_is_a_conflict_that_
                 .set_appearance(player_profile_service::application::SetAppearanceCommand {
                     player_id: player.clone(),
                     request_id: "a1".into(),
-                    catalog_version: "online-v2".into(),
+                    catalog_version: "online-v1".into(),
                     skin_id: "deep".into(),
                     hair_color_id: "blue".into(),
                 })
@@ -688,7 +688,7 @@ async fn appearance_reusing_a_request_id_for_another_payload_is_a_conflict_that_
 async fn concurrent_buys_of_one_item_with_distinct_requests_apply_exactly_once() {
     let env = std::sync::Arc::new(env!("concurrent_buys_of_one_item"));
     let player = unique("cbuy");
-    env.fund(&player, 100, 0, 0).await;
+    env.fund(&player, 500, 0, 0).await;
     let mut tasks = Vec::new();
     for n in 0..12 {
         let env = env.clone();
@@ -711,7 +711,7 @@ async fn concurrent_buys_of_one_item_with_distinct_requests_apply_exactly_once()
     let profile = env.profile(&player).await;
     assert_eq!(
         (profile.coins, profile.revision),
-        (40, 2),
+        (200, 2),
         "charged exactly once"
     );
     assert_eq!(
@@ -728,7 +728,7 @@ async fn concurrent_buys_of_one_item_with_distinct_requests_apply_exactly_once()
 async fn concurrent_duplicates_of_one_request_apply_once_and_replay_the_rest() {
     let env = std::sync::Arc::new(env!("concurrent_duplicates_of_one_request"));
     let player = unique("cdup");
-    env.fund(&player, 100, 0, 0).await;
+    env.fund(&player, 500, 0, 0).await;
     let mut tasks = Vec::new();
     for _ in 0..12 {
         let env = env.clone();
@@ -742,7 +742,7 @@ async fn concurrent_duplicates_of_one_request_apply_once_and_replay_the_rest() {
     for task in tasks {
         let (replayed, profile) = applied(task.await.unwrap());
         assert!(profile.owns("manglar"));
-        assert_eq!(profile.coins, 40);
+        assert_eq!(profile.coins, 200);
         if replayed {
             replays += 1;
         } else {
@@ -847,7 +847,7 @@ async fn mixed_concurrent_buy_craft_and_exchange_keep_every_invariant() {
     // conservation: balances equal start +/- what the applied operations moved
     let bought: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(e.price_coins), 0)::bigint FROM player.owned_items o \
-         JOIN player.catalog_entries e ON e.item_id = o.item_id AND e.catalog_version = 'online-v1' \
+         JOIN player.catalog_entries e ON e.item_id = o.item_id AND e.catalog_version = 'online-v2' \
          WHERE o.player_id = $1 AND o.acquisition_type = 'buy'",
     )
     .bind(&player)
@@ -857,7 +857,7 @@ async fn mixed_concurrent_buy_craft_and_exchange_keep_every_invariant() {
     let crafted: (i64, i64) = sqlx::query_as(
         "SELECT COALESCE(SUM(e.recipe_plastic), 0)::bigint, COALESCE(SUM(e.recipe_metal), 0)::bigint \
          FROM player.owned_items o \
-         JOIN player.catalog_entries e ON e.item_id = o.item_id AND e.catalog_version = 'online-v1' \
+         JOIN player.catalog_entries e ON e.item_id = o.item_id AND e.catalog_version = 'online-v2' \
          WHERE o.player_id = $1 AND o.acquisition_type = 'craft'",
     )
     .bind(&player)

@@ -98,7 +98,7 @@ async fn request_log_has_identity_outcome_and_latency_but_no_secrets_or_ids() {
         .buy_item(BuyItemRequest {
             player_id: player.clone(),
             request_id: format!("req-{SECRET}"),
-            catalog_version: "online-v1".into(),
+            catalog_version: "online-v2".into(),
             item_id: "kart".into(),
         })
         .await;
@@ -131,7 +131,7 @@ async fn request_log_has_identity_outcome_and_latency_but_no_secrets_or_ids() {
     // Neither the ids sent by the client nor anything secret is logged.
     let everything = serde_json::to_string(&lines).unwrap();
     assert!(!everything.contains(SECRET), "{everything}");
-    assert!(!everything.contains("online-v1"), "{everything}");
+    assert!(!everything.contains("online-v2"), "{everything}");
     assert!(!everything.contains("postgres://"), "{everything}");
     let metrics_text = h.metrics.render();
     assert!(!metrics_text.contains(SECRET));
@@ -160,7 +160,7 @@ async fn buy(h: &mut Harness, correlation: Option<&[u8]>) {
     let mut request = tonic::Request::new(BuyItemRequest {
         player_id: PLAYER.into(),
         request_id: BUSINESS_REQUEST.into(),
-        catalog_version: "online-v1".into(),
+        catalog_version: "online-v2".into(),
         item_id: "manglar".into(),
     });
     if let Some(bytes) = correlation {
@@ -313,7 +313,7 @@ async fn request_logs_carry_only_the_documented_fields_and_no_business_data() {
     let mut request = tonic::Request::new(BuyItemRequest {
         player_id: PLAYER.into(),
         request_id: BUSINESS_REQUEST.into(),
-        catalog_version: "online-v1".into(),
+        catalog_version: "online-v2".into(),
         item_id: "manglar".into(),
     });
     let metadata = request.metadata_mut();
@@ -363,7 +363,7 @@ async fn request_logs_carry_only_the_documented_fields_and_no_business_data() {
         BUSINESS_REQUEST,
         TOKEN,
         "manglar",
-        "online-v1",
+        "online-v2",
         "postgres://",
     ] {
         assert!(

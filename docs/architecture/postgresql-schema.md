@@ -102,7 +102,7 @@ Definición versionada de cada objeto.
 
 PK compuesta: **`(catalog_version, item_id)`**.
 
-Los valores de precio/receta vienen de datos de referencia del juego; E41 no inventa cantidades. La migración `0002` (F52) publica `online-v1` con las 22 entradas copiadas de `apps/web/dist/economy.js`; `price_coins` NULL significa «no se vende» y una receta > 0 significa «se fabrica». `metadata` guarda como strings `color`, `rarity` (redes) y, en personajes, `gender`, `morph`, `skin`, `hairColor`, `hair`. Reglas como «solo redes son craftables» siguen siendo invariantes de dominio Rust además de los constraints básicos.
+Los valores de precio/receta vienen de datos de referencia del juego; E41 no inventa cantidades. La migración `0004` publica `online-v2` (precios y recetas ×5) y retira `online-v1`. La migración `0002` (F52) publicó `online-v1` con las 22 entradas copiadas de `apps/web/dist/economy.js`; `price_coins` NULL significa «no se vende» y una receta > 0 significa «se fabrica». `metadata` guarda como strings `color`, `rarity` (redes) y, en personajes, `gender`, `morph`, `skin`, `hairColor`, `hair`. Reglas como «solo redes son craftables» siguen siendo invariantes de dominio Rust además de los constraints básicos.
 
 ### `player.owned_items`
 

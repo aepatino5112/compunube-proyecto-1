@@ -19,13 +19,13 @@ const kit=createEquipmentKit(assets), surfer=await load('surfer'),amara=await lo
 const club=[amara,...await Promise.all(['nico','luna','samuel'].map(id=>load(`surfer-${id}`)))];
 
 test('equipped designs survive crafting, purchases and an existing v1 save',()=>{
-  let profile={...freshProfile(),coins:100,plastic:10,metal:5};
+  let profile={...freshProfile(),coins:500,plastic:50,metal:25};
   for(const action of [{type:'buy',id:'manglar'},{type:'craft',id:'red-marea'},{type:'equip',id:'manglar'},{type:'equip',id:'red-marea'}]) {
     const result=transact(profile,action);assert.equal(result.error,null);profile=result.profile;
   }
   const restored=restoreProfile(JSON.parse(JSON.stringify(profile)));
   assert.deepEqual(restored.equipped,{board:'manglar',net:'red-marea',outfit:'costero',hair:'swept',character:'nico'});
-  assert.equal(restored.coins,40);assert.equal(restored.plastic,0);assert.equal(restored.metal,0);
+  assert.equal(restored.coins,200);assert.equal(restored.plastic,0);assert.equal(restored.metal,0);
   const board=kit.board(restored.equipped.board), net=kit.net(restored.equipped.net);
   assert.equal(board.userData.equipmentId,'manglar');
   assert.equal(net.group.userData.equipmentId,'red-marea');
