@@ -256,3 +256,14 @@ Actualizarlo si cambia:
 - rollback;
 - publicación de imágenes;
 - infraestructura del laboratorio.
+
+### Carreras completas bajo demanda (E2E Race)
+
+CI Integration ya no corre carreras completas: cada carrera de 1800 m tarda minutos en un runner alojado. Comprueba stack, base de datos, contratos, economía (J83), integración web contra Go, navegador (Swagger y lobby por HTTPS), readiness (J85), Prometheus (H68) y Grafana (H69). El workflow **E2E Race** (`workflow_dispatch`) ejecuta las carreras reales:
+
+- G58: el cliente Python y su ventana;
+- I73: resiliencia y failover con carreras;
+- I72: salas concurrentes;
+- G56/G59: dos navegadores (instancias TypeScript y Python) más el cliente Python.
+
+Se lanza desde Actions → E2E Race → Run workflow.

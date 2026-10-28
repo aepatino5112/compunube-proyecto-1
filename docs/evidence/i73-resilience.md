@@ -30,3 +30,5 @@ Harness: [`scripts/validation/i73-resilience.py`](../../scripts/validation/i73-r
 - **Resultado en memoria durante la caída de PostgreSQL:** Go reintenta cada segundo; un reinicio de Go durante esa ventana perdería el resultado. No se forzó.
 - El cliente web cubre la reentrada en su propia integración (G61); esta prueba usa clientes Python.
 - Entorno: runner de GitHub Actions; no es el laboratorio.
+
+**Desde la PR de carreras bajo demanda:** esta validación corre en el workflow **E2E Race** (Actions → E2E Race → Run workflow), no en CI Integration: cada carrera de 1800 m tarda minutos en un runner alojado.

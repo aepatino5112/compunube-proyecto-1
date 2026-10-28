@@ -150,13 +150,9 @@ jobs:
       - name: Install Python client dependencies (G58)
         run: python3 -m pip install -r apps/client-secondary/requirements.txt
 
-      - name: Validate the Python client against a real race (G58)
-        env:
-          G58_SKIP_BUILD: "1"
-        run: python3 scripts/validation/g58-python-client.py
-
-      # The Python window race (G58 GUI) and the concurrent rooms (I72) run on
-      # demand in E2E Race, with the two-browser race.
+      # Every full race (G58 client and window, I72 rooms, I73 failover and the
+      # two-browser race) runs on demand in E2E Race: each 1800 m race takes
+      # minutes on a hosted runner.
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -193,10 +189,6 @@ jobs:
           path: apps/web/e2e-results
           if-no-files-found: ignore
 
-      - name: Resilience and failover with real clients (I73)
-        env:
-          I73_SKIP_BUILD: "1"
-        run: python3 scripts/validation/i73-resilience.py
 
       - name: Validate gRPC Compose readiness and recovery (J85)
         env:
