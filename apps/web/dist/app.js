@@ -299,6 +299,9 @@ $('three-r-help').addEventListener('click', () => dialog('Tres R. Una buena cost
 
 // Title screen: Surf Club over the Maracaibo course in motion, and three ways in.
 function showTitle() {
+  // Visible from the first paint as a loader; the buttons open once the game is ready.
+  $('title-screen').classList.remove('is-loading'); $('title-screen').removeAttribute('aria-busy');
+  for (const id of ['title-play', 'title-friends', 'title-club']) $(id).disabled = false;
   $('title-screen').hidden = false; $('menu').inert = true; document.querySelector('.topbar').inert = true;
   game.title($('title-world')); $('title-play').focus({ preventScroll: true });
 }

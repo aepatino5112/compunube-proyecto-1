@@ -5,16 +5,17 @@
 </head><body>
 <header class="topbar" inert><a class="brand" href="/" aria-label="Surf Club: Acción por las Aguas, inicio"><svg viewBox="0 0 48 48" aria-hidden="true"><defs><clipPath id="brand-sun-clip"><circle cx="24" cy="22" r="17"/></clipPath></defs><circle class="brand-sun" cx="24" cy="22" r="17"/><g clip-path="url(#brand-sun-clip)"><rect class="brand-sun-low" x="0" y="22" width="48" height="20"/><rect class="brand-cut" x="0" y="24.5" width="48" height="1.8"/><rect class="brand-cut" x="0" y="29" width="48" height="2.4"/><rect class="brand-cut" x="0" y="34" width="48" height="3"/></g><circle class="brand-rim" cx="24" cy="22" r="17"/><path class="brand-wave" d="M3 37c5 0 6-4 10.5-4s5.5 4 10.5 4 6-4 10.5-4 5.5 4 10.5 4"/><path class="brand-wave" d="M7 44c4 0 5-3 8.5-3s4.5 3 8.5 3 5-3 8.5-3 4.5 3 8.5 3"/></svg><span class="brand-name">Surf Club</span><span class="brand-divider"></span><span class="club">Acción por las Aguas</span></a><nav id="main-nav" aria-label="Navegación principal"><button data-page="home" aria-pressed="true">Inicio</button><button data-page="shop" aria-pressed="false">Tienda</button><button data-page="workshop" aria-pressed="false">Taller</button></nav><div class="wallet"><span class="coin-icon" aria-hidden="true">◈</span><strong id="coins">0</strong><span class="sr-only">monedas</span><button id="materials-button" aria-expanded="false" aria-controls="materials-popover">Materiales ⌄</button><div id="materials-popover" class="materials-popover" hidden><strong>Lo que has recuperado</strong><p><span>Plástico</span><b id="wallet-plastic">0</b></p><p><span>Chatarra</span><b id="wallet-metal">0</b></p><small>Guárdalos para fabricar o canjéalos por monedas.</small></div></div></header>
 <p id="loading-status" class="loading-status" role="status">Preparando los modelos y el agua…</p>
-<section id="title-screen" class="title-screen" aria-labelledby="title-heading" hidden>
+<section id="title-screen" class="title-screen is-loading" aria-labelledby="title-heading" aria-busy="true">
   <div id="title-world" class="title-world" aria-hidden="true"></div>
   <div class="title-shade" aria-hidden="true"></div>
   <div class="title-content">
     <h1 id="title-heading" class="title-name">Surf Club<span>Acción por las Aguas</span></h1>
     <nav class="title-actions" aria-label="Empezar">
-      <button id="title-play" class="title-button title-primary" type="button">Jugar</button>
-      <button id="title-friends" class="title-button" type="button">Jugar con amigos</button>
-      <button id="title-club" class="title-button" type="button">El club</button>
+      <button id="title-play" class="title-button title-primary" type="button" disabled>Jugar</button>
+      <button id="title-friends" class="title-button" type="button" disabled>Jugar con amigos</button>
+      <button id="title-club" class="title-button" type="button" disabled>El club</button>
     </nav>
+    <p class="title-loading" role="status"><span aria-hidden="true"></span>Preparando el agua…</p>
   </div>
 </section>
 <main id="menu" class="menu" aria-busy="true" inert><div class="progress-context"><span>PROGRESO <b id="progress-scope">LOCAL</b></span><button id="profile-open" type="button" aria-label="Mi progreso: local">Mi progreso <span aria-hidden="true">↗</span></button></div><div id="profile-operation" class="profile-operation" role="status" hidden><p id="profile-operation-text"></p><button id="profile-operation-open" type="button">Ver confirmación</button></div>
